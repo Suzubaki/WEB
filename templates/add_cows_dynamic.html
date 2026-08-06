@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+
+{% block title %}Добавление коров (динамически){% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    let cowCount = 1;
+    let draftData = [];
+    
+    // Функция создания строки коровы
+    function createCowRow(index) {
+        return `
+            <div class="card cow-row mb-3" id="cow-row-${index}">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Корова #${index}</h5>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-cow-btn" data-index="${index}">
+                        <i class="bi bi-trash"></i> Удалить
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Категория *</label>
+                            <select class="form-select category-select" data-index="${index}" required>
+                                <option value="">Выберите категорию</option>
+                                <option value="падёж">Падёж</option>
+                                <option value="выбраковка">Выбраковка</option>
+                                <option value="санитарный">Санитарный блок</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Причина *</label>
+                            <select class="form-select reason-select" id="reason-${index}" disabled required>
+                                <option value="">Сначала выберите категорию</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Дата выбытия *</label>
+                            <input type="date" class="form-control disposal-date" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Восстановление черновика из localStorage
+    const savedDraft = localStorage.getItem('cows_draft');
+    if (savedDraft) {
+        try {
+            draftData = JSON.parse(savedDraft);
+            if (Array.isArray(draftData) && draftData.length > 0) {
+                if (confirm('Обнаружен черновик с данными. Восстановить?')) {
+                    cowCount = draftData.length;
+                    draftData.forEach((cow, index) => {
+                        $('#cows-container').append(createCowRow(index + 1));
+                        setTimeout(() => {
+                            const $row = $(`#cow-row-${index + 1}`);
+                            $row.find('.category-select').val(cow.category).trigger('change');
+                            setTimeout(() => {
+                                $row.find('.reason-select').val(cow.reason);
+                                $row.find('.disposal-date').val(cow.disposal_date);
+                            }, 100);
+                        }, 50);
+                    });
+                } else {
+                    localStorage.removeItem('cows_draft');
+                    $('#cows-container').append(createCowRow(cowCount));
+                }
+            }
+        } catch (e) {
+            localStorage.removeItem('cows_draft');
+            $('#cows-container').append(createCowRow(cowCount));
+        }
+    } else {
+        // Изначально показываем одну корову
+        $('#cows-container').append(createCowRow(cowCount));
+    }
+    
+    // Обработчик кнопки "Добавить корову"
+    $('#add-cow-btn').click(function() {
+        cowCount++;
+        $('#cows-container').append(createCowRow(cowCount));
+        updateCowNumbers();
+        saveDraft();
+    });
+    
+    // Обработчик кнопки удаления коровы
+    $(document).on('click', '.delete-cow-btn', function() {
+        const index = $(this).data('index');
+        if ($('.cow-row').length > 1) {
+            $(`#cow-row-${index}`).remove();
+            updateCowNumbers();
+            saveDraft();
+        } else {
+            alert('Должна остаться хотя бы одна корова');
+        }
+    });
+    
+    // Функция обновления номеров коров
+    function updateCowNumbers() {
+        $('.cow-row').each(function(index) {
+            const newIndex = index + 1;
+            $(this).find('h5').text(`Корова #${newIndex}`);
+            $(this).attr('id', `cow-row-${newIndex}`);
+            
+            // Обновляем data-атрибуты и ID элементов
+            $(this).find('.category-select').attr('data-index', newIndex);
+            $(this).find('.reason-select').attr('id', `reason-${newIndex}`);
+            $(this).find('.delete-cow-btn').attr('data-index', newIndex);
+        });
+    }
+    
+    // Загрузка причин при выборе категории
+    $(document).on('change', '.category-select', function() {
+        var category = $(this).val();
+        var rowIndex = $(this).data('index');
+        
+        if (category) {
+            $.getJSON('/get_reasons/' + category, function(data) {
+                var $reasonSelect = $('#reason-' + rowIndex);
+                $reasonSelect.empty();
+                $reasonSelect.append('<option value="">Выберите причину</option>');
+                $.each(data, function(index, reason) {
+                    $reasonSelect.append('<option value="' + reason + '">' + reason + '</option>');
+                });
+                $reasonSelect.prop('disabled', false);
+            });
+        }
+        saveDraft();
+    });
+    
+    // Сохранение черновика при изменении данных
+    $(document).on('change', '.reason-select, .disposal-date', function() {
+        saveDraft();
+    });
+    
+    // Функция сохранения черновика
+    function saveDraft() {
+        const cowsData = [];
+        let isValid = true;
+        
+        $('.cow-row').each(function(index) {
+            var category = $(this).find('.category-select').val();
+            var reason = $(this).find('.reason-select').val();
+            var disposalDate = $(this).find('.disposal-date').val();
+            
+            if (category || reason || disposalDate) {
+                cowsData.push({
+                    category: category || '',
+                    reason: reason || '',
+                    disposal_date: disposalDate || ''
+                });
+            }
+        });
+        
+        if (cowsData.length > 0) {
+            localStorage.setItem('cows_draft', JSON.stringify(cowsData));
+        }
+    }
+    
+    // Отправка формы
+    $('#cows-form').submit(function(e) {
+        e.preventDefault();
+        
+        var cowsData = [];
+        var isValid = true;
+        
+        $('.cow-row').each(function(index) {
+            var category = $(this).find('.category-select').val();
+            var reason = $(this).find('.reason-select').val();
+            var disposalDate = $(this).find('.disposal-date').val();
+            
+            if (!category || !reason || !disposalDate) {
+                isValid = false;
+                $(this).addClass('border-danger');
+                return;
+            }
+            
+            $(this).removeClass('border-danger');
+            
+            cowsData.push({
+                category: category,
+                reason: reason,
+                disposal_date: disposalDate
+            });
+        });
+        
+        if (!isValid) {
+            alert('Заполните все обязательные поля для всех коров');
+            return;
+        }
+        
+        // Очищаем черновик перед отправкой
+        localStorage.removeItem('cows_draft');
+        
+        // Показываем окно подтверждения
+        if (confirm(`Сохранить ${cowsData.length} коров?`)) {
+            // Отправляем данные на сервер
+            $.ajax({
+                url: '{{ url_for("add_multiple_cows") }}',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    cows_data: cowsData
+                }),
+                success: function(response) {
+                    window.location.href = '{{ url_for("view_cows") }}';
+                },
+                error: function() {
+                    alert('Ошибка при сохранении данных');
+                    // Восстанавливаем черновик при ошибке
+                    saveDraft();
+                }
+            });
+        } else {
+            saveDraft(); // Сохраняем черновик если отмена
+        }
+    });
+    
+    // Обработчик кнопки отмены
+    $('#cancel-btn').click(function() {
+        const hasData = $('.cow-row').filter(function() {
+            return $(this).find('.category-select').val() || 
+                   $(this).find('.reason-select').val() || 
+                   $(this).find('.disposal-date').val();
+        }).length > 0;
+        
+        if (hasData) {
+            $('#cancelConfirmModal').modal('show');
+        } else {
+            localStorage.removeItem('cows_draft');
+            window.location.href = '{{ url_for("dashboard") }}';
+        }
+    });
+    
+    // Обработчик подтверждения отмены
+    $('#confirmCancelBtn').click(function() {
+        localStorage.removeItem('cows_draft');
+        window.location.href = '{{ url_for("dashboard") }}';
+    });
+    
+    // Обработчик сохранения черновика перед отменой
+    $('#saveDraftBtn').click(function() {
+        saveDraft();
+        $('#cancelConfirmModal').modal('hide');
+        showToast('Черновик сохранен. Вы можете вернуться позже.', 'success');
+    });
+    
+    // Сохраняем черновик при закрытии страницы
+    $(window).on('beforeunload', function() {
+        const hasData = $('.cow-row').filter(function() {
+            return $(this).find('.category-select').val() || 
+                   $(this).find('.reason-select').val() || 
+                   $(this).find('.disposal-date').val();
+        }).length > 0;
+        
+        if (hasData) {
+            saveDraft();
+            // return 'У вас есть несохраненные данные. Вы уверены, что хотите покинуть страницу?';
+        }
+    });
+    
+    // Функция для показа toast уведомлений
+    function showToast(message, type = 'info') {
+        const toastId = 'toast-' + Date.now();
+        const icon = type === 'success' ? 'bi-check-circle' : 'bi-info-circle';
+        const bgColor = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+        
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center ${bgColor} text-white border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi ${icon} me-2"></i> ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        
+        $('.toast-container').append(toastHtml);
+        const toastEl = $('#' + toastId);
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+        
+        toastEl.on('hidden.bs.toast', function() {
+            $(this).remove();
+        });
+    }
+});
+
+// Проверяем наличие черновика при загрузке страницы
+$(window).on('load', function() {
+    const savedDraft = localStorage.getItem('cows_draft');
+    if (savedDraft) {
+        try {
+            const draftData = JSON.parse(savedDraft);
+            if (draftData.length > 0) {
+                const hasData = draftData.some(cow => cow.category || cow.reason || cow.disposal_date);
+                if (hasData) {
+                    showToast('Обнаружен черновик с несохраненными данными.', 'info');
+                }
+            }
+        } catch (e) {
+            // Игнорируем ошибки парсинга
+        }
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-plus-circle-dotted"></i> Добавление коров (динамически)</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle"></i> Инструкция</h5>
+                    <p>Добавляйте коров по одной. ID коровы будет сгенерирован автоматически в формате: <strong>{{ farm_name }}-001</strong></p>
+                    <p>Нажмите "Добавить корову" для добавления ещё одной строки.</p>
+                    <p class="mb-0"><strong>Важно:</strong> Данные автоматически сохраняются в черновик при вводе.</p>
+                </div>
+                
+                <form id="cows-form">
+                    <input type="hidden" name="farm_name" value="{{ farm_name }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Ферма</label>
+                        <input type="text" class="form-control" value="{{ farm_name }}" disabled>
+                        <div class="form-text">ID коров будут сгенерированы для этой фермы</div>
+                    </div>
+                    
+                    <!-- Контейнер для динамически добавляемых коров -->
+                    <div id="cows-container"></div>
+                    
+                    <!-- Кнопка добавления новой коровы -->
+                    <div class="text-center mb-4">
+                        <button type="button" id="add-cow-btn" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle"></i> Добавить корову
+                        </button>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" id="cancel-btn" class="btn btn-danger me-2">
+                            <i class="bi bi-x-circle"></i> Отмена
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Сохранить всех коров
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Категории выбытия</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="categoriesAccordion">
+                    {% for category, reasons in categories.items() %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ loop.index }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse{{ loop.index }}">
+                                {{ category|capitalize }}
+                            </button>
+                        </h2>
+                        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" 
+                             data-bs-parent="#categoriesAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-group list-group-flush">
+                                    {% for reason in reasons %}
+                                    <li class="list-group-item">{{ reason }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Контейнер для toast уведомлений -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1050;"></div>
+
+<!-- Модальное окно подтверждения отмены -->
+<div class="modal fade" id="cancelConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Подтверждение отмены</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>У вас есть несохраненные данные. Что вы хотите сделать?</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <small>Черновик автоматически сохраняется при вводе данных.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left"></i> Вернуться
+                </button>
+                <button type="button" class="btn btn-success" id="saveDraftBtn">
+                    <i class="bi bi-save"></i> Сохранить черновик
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmCancelBtn">
+                    <i class="bi bi-trash"></i> Удалить и выйти
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Предпросмотр отчёта{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Печать отчёта
+    $('#printReport').click(function() {
+        window.print();
+    });
+    
+    // Скачивание в разных форматах
+    $('#downloadExcel').click(function() {
+        // Здесь будет AJAX запрос для скачивания Excel
+        alert('Для скачивания Excel используйте форму генерации отчётов');
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Предпросмотр отчёта</h4>
+                <div>
+                    <button id="printReport" class="btn btn-light btn-sm me-2">
+                        <i class="bi bi-printer"></i> Печать
+                    </button>
+                    <a href="{{ url_for('reports') }}" class="btn btn-light btn-sm">
+                        <i class="bi bi-arrow-left"></i> Назад
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Заголовок отчёта -->
+                <div class="text-center mb-4">
+                    <h2>Отчёт по выбытию скота</h2>
+                    <h5>Период: {{ start_date }} - {{ end_date }}</h5>
+                    {% if farm_filter and farm_filter != 'all' %}
+                    <h5>Ферма: {{ farm_filter }}</h5>
+                    {% else %}
+                    <h5>Все фермы</h5>
+                    {% endif %}
+                    <p class="text-muted">Сгенерировано: {{ summary.generated_at if summary.generated_at else "Сейчас" }}</p>
+                </div>
+                
+                <!-- Сводная статистика -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-primary">{{ summary.total_cows }}</h3>
+                                <p class="text-muted">Всего коров</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% for category, count in summary.by_category.items() %}
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-info">{{ count }}</h3>
+                                <p class="text-muted">{{ category|capitalize }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Детальная таблица -->
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID коровы</th>
+                                <th>Ферма</th>
+                                <th>Категория</th>
+                                <th>Причина</th>
+                                <th>Дата выбытия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cow in data %}
+                            <tr>
+                                <td>{{ cow.cow_id }}</td>
+                                <td>{{ cow.farm_name }}</td>
+                                <td>
+                                    {% if cow.category == 'падёж' %}
+                                        <span class="badge bg-danger">Падёж</span>
+                                    {% elif cow.category == 'выбраковка' %}
+                                        <span class="badge bg-warning">Выбраковка</span>
+                                    {% elif cow.category == 'санитарный' %}
+                                        <span class="badge bg-info">Санитарный</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ cow.reason }}</td>
+                                <td>{{ cow.disposal_date }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Статистика по причинам -->
+                {% if summary.by_reason %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Статистика по причинам выбытия</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for reason, count in summary.by_reason.items() %}
+                            <div class="col-md-4 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>{{ reason }}</span>
+                                    <span class="badge bg-secondary">{{ count }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Статистика по фермам (только для админов) -->
+                {% if summary.by_farm and farm_filter == 'all' %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Распределение по фермам</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for farm, count in summary.by_farm.items() %}
+                            <div class="col-md-6 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>{{ farm }}</span>
+                                    <span class="badge bg-primary">{{ count }}</span>
+                                </div>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ (count / summary.total_cows * 100)|round(1) }}%">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Кнопки действий -->
+                <div class="text-center mt-4">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('reports') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад к генерации
+                        </a>
+                        <button type="button" class="btn btn-primary" id="downloadExcel">
+                            <i class="bi bi-file-earmark-excel"></i> Скачать Excel
+                        </button>
+                        <button type="button" class="btn btn-success" id="printReport">
+                            <i class="bi bi-printer"></i> Печать отчёта
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .navbar, .card-header .btn, .btn-group, .footer {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .card-header {
+        background-color: white !important;
+        color: black !important;
+        border-bottom: 2px solid #000 !important;
+    }
+    
+    .table thead th {
+        background-color: #f8f9fa !important;
+        color: black !important;
+    }
+}
+</style>
+{% endblock %}

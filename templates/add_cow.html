@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Добавление коровы{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Загрузка причин при выборе категории
+    $('#category').change(function() {
+        var category = $(this).val();
+        if (category) {
+            $.getJSON('/get_reasons/' + category, function(data) {
+                var $reasonSelect = $('#reason');
+                $reasonSelect.empty();
+                $reasonSelect.append('<option value="">Выберите причину</option>');
+                $.each(data, function(index, reason) {
+                    $reasonSelect.append('<option value="' + reason + '">' + reason + '</option>');
+                });
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавление записи о выбытии коровы</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_cow') }}">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> ID коровы будет сгенерирован автоматически в формате: <strong>{{ farm_name }}-001</strong>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Ферма</label>
+                            <input type="text" class="form-control" value="{{ farm_name }}" disabled>
+                            <div class="form-text">ID коровы будет привязан к этой ферме</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="category" class="form-label">Категория выбытия *</label>
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="">Выберите категорию...</option>
+                                {% for category in categories.keys() %}
+                                <option value="{{ category }}">{{ category|capitalize }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="reason" class="form-label">Причина выбытия *</label>
+                            <select class="form-select" id="reason" name="reason" required disabled>
+                                <option value="">Сначала выберите категорию</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="disposal_date" class="form-label">Дата выбытия *</label>
+                            <input type="date" class="form-control" id="disposal_date" name="disposal_date" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Сохранить запись
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Информация о категориях</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="categoriesAccordion">
+                    {% for category, reasons in categories.items() %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ loop.index }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse{{ loop.index }}">
+                                {{ category|capitalize }}
+                            </button>
+                        </h2>
+                        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" 
+                             data-bs-parent="#categoriesAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-group list-group-flush">
+                                    {% for reason in reasons %}
+                                    <li class="list-group-item">{{ reason }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

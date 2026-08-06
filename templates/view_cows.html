@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}Просмотр записей о коровах{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Загрузка ферм для администраторов
+    {% if user_type == 'admin' %}
+    $.getJSON('/get_farms', function(data) {
+        var $farmSelect = $('#farm_filter');
+        $farmSelect.empty();
+        $farmSelect.append('<option value="">Все фермы</option>');
+        $.each(data, function(index, farm) {
+            $farmSelect.append('<option value="' + farm + '">' + farm + '</option>');
+        });
+    });
+    {% endif %}
+    
+    // Загрузка причин при выборе категории
+    $('#category_filter').change(function() {
+        var category = $(this).val();
+        var $reasonSelect = $('#reason_filter');
+        
+        if (category) {
+            $.getJSON('/get_reasons/' + category, function(data) {
+                $reasonSelect.empty();
+                $reasonSelect.append('<option value="">Все причины</option>');
+                $.each(data, function(index, reason) {
+                    $reasonSelect.append('<option value="' + reason + '">' + reason + '</option>');
+                });
+                $reasonSelect.prop('disabled', false);
+            });
+        } else {
+            $reasonSelect.empty();
+            $reasonSelect.append('<option value="">Все причины</option>');
+            $reasonSelect.prop('disabled', true);
+        }
+    });
+    
+    // Применение фильтров
+    $('#apply_filters').click(function() {
+        var farm_filter = $('#farm_filter').val() || '';
+        var category_filter = $('#category_filter').val() || '';
+        var reason_filter = $('#reason_filter').val() || '';
+        var date_sort = $('#date_sort').val() || 'newest';
+        
+        // Фильтрация строк таблицы
+        $('#cowsTable tbody tr').each(function() {
+            var showRow = true;
+            var farm_cell = $(this).find('td:eq(1)').text();
+            var category_cell = $(this).find('td:eq(2) span').text().trim();
+            var reason_cell = $(this).find('td:eq(3)').text();
+            
+            // Фильтр по ферме
+            if (farm_filter && farm_cell !== farm_filter) {
+                showRow = false;
+            }
+            
+            // Фильтр по категории
+            if (category_filter) {
+                // Преобразуем текст категории к нижнему регистру для сравнения
+                var category_cell_lower = category_cell.toLowerCase();
+                if (category_cell_lower !== category_filter) {
+                    showRow = false;
+                }
+            }
+            
+            // Фильтр по причине
+            if (reason_filter && reason_cell !== reason_filter) {
+                showRow = false;
+            }
+            
+            $(this).toggle(showRow);
+        });
+        
+        // Сортировка по дате
+        if (date_sort) {
+            var rows = $('#cowsTable tbody tr').toArray();
+            
+            rows.sort(function(a, b) {
+                var dateA = $(a).find('td:eq(4)').text();
+                var dateB = $(b).find('td:eq(4)').text();
+                
+                if (date_sort === 'newest') {
+                    return dateB.localeCompare(dateA); // Новые сначала
+                } else {
+                    return dateA.localeCompare(dateB); // Старые сначала
+                }
+            });
+            
+            $('#cowsTable tbody').empty().append(rows);
+        }
+        
+        updateRowCount();
+    });
+    
+    // Сброс фильтров
+    $('#reset_filters').click(function() {
+        $('#farm_filter').val('');
+        $('#category_filter').val('');
+        $('#reason_filter').val('');
+        $('#date_sort').val('newest');
+        $('#cowsTable tbody tr').show();
+        updateRowCount();
+    });
+    
+    // Обновление счетчика строк
+    function updateRowCount() {
+        var visibleRows = $('#cowsTable tbody tr:visible').length;
+        $('#row_count').text(visibleRows);
+    }
+    
+    // Инициализация
+    updateRowCount();
+    
+    // Быстрый поиск
+    $('#searchInput').on('keyup', function() {
+        var value = $(this).val().toLowerCase();
+        $('#cowsTable tbody tr').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+        });
+        updateRowCount();
+    });
+    
+    // Удаление записи
+    $(document).on('click', '.delete-cow-btn', function() {
+        var cowId = $(this).data('cow-id');
+        var cowNumber = $(this).data('cow-number');
+        
+        if (confirm(`Вы уверены, что хотите удалить запись о корове с ID ${cowNumber}?`)) {
+            // Показываем индикатор загрузки
+            $(this).html('<i class="bi bi-hourglass-split"></i> Удаление...').prop('disabled', true);
+            
+            // Отправляем POST запрос на удаление
+            var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+            
+            $.ajax({
+                url: '/delete_cow/' + cowId,
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                success: function(response) {
+                    // Перезагружаем страницу для обновления данных
+                    window.location.reload();
+                },
+                error: function(xhr, status, error) {
+                    alert('Ошибка при удалении записи: ' + (xhr.responseText || error));
+                    // Восстанавливаем кнопку
+                    $('.delete-cow-btn[data-cow-id="' + cowId + '"]')
+                        .html('<i class="bi bi-trash"></i> Удалить')
+                        .prop('disabled', false);
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-list-check"></i> Записи о выбытии коров</h4>
+            </div>
+            <div class="card-body">
+                <!-- Фильтры -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h5><i class="bi bi-funnel"></i> Фильтры и сортировка</h5>
+                        <div class="row g-3">
+                            {% if user_type == 'admin' %}
+                            <div class="col-md-3">
+                                <label class="form-label">Ферма</label>
+                                <select class="form-select" id="farm_filter">
+                                    <option value="">Загрузка ферм...</option>
+                                </select>
+                            </div>
+                            {% else %}
+                            <div class="col-md-3">
+                                <label class="form-label">Ферма</label>
+                                <input type="text" class="form-control" value="{{ session.farm_name }}" disabled>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="col-md-3">
+                                <label class="form-label">Категория</label>
+                                <select class="form-select" id="category_filter">
+                                    <option value="">Все категории</option>
+                                    <option value="падёж">Падёж</option>
+                                    <option value="выбраковка">Выбраковка</option>
+                                    <option value="санитарный">Санитарный</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label class="form-label">Причина</label>
+                                <select class="form-select" id="reason_filter" disabled>
+                                    <option value="">Все причины</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label class="form-label">Сортировка по дате</label>
+                                <select class="form-select" id="date_sort">
+                                    <option value="newest">Самые новые сначала</option>
+                                    <option value="oldest">Самые старые сначала</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-12">
+                                <div class="d-flex justify-content-end gap-2 mt-3">
+                                    <button type="button" id="reset_filters" class="btn btn-outline-secondary">
+                                        <i class="bi bi-x-circle"></i> Сбросить фильтры
+                                    </button>
+                                    <button type="button" id="apply_filters" class="btn btn-primary">
+                                        <i class="bi bi-funnel"></i> Применить фильтры
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Быстрый поиск -->
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Быстрый поиск по всем полям...">
+                    </div>
+                </div>
+                
+                {% if cows %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="cowsTable">
+                        <thead>
+                            <tr>
+                                <th data-sort>ID коровы</th>
+                                <th data-sort>Ферма</th>
+                                <th data-sort>Категория</th>
+                                <th data-sort>Причина</th>
+                                <th data-sort>Дата выбытия</th>
+                                <th data-sort>Дата добавления</th>
+                                {% if user_type != 'admin' %}
+                                <th>Действия</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cow in cows %}
+                            <tr>
+                                <td><strong>{{ cow['cow_id'] }}</strong></td>
+                                <td>{{ cow['farm_name'] }}</td>
+                                <td>
+                                    {% if cow['category'] == 'падёж' %}
+                                        <span class="badge bg-danger">Падёж</span>
+                                    {% elif cow['category'] == 'выбраковка' %}
+                                        <span class="badge bg-warning">Выбраковка</span>
+                                    {% elif cow['category'] == 'санитарный' %}
+                                        <span class="badge bg-info">Санитарный</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ cow['reason'] }}</td>
+                                <td>{{ cow['disposal_date'] }}</td>
+                                <td>{{ cow['created_at'] }}</td>
+                                {% if user_type != 'admin' %}
+                                <td>
+                                    <button type="button" class="btn btn-danger btn-sm delete-cow-btn" 
+                                            data-cow-id="{{ cow['id'] }}" 
+                                            data-cow-number="{{ cow['cow_id'] }}">
+                                        <i class="bi bi-trash"></i> Удалить
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> Всего записей: {{ cows|length }} | 
+                    Отображено: <span id="row_count">{{ cows|length }}</span>
+                    {% if user_type == 'admin' %}
+                    | Ферм в системе: {{ cows|map(attribute='farm_name')|unique|list|length }}
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-database" style="font-size: 3rem; color: #6c757d;"></i>
+                    <h4 class="mt-3">Нет данных</h4>
+                    <p>Записи о выбытии скота ещё не добавлены.</p>
+                    {% if user_type != 'admin' %}
+                    <p class="text-muted">Для добавления записей используйте раздел "Динамическое добавление коров".</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Статистика -->
+        {% if cows %}
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Статистика по данным</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h3>{{ cows|length }}</h3>
+                                <p class="text-muted">Всего записей</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h3>{{ cows|selectattr('category', 'equalto', 'падёж')|list|length }}</h3>
+                                <p class="text-muted">Падёж</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h3>{{ cows|selectattr('category', 'equalto', 'выбраковка')|list|length }}</h3>
+                                <p class="text-muted">Выбраковка</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

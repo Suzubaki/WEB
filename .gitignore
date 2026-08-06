@@ -1,0 +1,50 @@
+# Python кэш
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+
+# База данных
+*.db
+livestock.db
+*.sqlite3
+
+# Отчеты
+reports/
+*.xlsx
+*.csv
+*.xls
+
+# Логи
+*.log
+
+# Среда разработки
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Временные файлы
+*.tmp
+*.temp
+
+# Архивы
+*.zip
+*.rar
+*.7z
+
+# Конфигурационные файлы (кроме config.py)
+config_*.py

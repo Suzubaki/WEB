@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Генерация отчётов{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Для админов загружаем список ферм
+    {% if user_type == 'admin' %}
+    $.getJSON('/get_farms', function(data) {
+        var $farmSelect = $('#farm_filter');
+        $farmSelect.empty();
+        $farmSelect.append('<option value="all">Все фермы</option>');
+        $.each(data, function(index, farm) {
+            $farmSelect.append('<option value="' + farm + '">' + farm + '</option>');
+        });
+    });
+    {% endif %}
+    
+    // Показ/скрытие поля категории для матричного отчёта
+    function toggleCategoryField() {
+        var reportType = $('#report_type').val();
+        var categoryField = $('#category_field');
+        
+        if (reportType === 'matrix') {
+            categoryField.show();
+            $('#report_category').prop('required', true);
+        } else {
+            categoryField.hide();
+            $('#report_category').prop('required', false);
+        }
+    }
+    
+    // Инициализация
+    toggleCategoryField();
+    
+    // Обработчик изменения типа отчета
+    $('#report_type').change(toggleCategoryField);
+    
+    // Установка дат по умолчанию
+    var today = new Date();
+    var lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    
+    $('#start_date').val(lastMonth.toISOString().split('T')[0]);
+    $('#end_date').val(today.toISOString().split('T')[0]);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Генерация отчётов</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('generate_report') }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="start_date" class="form-label">Начальная дата *</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="end_date" class="form-label">Конечная дата *</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                    </div>
+                    
+                    {% if user_type == 'admin' %}
+                    <div class="mb-3">
+                        <label for="farm_filter" class="form-label">Ферма</label>
+                        <select class="form-select" id="farm_filter" name="farm_filter">
+                            <option value="all">Загрузка списка ферм...</option>
+                        </select>
+                        <div class="form-text">Выберите "Все фермы" для общего отчёта</div>
+                    </div>
+                    {% else %}
+                    <input type="hidden" name="farm_filter" value="{{ session.farm_name }}">
+                    <div class="mb-3">
+                        <label class="form-label">Ферма</label>
+                        <input type="text" class="form-control" value="{{ session.farm_name }}" disabled>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="report_type" class="form-label">Тип отчёта *</label>
+                        <select class="form-select" id="report_type" name="report_type" required>
+                            <option value="">Выберите тип...</option>
+                            <option value="structured">Структурированный отчёт (Excel)</option>
+                            <option value="simple">Простой отчёт</option>
+                            <option value="matrix">Матричный отчёт (фермы × причины)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="category_field" style="display: none;">
+                        <label for="report_category" class="form-label">Категория для матричного отчёта *</label>
+                        <select class="form-select" id="report_category" name="report_category">
+                            <option value="">Выберите категорию...</option>
+                            <option value="падёж">Падёж</option>
+                            <option value="выбраковка">Выбраковка</option>
+                            <option value="санитарный">Санитарный блок</option>
+                        </select>
+                        <div class="form-text">Выберите категорию для построения матрицы "фермы × причины"</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="format" class="form-label">Формат отчёта *</label>
+                        <select class="form-select" id="format" name="format" required>
+                            <option value="">Выберите формат...</option>
+                            <option value="excel">Excel (.xlsx)</option>
+                            <option value="csv">CSV (.csv)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Информация о типах отчётов:</h6>
+                        <ul class="mb-0">
+                            <li><strong>Структурированный отчёт</strong> - профессиональный Excel файл с готовой структурой, заголовками и форматированием</li>
+                            <li><strong>Простой отчёт</strong> - простая таблица в Excel или CSV формате</li>
+                            <li><strong>Матричный отчёт</strong> - таблица "фермы × причины" с выбранной категорией (требуется выбор категории)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-file-earmark-arrow-down"></i> Сгенерировать отчёт
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Примеры отчётов -->
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-card-checklist"></i> Примеры отчётов</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-file-earmark-excel text-success"></i> Excel отчёт</h6>
+                                <p class="small">Структура Excel файла:</p>
+                                <ul class="small">
+                                    <li>Заголовки с форматированием</li>
+                                    <li>Данные по всем выбранным фермам</li>
+                                    <li>Сортировка по дате выбытия</li>
+                                    <li>Возможность фильтрации и сортировки в Excel</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="bi bi-file-earmark-text text-info"></i> CSV отчёт</h6>
+                                <p class="small">Структура CSV файла:</p>
+                                <ul class="small">
+                                    <li>Простой текстовый формат</li>
+                                    <li>Разделители - запятые</li>
+                                    <li>Импорт в любые системы</li>
+                                    <li>Минимальный размер файла</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning mt-3">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Важно:</h6>
+                    <p class="mb-0">Отчёты генерируются на основе данных за выбранный период. 
+                    Убедитесь, что в системе есть данные за указанные даты.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Отчёт по оригинальному шаблону (только для админов) -->
+        {% if user_type == 'admin' %}
+        <div class="card mt-3">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-excel"></i> Отчёт по официальному шаблону</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-info-circle"></i> Официальный шаблон</h6>
+                    <p class="mb-0">
+                        Этот отчёт создается на основе официального файла "2,3Выбытие скота Сводка.xlsx". 
+                        Данные автоматически заполняются в колонку "Пало, гол." как сумма: 
+                        <strong>Выбраковка + Санитарный брак + Падёж</strong>.
+                        Все формулы в файле сохраняются без изменений.
+                    </p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('generate_original_excel') }}">
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Особенности отчёта:</label>
+                        <ul class="mb-3">
+                            <li>Файл создается на основе официального шаблона</li>
+                            <li>Колонка "Пало" заполняется суммой всех категорий выбытия</li>
+                            <li>Фермы из базы добавляются в конец файла если их нет в шаблоне</li>
+                            <li>Все оригинальные формулы сохраняются</li>
+                            <li>Исп��льзуются ВСЕ данные из базы (без фильтра по дате)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="bi bi-file-earmark-excel-fill"></i> Создать отчёт по официальному шаблону
+                        </button>
+                        <div class="form-text text-center mt-2">
+                            Будет создан файл "Выбытие_скота_по_шаблону_дата.xlsx"
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
