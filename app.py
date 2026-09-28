@@ -3,12 +3,12 @@ import sqlite3
 from datetime import datetime, timedelta
 import os
 import json
+import html
 from config import Config
 from auth import login_required, admin_required, farm_user_required, login_user, register_user, update_user
 from database import init_db, get_db_connection
 from models import Cow, Report
 from charts import get_statistics_data, prepare_chart_data, get_dashboard_stats, get_user_statistics
-import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 import io
@@ -19,6 +19,22 @@ app.config.from_object(Config)
 # Создаем папку для отчётов
 if not os.path.exists(Config.REPORT_FOLDER):
     os.makedirs(Config.REPORT_FOLDER)
+
+# Функция для автоматической проверки и исправления категорий при запуске
+def check_and_fix_categories_on_startup():
+    """Проверяет и исправляет категории при запуске приложения"""
+    try:
+        # Проверяем, существует ли база данных
+        if os.path.exists(app.config['DATABASE']):
+            # Запускаем функцию исправления категорий
+            fix_category_duplicates()
+        else:
+            print("База данных не существует. Пропускаем проверку категорий.")
+    except Exception as e:
+        print(f"Ошибка при проверке категорий: {e}")
+
+# Запускаем проверку при старте приложения
+check_and_fix_categories_on_startup()
 
 @app.route('/')
 def index():
@@ -115,15 +131,25 @@ def delete_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Получаем информацию о пользователе перед удалением
-    cursor.execute('SELECT username FROM users WHERE id = ?', (user_id,))
+    # Получаем полную информацию о пользователе перед удалением
+    cursor.execute('SELECT username, user_type, farm_name FROM users WHERE id = ?', (user_id,))
     user = cursor.fetchone()
     
     if user:
+        username, user_type, farm_name = user
+        
+        # Если это пользователь фермы, удаляем все его записи о коровах
+        if user_type == 'farm' and farm_name:
+            cursor.execute('DELETE FROM cows WHERE farm_name = ?', (farm_name,))
+            print(f"Удалены записи о коровах для фермы: {farm_name}")
+        
         # Удаляем пользователя
         cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
         conn.commit()
-        flash(f'Пользователь {user[0]} успешно удален', 'success')
+        
+        flash(f'Пользователь {username} успешно удален', 'success')
+        if user_type == 'farm' and farm_name:
+            flash(f'Также удалены все записи о коровах фермы "{farm_name}"', 'info')
     else:
         flash('Пользователь не найден', 'danger')
     
@@ -187,6 +213,19 @@ def add_cow():
             flash('Заполните все поля', 'danger')
             return redirect(url_for('add_cow'))
         
+        # Валидация даты - не может быть позже сегодняшнего дня
+        from datetime import datetime
+        try:
+            disposal_datetime = datetime.strptime(disposal_date, '%Y-%m-%d')
+            today = datetime.now().date()
+            
+            if disposal_datetime.date() > today:
+                flash('Дата выбытия не может быть позже сегодняшнего дня', 'danger')
+                return redirect(url_for('add_cow'))
+        except ValueError:
+            flash('Некорректный формат даты', 'danger')
+            return redirect(url_for('add_cow'))
+        
         conn = get_db_connection()
         conn.execute('''
             INSERT INTO cows (cow_id, farm_name, category, reason, disposal_date, created_by)
@@ -216,10 +255,15 @@ def add_cows_dynamic():
     
     farm_name = session.get('farm_name')
     
+    # Получаем сегодняшнюю дату для валидации
+    from datetime import date
+    today = date.today().strftime('%Y-%m-%d')
+    
     return render_template('add_cows_dynamic.html',
                          categories=Config.DISPOSAL_CATEGORIES,
                          user_type=user_type,
-                         farm_name=farm_name)
+                         farm_name=farm_name,
+                         today=today)
 
 @app.route('/add_multiple_cows', methods=['GET', 'POST'])
 @login_required
@@ -255,9 +299,22 @@ def add_multiple_cows():
         from database import generate_cow_id
         conn = get_db_connection()
         added_count = 0
+        error_count = 0
+        today = datetime.now().date()
         
         for cow in cows:
             if all(k in cow for k in ['category', 'reason', 'disposal_date']):
+                # Валидация даты - не может быть позже сегодняшнего дня
+                try:
+                    disposal_datetime = datetime.strptime(cow['disposal_date'], '%Y-%m-%d')
+                    
+                    if disposal_datetime.date() > today:
+                        error_count += 1
+                        continue  # Пропускаем эту запись
+                except ValueError:
+                    error_count += 1
+                    continue  # Пропускаем эту запись
+                
                 # Генерируем автоматический ID для каждой коровы
                 cow_id = generate_cow_id(farm_name)
                 
@@ -272,9 +329,13 @@ def add_multiple_cows():
         
         # Если это AJAX запрос, возвращаем JSON
         if request.is_json:
-            return jsonify({'success': True, 'added_count': added_count})
+            return jsonify({'success': True, 'added_count': added_count, 'error_count': error_count})
         
-        flash(f'Добавлено {added_count} коров с автоматически сгенерированными ID', 'success')
+        if added_count > 0:
+            flash(f'Добавлено {added_count} коров с автоматически сгенерированными ID', 'success')
+        if error_count > 0:
+            flash(f'{error_count} записей не добавлено (дата выбытия позже сегодняшнего дня или некорректный формат даты)', 'warning')
+        
         return redirect(url_for('view_cows'))
     
     return render_template('add_multiple_cows.html',
@@ -367,8 +428,11 @@ def generate_report():
         query += ' AND farm_name = ?'
         params.append(farm_name)
     elif farm_filter and farm_filter != 'all':
+        # Очищаем farm_filter от возможных HTML-сущностей
+        import html
+        farm_filter_clean = html.unescape(farm_filter)
         query += ' AND farm_name = ?'
-        params.append(farm_filter)
+        params.append(farm_filter_clean)
     
     query += ' ORDER BY farm_name, disposal_date'
     
@@ -551,9 +615,19 @@ def generate_original_excel():
 @login_required
 @admin_required
 def get_farms():
-    """Получение списка ферм (только для админов)"""
+    """Получение списка ферм (только для админов) - только фермы с активными пользователями"""
     conn = get_db_connection()
-    cursor = conn.execute('SELECT DISTINCT farm_name FROM cows ORDER BY farm_name')
+    
+    # Получаем только фермы, у которых есть активные пользователи
+    cursor = conn.execute('''
+        SELECT DISTINCT u.farm_name 
+        FROM users u 
+        WHERE u.user_type = 'farm' 
+          AND u.farm_name IS NOT NULL 
+          AND u.farm_name != ''
+        ORDER BY u.farm_name
+    ''')
+    
     farms = [row['farm_name'] for row in cursor.fetchall()]
     conn.close()
     
@@ -565,6 +639,24 @@ def get_reasons(category):
     """Получение списка причин для выбранной категории"""
     reasons = Config.DISPOSAL_CATEGORIES.get(category, [])
     return jsonify(reasons)
+
+@app.route('/fix_categories')
+@login_required
+@admin_required
+def fix_categories_page():
+    """Страница для ручного исправления категорий"""
+    return render_template('fix_categories.html')
+
+@app.route('/api/fix_categories', methods=['POST'])
+@login_required
+@admin_required
+def api_fix_categories():
+    """API для исправления категорий"""
+    try:
+        fix_category_duplicates()
+        return jsonify({'success': True, 'message': 'Категории успешно исправлены'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/get_stats_data')
 @login_required
@@ -663,6 +755,58 @@ def get_stats_data():
         'user_type': user_type
     })
 
+def fix_category_duplicates():
+    """Исправляет дублирование категорий (регистр, пробелы)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Стандартные категории
+    standard_categories = ['падёж', 'выбраковка', 'санитарный']
+    
+    try:
+        # Проверяем, существует ли таблица cows
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cows'")
+        if not cursor.fetchone():
+            print("Таблица cows не существует")
+            conn.close()
+            return
+            
+        # Проверяем текущие категории
+        cursor.execute('SELECT DISTINCT category FROM cows ORDER BY category')
+        current_categories = [row[0] for row in cursor.fetchall()]
+        
+        if not current_categories:
+            print("Нет данных в таблице cows")
+            conn.close()
+            return
+        
+        print(f"Найдено категорий: {len(current_categories)}")
+        
+        # Исправляем регистр и пробелы для каждой стандартной категории
+        for std_cat in standard_categories:
+            # Исправляем все варианты на стандартный
+            cursor.execute('''
+                UPDATE cows 
+                SET category = ? 
+                WHERE LOWER(TRIM(category)) = LOWER(?)
+            ''', (std_cat, std_cat))
+        
+        conn.commit()
+        
+        # Проверяем результат
+        cursor.execute('SELECT DISTINCT category FROM cows ORDER BY category')
+        fixed_categories = [row[0] for row in cursor.fetchall()]
+        
+        if len(fixed_categories) <= len(standard_categories):
+            print(f"Категории исправлены. Осталось: {', '.join(fixed_categories)}")
+        else:
+            print(f"Внимание! Все ещё много категорий: {len(fixed_categories)}")
+            
+    except Exception as e:
+        print(f"Ошибка при исправлении категорий: {e}")
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     # Проверяем, запущено ли на PythonAnywhere
     is_pythonanywhere = 'PYTHONANYWHERE_DOMAIN' in os.environ
@@ -683,7 +827,12 @@ if __name__ == '__main__':
             print("Созданы тестовые пользователи")
         conn.close()
         
+        # Исправляем дублирование категорий
+        fix_category_duplicates()
+        
         app.run(debug=True, host='0.0.0.0', port=5000)
     else:
         # На PythonAnywhere база данных и пользователи будут созданы через WSGI
         print("Запущено на PythonAnywhere")
+        # Также исправляем категории
+        fix_category_duplicates()

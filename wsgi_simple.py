@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
 """
 Упрощенный WSGI файл для PythonAnywhere
+Используйте этот файл, если есть проблемы с основным
 """
 
 import sys
 import os
 
-# Путь к проекту
-project_home = '/home/Suzubaki/livestock_accounting'
+# Указываем путь к проекту
+path = '/home/Suzubaki/livestock_accounting'
 
 # Добавляем путь в sys.path
-if project_home not in sys.path:
-    sys.path.insert(0, project_home)
+if path not in sys.path:
+    sys.path.insert(0, path)
 
-# Меняем рабочую директорию
-os.chdir(project_home)
+# Устанавливаем рабочую директорию
+os.chdir(path)
 
 # Импортируем приложение
-from app import app as application
+try:
+    from app import app as application
+    print("✅ Приложение успешно импортировано")
+except ImportError as e:
+    print(f"❌ Ошибка импорта: {e}")
+    print("Проверьте: app.py, пути, зависимости")
+    raise
 
-# Секретный ключ
-application.secret_key = 'your-production-secret-key-change-this'
+# Устанавливаем секретный ключ
+application.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+print(f"WSGI загружен: {path}")

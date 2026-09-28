@@ -10,6 +10,9 @@ $(document).ready(function() {
     
     // Функция создания строки коровы
     function createCowRow(index) {
+        // Получаем сегодняшнюю дату
+        var today = new Date().toISOString().split('T')[0];
+        
         return `
             <div class="card cow-row mb-3" id="cow-row-${index}">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -37,7 +40,10 @@ $(document).ready(function() {
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Дата выбытия *</label>
-                            <input type="date" class="form-control disposal-date" required>
+                            <input type="date" class="form-control disposal-date" required max="${today}" value="${today}">
+                            <div class="form-text text-danger date-error" style="display: none; font-size: 0.8em;">
+                                Дата не может быть позже сегодняшнего дня
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -60,7 +66,17 @@ $(document).ready(function() {
                             $row.find('.category-select').val(cow.category).trigger('change');
                             setTimeout(() => {
                                 $row.find('.reason-select').val(cow.reason);
-                                $row.find('.disposal-date').val(cow.disposal_date);
+                                // Проверяем и валидируем дату при восстановлении
+                                var selectedDate = cow.disposal_date;
+                                var today = new Date().toISOString().split('T')[0];
+                                
+                                // Если дата из черновика позже сегодняшнего дня, устанавливаем сегодняшнюю дату
+                                var dateToSet = selectedDate;
+                                if (selectedDate && selectedDate > today) {
+                                    dateToSet = today;
+                                    showToast('Дата в черновике была позже сегодняшнего дня. Установлена сегодняшняя дата.', 'warning');
+                                }
+                                $row.find('.disposal-date').val(dateToSet);
                             }, 100);
                         }, 50);
                     });
@@ -131,26 +147,47 @@ $(document).ready(function() {
         saveDraft();
     });
     
+    // Валидация даты при изменении
+    $(document).on('change', '.disposal-date', function() {
+        var selectedDate = $(this).val();
+        var today = new Date().toISOString().split('T')[0];
+        
+        if (selectedDate > today) {
+            $(this).addClass('is-invalid');
+            $(this).siblings('.date-error').show();
+        } else {
+            $(this).removeClass('is-invalid');
+            $(this).siblings('.date-error').hide();
+        }
+        saveDraft();
+    });
+    
     // Сохранение черновика при изменении данных
-    $(document).on('change', '.reason-select, .disposal-date', function() {
+    $(document).on('change', '.reason-select', function() {
         saveDraft();
     });
     
     // Функция сохранения черновика
     function saveDraft() {
         const cowsData = [];
-        let isValid = true;
+        let today = new Date().toISOString().split('T')[0];
         
         $('.cow-row').each(function(index) {
             var category = $(this).find('.category-select').val();
             var reason = $(this).find('.reason-select').val();
             var disposalDate = $(this).find('.disposal-date').val();
             
-            if (category || reason || disposalDate) {
+            // Если дата позже сегодняшнего дня, не сохраняем ее
+            var dateToSave = disposalDate;
+            if (disposalDate && disposalDate > today) {
+                dateToSave = today;
+            }
+            
+            if (category || reason || dateToSave) {
                 cowsData.push({
                     category: category || '',
                     reason: reason || '',
-                    disposal_date: disposalDate || ''
+                    disposal_date: dateToSave || ''
                 });
             }
         });
@@ -166,19 +203,33 @@ $(document).ready(function() {
         
         var cowsData = [];
         var isValid = true;
+        var today = new Date().toISOString().split('T')[0];
         
         $('.cow-row').each(function(index) {
             var category = $(this).find('.category-select').val();
             var reason = $(this).find('.reason-select').val();
             var disposalDate = $(this).find('.disposal-date').val();
             
+            // Проверка заполненности полей
             if (!category || !reason || !disposalDate) {
                 isValid = false;
                 $(this).addClass('border-danger');
                 return;
             }
             
+            // Проверка даты - не может быть позже сегодняшнего дня
+            if (disposalDate > today) {
+                isValid = false;
+                $(this).addClass('border-danger');
+                $(this).find('.disposal-date').addClass('is-invalid');
+                $(this).find('.date-error').show();
+                alert('Дата выбытия не может быть позже сегодняшнего дня');
+                return;
+            }
+            
             $(this).removeClass('border-danger');
+            $(this).find('.disposal-date').removeClass('is-invalid');
+            $(this).find('.date-error').hide();
             
             cowsData.push({
                 category: category,
@@ -188,7 +239,10 @@ $(document).ready(function() {
         });
         
         if (!isValid) {
-            alert('Заполните все обязательные поля для всех коров');
+            if (!alert('Заполните все обязательные поля для всех коров и проверьте даты')) {
+                // Прокручиваем к первой ошибке
+                $('.border-danger').first().get(0).scrollIntoView({ behavior: 'smooth' });
+            }
             return;
         }
         
@@ -208,8 +262,12 @@ $(document).ready(function() {
                 success: function(response) {
                     window.location.href = '{{ url_for("view_cows") }}';
                 },
-                error: function() {
-                    alert('Ошибка при сохранении данных');
+                error: function(xhr, status, error) {
+                    if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        alert('Ошибки валидации: ' + xhr.responseJSON.errors.join(', '));
+                    } else {
+                        alert('Ошибка при сохранении данных: ' + error);
+                    }
                     // Восстанавливаем черновик при ошибке
                     saveDraft();
                 }
@@ -322,10 +380,12 @@ $(window).on('load', function() {
                     <h5><i class="bi bi-info-circle"></i> Инструкция</h5>
                     <p>Добавляйте коров по одной. ID коровы будет сгенерирован автоматически в формате: <strong>{{ farm_name }}-001</strong></p>
                     <p>Нажмите "Добавить корову" для добавления ещё одной строки.</p>
+                    <p><strong>Внимание:</strong> Дата выбытия не может быть позже сегодняшнего дня.</p>
                     <p class="mb-0"><strong>Важно:</strong> Данные автоматически сохраняются в черновик при вводе.</p>
                 </div>
                 
                 <form id="cows-form">
+                    {{ form.csrf_token if form else '' }}
                     <input type="hidden" name="farm_name" value="{{ farm_name }}">
                     
                     <div class="mb-3">

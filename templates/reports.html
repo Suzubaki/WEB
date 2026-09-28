@@ -12,7 +12,12 @@ $(document).ready(function() {
         $farmSelect.empty();
         $farmSelect.append('<option value="all">Все фермы</option>');
         $.each(data, function(index, farm) {
-            $farmSelect.append('<option value="' + farm + '">' + farm + '</option>');
+            // Экранируем кавычки и спецсимволы
+            var escapedFarm = $('<div>').text(farm).html();
+            $farmSelect.append($('<option>', {
+                value: farm,
+                text: farm
+            }));
         });
     });
     {% endif %}
