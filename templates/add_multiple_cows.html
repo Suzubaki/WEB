@@ -1,84 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Массовое добавление коров{% endblock %}
-
-{% block extra_js %}
-<script>
-$(document).ready(function() {
-    // Генерация примера JSON (без cow_id)
-    $('#generateExample').click(function() {
-        var example = [
-            {
-                "category": "падёж",
-                "reason": "Гастроэнтерит",
-                "disposal_date": "2024-01-15"
-            },
-            {
-                "category": "выбраковка",
-                "reason": "Агалактия",
-                "disposal_date": "2024-01-16"
-            },
-            {
-                "category": "санитарный",
-                "reason": "Травма конечностей",
-                "disposal_date": "2024-01-17"
-            }
-        ];
-        $('#cows_data').val(JSON.stringify(example, null, 2));
-    });
-});
-</script>
-{% endblock %}
+{% block title %}Добавление нескольких коров - Учёт выбытия скота{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-10 mx-auto">
+<div class="row justify-content-center">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-plus-circle-dotted"></i> Массовое добавление коров</h4>
+                <h4 class="mb-0"><i class="bi bi-plus-square"></i> Добавление нескольких коров</h4>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
-                    <h5><i class="bi bi-info-circle"></i> Инструкция</h5>
-                    <p>Введите данные о нескольких коровах в формате JSON. ID коровы будет сгенерирован автоматически для каждой фермы.</p>
-                    <p>Каждая корова должна содержать следующие поля:</p>
-                    <ul>
-                        <li><strong>category</strong> - категория выбытия: "падёж", "выбраковка" или "санитарный"</li>
-                        <li><strong>reason</strong> - конкретная причина выбытия (из списка категории)</li>
-                        <li><strong>disposal_date</strong> - дата выбытия в формате ГГГГ-ММ-ДД</li>
-                    </ul>
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> <strong>Поле cow_id больше не нужно!</strong> ID будет сгенерирован автоматически в формате: <strong>{{ farm_name }}-001</strong>
-                    </div>
-                    <button id="generateExample" class="btn btn-sm btn-outline-info">
-                        <i class="bi bi-code-slash"></i> Сгенерировать пример
-                    </button>
-                </div>
-                
                 <form method="POST" action="{{ url_for('add_multiple_cows') }}">
-                    <input type="hidden" name="farm_name" value="{{ farm_name }}">
                     <div class="mb-3">
                         <label class="form-label">Ферма</label>
                         <input type="text" class="form-control" value="{{ farm_name }}" disabled>
-                        <div class="form-text">ID коров будут сгенерированы для этой фермы</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="cows_data" class="form-label">Данные коров в формате JSON *</label>
-                        <textarea class="form-control" id="cows_data" name="cows_data" rows="15" required 
-                                  placeholder='[
-  {
-    "category": "падёж",
-    "reason": "Гастроэнтерит",
-    "disposal_date": "2024-01-15"
-  },
-  {
-    "category": "выбраковка",
-    "reason": "Агалактия",
-    "disposal_date": "2024-01-16"
-  }
-]'></textarea>
-                        <div class="form-text">Используйте корректный синтаксис JSON</div>
+                        <label for="cows_data" class="form-label">Данные в формате JSON</label>
+                        <textarea class="form-control" id="cows_data" name="cows_data" rows="8" placeholder='[
+  {"category": "падёж", "reason": "Острая тимпания", "disposal_date": "2026-09-30"},
+  {"category": "выбраковка", "reason": "Агалактия", "disposal_date": "2026-09-30"}
+]' required></textarea>
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -86,36 +29,10 @@ $(document).ready(function() {
                             <i class="bi bi-arrow-left"></i> Назад
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-cloud-upload"></i> Загрузить данные
+                            <i class="bi bi-save"></i> Импортировать
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="bi bi-card-checklist"></i> Справочник причин выбытия</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    {% for category, reasons in categories.items() %}
-                    <div class="col-md-4 mb-3">
-                        <div class="card h-100">
-                            <div class="card-header">
-                                <strong>{{ category|capitalize }}</strong>
-                            </div>
-                            <div class="card-body" style="max-height: 200px; overflow-y: auto;">
-                                <ul class="list-unstyled mb-0">
-                                    {% for reason in reasons %}
-                                    <li><small>{{ reason }}</small></li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
             </div>
         </div>
     </div>

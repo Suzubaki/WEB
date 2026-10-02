@@ -1,103 +1,29 @@
-# 📦 ФАЙЛЫ ДЛЯ ЗАГРУЗКИ НА PYTHONANYWHERE
-
-## Обязательные файлы (загрузить в /home/Suzubaki/livestock_accounting/):
-
-### Основные файлы приложения:
-- app.py                    # Главное Flask приложение
-- auth.py                   # Аутентификация и авторизация
-- database.py               # Работа с базой данных
-- config.py                 # Конфигурация приложения
-- charts.py                 # Графики и статистика
-- models.py                 # Модели данных
-- requirements.txt          # Зависимости Python (для Python 3.9)
-
-### WSGI файлы (выбери один):
-- pythonanywhere_wsgi.py    # Основной WSGI файл (рекомендуется)
-- wsgi_simple.py            # Упрощенный WSGI файл
-
-### Скрипты для проверки:
-- test_pythonanywhere.py    # Тестовый скрипт для проверки
-- setup_pythonanywhere.sh   # Скрипт настройки (Bash)
-- check_python39.py         # Проверка совместимости с Python 3.9
-
-### Модули отчетов:
-- structured_report.py      # Структурированные отчеты
-- matrix_report.py          # Матричные отчеты
-- report_generator.py       # Генератор отчетов
-- generate_original_web.py  # Отчеты по оригинальному шаблону
-- fill_original_excel.py    # Заполнение Excel шаблонов
-
-### Инструкции:
-- README_PYTHONANYWHERE.md  # Подробная инструкция
-- ФИНАЛЬНАЯ_ИНСТРУКЦИЯ.md   # Краткая финальная инструкция
-- ИТОГ_ПРОЕКТА.md           # Итоговый отчет по проекту
-
-## Папки (загрузить целиком):
-
-### templates/ - HTML шаблоны:
-- base.html                 # Базовый шаблон
-- login.html                # Страница входа
-- dashboard.html            # Панель управления
-- add_cow.html              # Добавление одной коровы
-- add_cows_dynamic.html     # Динамическое добавление коров
-- add_multiple_cows.html    # Массовое добавление коров
-- view_cows.html            # Просмотр записей
-- reports.html              # Страница отчетов
-- report_preview.html       # Предпросмотр отчетов
-- register.html             # Регистрация пользователей
-- user_management.html      # Управление пользователями
-- edit_user.html            # Редактирование пользователя
-- index.html                # Главная страница (не используется)
-
-### static/ - Статические файлы:
-- charts.js                 # JavaScript для графиков
-
-## Необязательные файлы (можно не загружать):
-
-### Для разработки/тестирования:
-- test_sanitary.py          # Тест категории "санитарный"
-- simple_test.py            # Простые тесты
-- deploy_pythonanywhere.py  # Скрипт создания архива
-
-### Файлы данных:
-- livestock.db              # Локальная база данных (создастся автоматически)
-- *.xlsx                    # Excel файлы отчетов (создадутся автоматически)
-
-### Временные файлы:
-- __pycache__/              # Кэш Python (не нужно загружать)
-- reports/                  # Папка отчетов (создастся автоматически)
-
-## 📋 ЧЕКЛИСТ ПЕРЕД ЗАГРУЗКОЙ:
-
-1. ✅ Все файлы из списка выше готовы
-2. ✅ requirements.txt содержит актуальные зависимости
-3. ✅ pythonanywhere_wsgi.py настроен правильно
-4. ✅ Папки templates/ и static/ содержат все файлы
-5. ✅ Код проверен на совместимость с Python 3.9
-
-## 🚀 КАК ЗАГРУЗИТЬ:
-
-### Вариант 1: Загрузить архивом (рекомендуется)
-1. Создай ZIP архив всех файлов из списка
-2. На PythonAnywhere загрузи архив
-3. Распакуй в папку /home/Suzubaki/livestock_accounting/
-
-### Вариант 2: Загрузить по одному
-1. Создай папку /home/Suzubaki/livestock_accounting/
-2. Загрузи каждый файл по отдельности
-3. Создай подпапки templates/ и static/
-4. Загрузи файлы в соответствующие папки
-
-## 🔧 ПОСЛЕ ЗАГРУЗКИ:
-
-1. Запусти проверку: bash setup_pythonanywhere.sh
-2. Следуй инструкции в ФИНАЛЬНАЯ_ИНСТРУКЦИЯ.md
-3. Протестируй приложение
-
-## 📞 ЕСЛИ ВОЗНИКЛИ ПРОБЛЕМЫ:
-
-1. Запусти тест: python test_pythonanywhere.py
-2. Проверь логи на PythonAnywhere
-3. Убедись, что все файлы в правильных местах
-
-# ✅ ПРОЕКТ ГОТОВ К РАЗВЕРТЫВАНИЮ!
+Список файлов для загрузки на сервер:
+app.py
+auth.py
+charts.py
+config.py
+database.py
+fill_original_excel.py
+generate_original_web.py
+matrix_report.py
+models.py
+pythonanywhere_wsgi.py
+report_generator.py
+requirements.txt
+setup_pythonanywhere.sh
+structured_report.py
+static/charts.js
+templates/add_cow.html
+templates/add_cows_dynamic.html
+templates/add_multiple_cows.html
+templates/base.html
+templates/dashboard.html
+templates/edit_user.html
+templates/index.html
+templates/login.html
+templates/register.html
+templates/report_preview.html
+templates/reports.html
+templates/user_management.html
+templates/view_cows.html

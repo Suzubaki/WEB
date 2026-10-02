@@ -1,0 +1,83 @@
+<%- include('layout/header', { title: 'Добавление коровы' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавление записи о выбытии</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/add_cow">
+                    <div class="mb-3">
+                        <label class="form-label">Ферма</label>
+                        <input type="text" class="form-control" value="<%= farm_name %>" disabled>
+                        <div class="form-text">ID коровы будет сгенерирован автоматически</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Категория *</label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="">Выберите категорию</option>
+                            <option value="падёж">Падёж</option>
+                            <option value="выбраковка">Выбраковка</option>
+                            <option value="санитарный">Санитарный блок</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Причина *</label>
+                        <select class="form-select" id="reason" name="reason" disabled required>
+                            <option value="">Сначала выберите категорию</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="disposal_date" class="form-label">Дата выбытия *</label>
+                        <input type="date" class="form-control" id="disposal_date" name="disposal_date" required>
+                        <div class="form-text">Не может быть позже сегодняшнего дня</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="/dashboard" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('layout/footer', {
+    extra_js: `
+    <script>
+    $(document).ready(function() {
+        var today = new Date().toISOString().split('T')[0];
+        $('#disposal_date').val(today).attr('max', today);
+        
+        $('#category').change(function() {
+            var category = $(this).val();
+            var $reasonSelect = $('#reason');
+            
+            if (category) {
+                $.getJSON('/get_reasons/' + encodeURIComponent(category), function(data) {
+                    $reasonSelect.empty();
+                    $reasonSelect.append('<option value="">Выберите причину</option>');
+                    $.each(data, function(index, reason) {
+                        $reasonSelect.append('<option value="' + reason + '">' + reason + '</option>');
+                    });
+                    $reasonSelect.prop('disabled', false);
+                });
+            } else {
+                $reasonSelect.empty();
+                $reasonSelect.append('<option value="">Сначала выберите категорию</option>');
+                $reasonSelect.prop('disabled', true);
+            }
+        });
+    });
+    </script>
+    `
+}) %>

@@ -1,207 +1,168 @@
-"""Матричный отчёт: фермы × подкатегории"""
+# matrix_report.py - Генерация матричного отчета "фермы х причины"
 import sqlite3
-from openpyxl import Workbook
+import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from datetime import datetime, timedelta
-import os
+from datetime import datetime
+from database import get_db_connection, get_reasons_for_category
 
-def generate_matrix_report(start_date, end_date, category, farm_filter='all'):
-    """Создание матричного отчёта: фермы × подкатегории"""
+def generate_matrix_excel_report(category, start_date=None, end_date=None):
+    """
+    Генерирует Excel отчет в виде матрицы:
+    Строки - причины выбытия для указанной категории (из справочника БД)
+    Столбцы - фермы
+    Значения - количество коров
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Матрица {category.capitalize()}"
     
-    print(f"Создание матричного отчёта для категории: {category}")
-    print(f"Период: {start_date} - {end_date}")
+    # Стили
+    title_font = Font(name='Arial', size=13, bold=True, color="1F2937")
+    header_font = Font(name='Arial', size=10, bold=True, color="FFFFFF")
+    bold_font = Font(name='Arial', size=9, bold=True)
+    regular_font = Font(name='Arial', size=9)
     
-    # Подключаемся к базе данных
-    conn = sqlite3.connect('livestock.db')
-    conn.row_factory = sqlite3.Row
+    header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
+    total_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
     
-    # Получаем все фермы
-    query = '''
-        SELECT DISTINCT farm_name 
-        FROM cows 
-        WHERE disposal_date BETWEEN ? AND ?
-    '''
-    params = [start_date, end_date]
+    thin_border = Border(
+        left=Side(style='thin', color='D1D5DB'),
+        right=Side(style='thin', color='D1D5DB'),
+        top=Side(style='thin', color='D1D5DB'),
+        bottom=Side(style='thin', color='D1D5DB')
+    )
     
-    if farm_filter != 'all':
-        query += ' AND farm_name = ?'
-        params.append(farm_filter)
+    # 1. Получаем список причин для категории из базы данных
+    reasons = get_reasons_for_category(category)
     
-    query += ' ORDER BY farm_name'
+    # 2. Получаем список всех ферм из БД
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    cursor = conn.execute(query, params)
+    cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL ORDER BY farm_name')
     farms = [row['farm_name'] for row in cursor.fetchall()]
     
     if not farms:
-        print("Нет ферм с данными за выбранный период")
-        conn.close()
-        return None
+        cursor.execute('SELECT DISTINCT farm_name FROM users WHERE farm_name IS NOT NULL AND farm_name != "" ORDER BY farm_name')
+        farms = [row['farm_name'] for row in cursor.fetchall()]
     
-    # Получаем все подкатегории для выбранной категории
-    # Будем использовать предопределённые подкатегории из config
-    from config import Config
+    if not farms:
+        farms = ['Ферма 1']
     
-    if category not in Config.DISPOSAL_CATEGORIES:
-        print(f"Неизвестная категория: {category}")
-        conn.close()
-        return None
-    
-    subcategories = Config.DISPOSAL_CATEGORIES[category]
-    
-    # Создаём Excel файл
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f"Матрица {category}"
-    
-    # Стили
-    title_font = Font(name='Times New Roman', size=14, bold=True)
-    header_font = Font(bold=True)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
-    header_fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
-    center_alignment = Alignment(horizontal='center', vertical='center')
-    
-    # Заголовок документа
-    ws.merge_cells('A1:H1')
-    ws['A1'] = f'ОТЧЁТ ПО ВЫБЫТИЮ СКОТА'
+    # Заголовок
+    ws.merge_cells('A1:G1')
+    ws['A1'] = "СВОДНАЯ МАТРИЦА ВЫБЫТИЯ СКОТА"
     ws['A1'].font = title_font
-    ws['A1'].alignment = center_alignment
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     
-    ws.merge_cells('A2:H2')
-    ws['A2'] = f'Категория: {category.upper()}'
-    ws['A2'].font = Font(bold=True, size=12)
-    ws['A2'].alignment = center_alignment
+    ws.merge_cells('A2:G2')
+    ws['A2'] = f"Категория: {category.upper()}" + (f" | Период: {start_date} — {end_date}" if start_date and end_date else "")
+    ws['A2'].font = Font(name='Arial', size=10, italic=True)
+    ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
     
-    ws.merge_cells('A3:H3')
-    ws['A3'] = f'Период: с {start_date} по {end_date}'
-    ws['A3'].alignment = center_alignment
+    ws.merge_cells('A3:G3')
+    ws['A3'] = f"Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    ws['A3'].font = Font(name='Arial', size=9, color="6B7280")
+    ws['A3'].alignment = Alignment(horizontal='center', vertical='center')
     
-    ws.row_dimensions[5].height = 20  # Пустая строка
+    # Шапка таблицы (строка 5)
+    row_num = 5
+    ws.cell(row=row_num, column=1, value="ПРИЧИНЫ ВЫБЫТИЯ").font = header_font
+    ws.cell(row=row_num, column=1).fill = header_fill
+    ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center', vertical='center')
+    ws.cell(row=row_num, column=1).border = thin_border
     
-    # Заголовки таблицы
-    # Первый столбец - подкатегории
-    ws['A6'] = 'ПРИЧИНЫ ВЫБЫТИЯ'
-    ws['A6'].font = header_font
-    ws['A6'].fill = header_fill
-    ws['A6'].border = border
-    ws['A6'].alignment = center_alignment
-    
-    # Остальные столбцы - фермы
-    for col, farm in enumerate(farms, start=2):
-        col_letter = get_column_letter(col)
-        cell = ws.cell(row=6, column=col, value=farm)
+    col_num = 2
+    farm_col_map = {}
+    for farm in farms:
+        cell = ws.cell(row=row_num, column=col_num, value=farm)
         cell.font = header_font
         cell.fill = header_fill
-        cell.border = border
-        cell.alignment = center_alignment
-    
-    # Последний столбец - ИТОГО
-    total_col = len(farms) + 2
-    total_col_letter = get_column_letter(total_col)
-    ws.cell(row=6, column=total_col, value='ИТОГО')
-    ws[f'{total_col_letter}6'].font = header_font
-    ws[f'{total_col_letter}6'].fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
-    ws[f'{total_col_letter}6'].border = border
-    ws[f'{total_col_letter}6'].alignment = center_alignment
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+        farm_col_map[farm] = col_num
+        col_num += 1
+        
+    # Колонка ИТОГО
+    total_col = col_num
+    cell = ws.cell(row=row_num, column=total_col, value="ИТОГО")
+    cell.font = header_font
+    cell.fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = thin_border
     
     # Заполняем данные
-    current_row = 7
+    data_start_row = 6
+    current_row = data_start_row
     
-    for subcategory in subcategories:
-        # Название подкатегории
-        ws.cell(row=current_row, column=1, value=subcategory).border = border
+    date_filter = ""
+    params = [category]
+    if start_date and end_date:
+        date_filter = "AND disposal_date BETWEEN ? AND ?"
+        params.extend([start_date, end_date])
+    
+    for reason in reasons:
+        ws.cell(row=current_row, column=1, value=reason).font = regular_font
+        ws.cell(row=current_row, column=1).border = thin_border
         
-        # Считаем данные для каждой фермы
-        total_for_subcategory = 0
-        
-        for col, farm in enumerate(farms, start=2):
-            # Получаем количество для этой фермы и подкатегории
-            query = '''
+        row_total = 0
+        for farm in farms:
+            cursor.execute(f'''
                 SELECT COUNT(*) as count 
                 FROM cows 
-                WHERE farm_name = ? 
-                AND category = ? 
-                AND reason = ?
-                AND disposal_date BETWEEN ? AND ?
-            '''
-            cursor = conn.execute(query, (farm, category, subcategory, start_date, end_date))
-            result = cursor.fetchone()
-            count = result['count'] if result else 0
+                WHERE category = ? AND reason = ? AND farm_name = ? {date_filter}
+            ''', params[:1] + [reason, farm] + params[1:])
             
-            # Записываем в ячейку
-            cell = ws.cell(row=current_row, column=col, value=count)
-            cell.border = border
-            cell.alignment = center_alignment
+            count = cursor.fetchone()['count']
+            col = farm_col_map[farm]
             
-            total_for_subcategory += count
-        
-        # Итог по строке
-        total_cell = ws.cell(row=current_row, column=total_col, value=total_for_subcategory)
-        total_cell.border = border
-        total_cell.font = Font(bold=True)
-        total_cell.alignment = center_alignment
+            cell = ws.cell(row=current_row, column=col, value=count if count > 0 else "-")
+            cell.font = regular_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+            row_total += count
+            
+        cell = ws.cell(row=current_row, column=total_col, value=row_total)
+        cell.font = bold_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
         
         current_row += 1
-    
-    # Строка итогов по колонкам
-    ws.cell(row=current_row, column=1, value='ИТОГО').font = Font(bold=True)
-    ws.cell(row=current_row, column=1).border = border
-    ws.cell(row=current_row, column=1).fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
-    
-    # Считаем итоги по колонкам (фермам)
-    for col in range(2, total_col + 1):
-        col_letter = get_column_letter(col)
-        start_cell = f'{col_letter}7'
-        end_cell = f'{col_letter}{current_row-1}'
         
-        if col == total_col:  # Итоговая колонка
-            # Сумма уже подсчитана в строках
-            pass
-        else:
-            formula = f'=СУММ({start_cell}:{end_cell})'
-            cell = ws.cell(row=current_row, column=col, value=formula)
-            cell.font = Font(bold=True)
-            cell.border = border
-            cell.fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
+    # Итоговая строка
+    ws.cell(row=current_row, column=1, value="ИТОГО ПО ФЕРМАМ:").font = bold_font
+    ws.cell(row=current_row, column=1).fill = total_fill
+    ws.cell(row=current_row, column=1).border = thin_border
     
-    # Настраиваем ширину колонок
-    ws.column_dimensions['A'].width = 40  # Причины
-    for col in range(2, total_col + 1):
-        col_letter = get_column_letter(col)
-        ws.column_dimensions[col_letter].width = 15  # Фермы
+    grand_total = 0
+    for farm in farms:
+        col = farm_col_map[farm]
+        cursor.execute(f'''
+            SELECT COUNT(*) as count 
+            FROM cows 
+            WHERE category = ? AND farm_name = ? {date_filter}
+        ''', [category, farm] + (params[1:] if len(params) > 1 else []))
+        
+        farm_total = cursor.fetchone()['count']
+        cell = ws.cell(row=current_row, column=col, value=farm_total)
+        cell.font = bold_font
+        cell.fill = total_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+        grand_total += farm_total
+        
+    cell = ws.cell(row=current_row, column=total_col, value=grand_total)
+    cell.font = bold_font
+    cell.fill = total_fill
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = thin_border
     
     conn.close()
     
-    # Сохраняем файл в папке reports
-    if not os.path.exists('reports'):
-        os.makedirs('reports')
-    
-    filename = f'reports/матричный_отчет_{category}_{start_date}_по_{end_date}.xlsx'
-    wb.save(filename)
-    
-    # Полный абсолютный путь
-    full_path = os.path.abspath(filename)
-    
-    print(f"Матричный отчёт создан: {filename}")
-    print(f"Полный путь: {full_path}")
-    print(f"Размер матрицы: {len(subcategories)} подкатегорий × {len(farms)} ферм")
-    
-    return full_path
-
-# Тестовая функция
-if __name__ == '__main__':
-    # Тестовые данные
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-    
-    # Тестируем для категории "падёж"
-    filename = generate_matrix_report(start_date, end_date, 'падёж')
-    if filename:
-        print(f"Тестовый матричный отчёт создан: {filename}")
-    else:
-        print("Не удалось создать отчёт")
+    ws.column_dimensions['A'].width = 38
+    for col in range(2, total_col + 1):
+        col_letter = get_column_letter(col)
+        ws.column_dimensions[col_letter].width = 16
+        
+    return wb

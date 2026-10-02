@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Протокол вскрытия - {{ cow.cow_id }} - АгроУчёт PRO{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="bi bi-file-medical"></i> Протокол патологоанатомического вскрытия трупа животного
+                </h4>
+                <div>
+                    <a href="{{ url_for('print_autopsy', cow_id=cow.id) }}" target="_blank" class="btn btn-sm btn-outline-light me-2">
+                        <i class="bi bi-printer"></i> Печатный бланк (А4)
+                    </a>
+                    <a href="{{ url_for('view_cows') }}" class="btn btn-sm btn-secondary">
+                        <i class="bi bi-arrow-left"></i> К журналу
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body p-4">
+                <!-- Карточка животного -->
+                <div class="alert alert-light border d-flex justify-content-between flex-wrap gap-3 mb-4">
+                    <div>
+                        <span class="text-muted small">Учетный ID:</span>
+                        <strong class="font-monospace fs-5 text-primary d-block">{{ cow.cow_id }}</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Идент. № (AITS / Бирка):</span>
+                        <strong class="fs-5 text-dark d-block">{{ cow.ear_tag or 'БЕЗ БИРКИ' }}</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Ферма / МТФ:</span>
+                        <strong class="d-block">{{ cow.farm_name }}</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Дата падежа:</span>
+                        <strong class="d-block text-danger">{{ cow.disposal_date }}</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted small">Масса / Лактация:</span>
+                        <strong class="d-block">{{ cow.weight or '-' }} кг / {{ cow.lactation or '-' }} лакт.</strong>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('save_autopsy_route', cow_id=cow.id) }}">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="autopsy_date" class="form-label fw-semibold">Дата проведения вскрытия *</label>
+                            <input type="date" class="form-control" id="autopsy_date" name="autopsy_date" 
+                                   value="{{ cow.autopsy_date or cow.disposal_date }}" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="autopsy_vet" class="form-label fw-semibold">Ветврач (Ф.И.О., должность) *</label>
+                            <input type="text" class="form-control" id="autopsy_vet" name="autopsy_vet" 
+                                   value="{{ cow.autopsy_vet or session.username }}" placeholder="Главный ветврач Иванов И.И." required>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="anamnesis" class="form-label fw-semibold">Анамнез жизни и болезни (клинические признаки перед гибелью)</label>
+                            <textarea class="form-control" id="anamnesis" name="anamnesis" rows="2" 
+                                      placeholder="Внезапное угнетение, температура, отказ от корма, проведенное лечение...">{{ protocol.anamnesis or '' }}</textarea>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="external_exam" class="form-label fw-semibold">1. Наружный осмотр</label>
+                            <textarea class="form-control" id="external_exam" name="external_exam" rows="2" 
+                                      placeholder="Упитанность (средняя/ниже средней), трупное окоченение, видимые слизистые оболочки, волосяной покров, естественные отверстия...">{{ protocol.external_exam or 'Упитанность средняя, трупные изменения выражены умеренно. Истечений из естественных отверстий нет.' }}</textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="respiratory" class="form-label fw-semibold">2. Органы дыхания и грудная полость</label>
+                            <textarea class="form-control" id="respiratory" name="respiratory" rows="3" 
+                                      placeholder="Трахея, бронхи, легкие (цвет, кровенаполнение, очаги воспаления), плевра...">{{ protocol.respiratory or 'Легкие спавшиеся, бледно-розовые, очагов уплотнения не обнаружено.' }}</textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="cardiovascular" class="form-label fw-semibold">3. Сердечно-сосудистая система</label>
+                            <textarea class="form-control" id="cardiovascular" name="cardiovascular" rows="3" 
+                                      placeholder="Перикард, миокард, эндокард, полости сердца, состояние сосудов...">{{ protocol.cardiovascular or 'Сердечная сорочка без выпота, миокард плотный, цвет вареного мяса, в полостях темные сгустки.' }}</textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="digestive" class="form-label fw-semibold">4. Органы пищеварения (Преджелудки, Сычуг, Кишечник)</label>
+                            <textarea class="form-control" id="digestive" name="digestive" rows="3" 
+                                      placeholder="Рубец, сетка (наличие инородных тел/металла), книжка, сычуг (язвы), кишечник...">{{ protocol.digestive or 'Сетка без инородных предметов. Слизистая оболочка рубца без эрозий.' }}</textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="liver_spleen" class="form-label fw-semibold">5. Печень, Селезенка, Почки</label>
+                            <textarea class="form-control" id="liver_spleen" name="liver_spleen" rows="3" 
+                                      placeholder="Печень (размеры, плотность, желчные ходы), селезенка (пульпа), почки...">{{ protocol.liver_spleen or 'Печень не увеличена, края острые. Селезенка нормальных размеров, пульпа не соскабливается.' }}</textarea>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="p-3 bg-light rounded border">
+                                <h6 class="fw-bold text-danger mb-3"><i class="bi bi-shield-exclamation"></i> Исключение особо опасных инфекций (Ветстанция РБ)</h6>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold">Направление в райветлабораторию:</label>
+                                        <select class="form-select form-select-sm" name="autopsy_lab_sample">
+                                            <option value="Да" {% if cow.autopsy_lab_sample != 'Нет' %}selected{% endif %}>Да (материал направлен)</option>
+                                            <option value="Нет" {% if cow.autopsy_lab_sample == 'Нет' %}selected{% endif %}>Нет</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold">Номер сопроводительного документа:</label>
+                                        <input type="text" class="form-control form-control-sm" name="lab_doc_num" 
+                                               value="{{ protocol.lab_doc_num or '' }}" placeholder="Напр. Исх. № 142/вет">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold">Результат исключения сибирской язвы:</label>
+                                        <input type="text" class="form-control form-control-sm" name="lab_tests" 
+                                               value="{{ protocol.lab_tests or 'Сибирская язва и эмкар исключены' }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="pat_diagnosis" class="form-label fw-semibold text-primary">Патологоанатомический диагноз *</label>
+                            <input type="text" class="form-control form-control-lg fw-bold" id="pat_diagnosis" name="pat_diagnosis" 
+                                   value="{{ protocol.pat_diagnosis or cow.reason }}" placeholder="Основной диагноз при вскрытии" required>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="conclusion" class="form-label fw-semibold">Заключение о непосредственной причине смерти</label>
+                            <textarea class="form-control" id="conclusion" name="conclusion" rows="2" 
+                                      placeholder="Смерть животного наступила в результате острой сердечно-сосудистой недостаточности, вызванной...">{{ protocol.conclusion or '' }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Отмена
+                        </a>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-circle-fill"></i> Сохранить протокол вскрытия
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

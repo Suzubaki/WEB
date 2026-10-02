@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Импорт из Excel / CSV - АгроУчёт PRO{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-file-earmark-arrow-up"></i> Импорт ведомости выбытия</h4>
+                <span class="badge bg-light text-success">Ферма: {{ farm_name }}</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-info border-info-subtle">
+                    <h5 class="alert-heading"><i class="bi bi-info-circle-fill"></i> Инструкция по загрузке</h5>
+                    <p class="mb-2">Вы можете загрузить готовую ведомость выбытия в формате <strong>.XLSX</strong> или <strong>.CSV</strong>.</p>
+                    <ul class="mb-2">
+                        <li><strong>Категория</strong> должна быть одной из: <code>падёж</code>, <code>выбраковка</code>, <code>санитарный</code>.</li>
+                        <li><strong>Дата</strong> в формате <code>ГГГГ-ММ-ДД</code> (не позже сегодняшней).</li>
+                        <li>Системные ID коров будут автоматически сгенерированы для вашей фермы <code>{{ farm_name }}</code>.</li>
+                    </ul>
+                    <a href="{{ url_for('download_import_template') }}" class="btn btn-outline-primary btn-sm mt-1">
+                        <i class="bi bi-download"></i> Скачать образец шаблона Excel (.xlsx)
+                    </a>
+                </div>
+
+                <form method="POST" action="{{ url_for('import_cows') }}" enctype="multipart/form-data" class="mt-4">
+                    <div class="mb-4">
+                        <label for="file" class="form-label fw-bold">Выберите файл для импорта (.xlsx, .csv):</label>
+                        <input class="form-control form-control-lg" type="file" id="file" name="file" accept=".xlsx,.xls,.csv" required>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад к журналу
+                        </a>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-cloud-arrow-up-fill"></i> Начать импорт данных
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>Учёт выбытия скота</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            margin-top: 50px;
+        }
+    </style>
+    <%- typeof extra_css !== 'undefined' ? extra_css : '' %>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="<%= session && session.user_id ? '/dashboard' : '/login' %>">
+                <i class="bi bi-cow"></i> Учёт выбытия
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <% if (session && session.user_id) { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard"><i class="bi bi-speedometer2"></i> Панель</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cows"><i class="bi bi-list-check"></i> Журнал коров</a>
+                    </li>
+                    <% if (session.user_type !== 'admin') { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/add_cows_dynamic"><i class="bi bi-plus-circle"></i> Добавить</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/import_cows"><i class="bi bi-upload"></i> Импорт</a>
+                    </li>
+                    <% } %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports"><i class="bi bi-file-earmark-text"></i> Акты & AITS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-semibold" href="/economics"><i class="bi bi-cash-coin"></i> Ущерб (BYN)</a>
+                    </li>
+                    <% } %>
+                </ul>
+                <ul class="navbar-nav">
+                    <% if (session && session.user_id) { %>
+                    <!-- Быстрое переключение учетных записей (Демо) -->
+                    <li class="nav-item dropdown me-2">
+                        <a class="nav-link dropdown-toggle btn btn-sm btn-outline-light text-light px-2 py-1 my-1" href="#" id="switchUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-arrow-left-right"></i> Аккаунт: <strong><%= session.username %></strong>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="switchUserDropdown">
+                            <li><h6 class="dropdown-header">Переключить профиль:</h6></li>
+                            <li><a class="dropdown-item <%= session.username === 'admin' ? 'active fw-bold' : '' %>" href="/switch_user/admin">⭐ Главный администратор (Свод)</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item <%= session.username === 'farm1' ? 'active fw-bold' : '' %>" href="/switch_user/farm1">🏢 farm1 (МТФ-1 Центральная)</a></li>
+                            <li><a class="dropdown-item <%= session.username === 'farm2' ? 'active fw-bold' : '' %>" href="/switch_user/farm2">🏢 farm2 (МТФ-2 Заречье)</a></li>
+                            <li><a class="dropdown-item <%= session.username === 'farm3' ? 'active fw-bold' : '' %>" href="/switch_user/farm3">🏢 farm3 (МТФ-3 Полесье)</a></li>
+                        </ul>
+                    </li>
+
+                    <% if (session.user_type === 'admin') { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register"><i class="bi bi-person-plus"></i> Регистрация</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/user_management"><i class="bi bi-people"></i> Пользователи</a>
+                    </li>
+                    <% } %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout" title="Выйти"><i class="bi bi-box-arrow-right"></i> Выйти</a>
+                    </li>
+                    <% } else { %>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login"><i class="bi bi-box-arrow-in-right"></i> Вход</a>
+                    </li>
+                    <% } %>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <% if (typeof messages !== 'undefined' && messages.length > 0) { %>
+            <% messages.forEach(function(msg) { %>
+                <div class="alert alert-<%= msg.category === 'error' ? 'danger' : msg.category %> alert-dismissible fade show">
+                    <%= msg.message %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <% }); %>
+        <% } %>

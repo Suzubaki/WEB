@@ -1,0 +1,38 @@
+<%- include('layout/header', { title: 'Добавление нескольких коров' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-plus-square"></i> Добавление нескольких коров</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/add_multiple_cows">
+                    <div class="mb-3">
+                        <label class="form-label">Ферма</label>
+                        <input type="text" class="form-control" value="<%= farm_name %>" disabled>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="cows_data" class="form-label">Данные в формате JSON</label>
+                        <textarea class="form-control" id="cows_data" name="cows_data" rows="8" placeholder='[
+  {"category": "падёж", "reason": "Острая тимпания", "disposal_date": "2026-09-30"},
+  {"category": "выбраковка", "reason": "Агалактия", "disposal_date": "2026-09-30"}
+]' required></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="/dashboard" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Импортировать
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('layout/footer') %>

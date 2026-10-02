@@ -1,0 +1,64 @@
+<%- include('layout/header', { title: 'Редактирование пользователя' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-pencil-square"></i> Редактирование пользователя: <%= user.username %></h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/edit_user/<%= user.id %>">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <input type="text" class="form-control" id="username" name="username" value="<%= user.username %>" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Новый пароль (оставьте пустым, если не меняете)</label>
+                        <input type="password" class="form-control" id="password" name="password">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="user_type" class="form-label">Тип пользователя</label>
+                        <select class="form-select" id="user_type" name="user_type" required onchange="toggleFarmField()">
+                            <option value="admin" <%= user.user_type === 'admin' ? 'selected' : '' %>>Администратор</option>
+                            <option value="farm" <%= user.user_type === 'farm' ? 'selected' : '' %>>Ферма</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="farm_name_field" style="<%= user.user_type === 'farm' ? '' : 'display: none;' %>">
+                        <label for="farm_name" class="form-label">Название фермы</label>
+                        <input type="text" class="form-control" id="farm_name" name="farm_name" value="<%= user.farm_name || '' %>">
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="/user_management" class="btn btn-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Сохранить изменения
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleFarmField() {
+    var userType = document.getElementById('user_type').value;
+    var farmField = document.getElementById('farm_name_field');
+    var farmInput = document.getElementById('farm_name');
+    
+    if (userType === 'farm') {
+        farmField.style.display = 'block';
+        farmInput.required = true;
+    } else {
+        farmField.style.display = 'none';
+        farmInput.required = false;
+    }
+}
+</script>
+
+<%- include('layout/footer') %>

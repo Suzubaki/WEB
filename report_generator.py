@@ -1,225 +1,265 @@
-from openpyxl import Workbook
+# report_generator.py - Генерация первичных документов АПК Республики Беларусь (Форма 209-АПК, 210-АПК)
+import sqlite3
+import csv
+import io
+import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
-import sqlite3
-from config import Config
+from database import get_db_connection
 
-def generate_comprehensive_report(start_date, end_date, farm_filter='all'):
-    """Создание комплексного отчёта по образцу Excel файла"""
+def generate_csv_report(start_date, end_date, farm_name=None):
+    """Генерация расширенного отчета в формате CSV"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    # Подключаемся к базе данных
-    conn = sqlite3.connect('livestock.db')
-    conn.row_factory = sqlite3.Row
-    
-    # Получаем данные
-    query = '''
-        SELECT * FROM cows 
-        WHERE disposal_date BETWEEN ? AND ?
-    '''
+    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
     params = [start_date, end_date]
     
-    if farm_filter != 'all':
-        query += ' AND farm_name = ?'
-        params.append(farm_filter)
+    if farm_name and farm_name != 'all':
+        where_clause += " AND farm_name = ?"
+        params.append(farm_name)
+        
+    cursor.execute(f'''
+        SELECT cow_id, ear_tag, farm_name, category, reason, disposal_date, lactation, weight, notes, created_at 
+        FROM cows 
+        {where_clause}
+        ORDER BY disposal_date DESC
+    ''', params)
     
-    query += ' ORDER BY farm_name, disposal_date'
-    
-    cursor = conn.execute(query, params)
-    data = [dict(row) for row in cursor.fetchall()]
+    rows = cursor.fetchall()
     conn.close()
     
-    if not data:
-        return None
-    
-    # Создаём Excel файл по образцу
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Отчёт по выбытию скота"
-    
-    # Стили
-    header_font = Font(bold=True, size=12)
-    title_font = Font(bold=True, size=14)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
-    header_fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
-    center_alignment = Alignment(horizontal='center', vertical='center')
-    
-    # Заголовок отчёта (по образцу Excel файла)
-    ws.merge_cells('B1:H1')
-    ws['B1'] = "ОПЕРАТИВНАЯ ИНФОРМАЦИЯ"
-    ws['B1'].font = title_font
-    ws['B1'].alignment = center_alignment
-    
-    ws.merge_cells('B2:H2')
-    ws['B2'] = "О ВЫБЫТИИ СКОТА ПО КАТЕГОРИЯМ"
-    ws['B2'].font = Font(bold=True, size=12)
-    ws['B2'].alignment = center_alignment
-    
-    ws.merge_cells('B3:H3')
-    ws['B3'] = f"В СЕЛЬСКОХОЗЯЙСТВЕННЫХ ОРГАНИЗАЦИЯХ"
-    ws['B3'].alignment = center_alignment
-    
-    ws.merge_cells('B4:H4')
-    ws['B4'] = f"Период: с {start_date} по {end_date}"
-    ws['B4'].alignment = center_alignment
-    
-    # Пустая строка
-    ws.row_dimensions[6].height = 20
-    
-    # Заголовки таблицы (как в оригинальном файле)
-    headers = [
-        "Наименование хозяйств",
-        "Падёж", "Выбраковка", "Санитарный блок", 
-        "ВСЕГО выбыло",
-        "Мертворожденные телята",
-        "Выбытие стельного скота",
-        "Примечания"
-    ]
-    
-    # Записываем заголовки
-    for col, header in enumerate(headers, start=2):
-        cell = ws.cell(row=7, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
-        cell.alignment = center_alignment
-    
-    # Получаем список всех ферм
-    conn = sqlite3.connect('livestock.db')
-    cursor = conn.execute('SELECT DISTINCT farm_name FROM cows ORDER BY farm_name')
-    farms = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    
-    # Заполняем данные по фермам
-    current_row = 8
-    
-    for farm in farms:
-        # Фильтруем данные по ферме
-        farm_data = [cow for cow in data if cow['farm_name'] == farm]
-        
-        if not farm_data:
-            continue
-        
-        # Подсчитываем статистику по категориям
-        stats = {
-            'падёж': 0,
-            'выбраковка': 0,
-            'санитарный': 0,
-            'всего': len(farm_data),
-            'мертворожденные': 0,  # Пока заглушка
-            'стельный_скот': 0,     # Пока заглушка
-            'примечания': ''
-        }
-        
-        for cow in farm_data:
-            category = cow['category']
-            if category in stats:
-                stats[category] += 1
-        
-        # Записываем данные фермы
-        ws.cell(row=current_row, column=2, value=farm).border = border
-        ws.cell(row=current_row, column=3, value=stats['падёж']).border = border
-        ws.cell(row=current_row, column=4, value=stats['выбраковка']).border = border
-        ws.cell(row=current_row, column=5, value=stats['санитарный']).border = border
-        ws.cell(row=current_row, column=6, value=stats['всего']).border = border
-        ws.cell(row=current_row, column=7, value=stats['мертворожденные']).border = border
-        ws.cell(row=current_row, column=8, value=stats['стельный_скот']).border = border
-        ws.cell(row=current_row, column=9, value=stats['примечания']).border = border
-        
-        current_row += 1
-    
-    # Итоговая строка
-    ws.cell(row=current_row, column=2, value="ИТОГО:").font = Font(bold=True)
-    ws.cell(row=current_row, column=2).border = border
-    
-    # Подсчитываем итоги
-    for col in range(3, 10):
-        col_letter = get_column_letter(col)
-        start_cell = f"{col_letter}8"
-        end_cell = f"{col_letter}{current_row-1}"
-        formula = f"=СУММ({start_cell}:{end_cell})"
-        ws.cell(row=current_row, column=col, value=formula).font = Font(bold=True)
-        ws.cell(row=current_row, column=col).border = border
-    
-    # Настраиваем ширину колонок
-    column_widths = {
-        'B': 30,  # Наименование хозяйств
-        'C': 15,  # Падёж
-        'D': 15,  # Выбраковка
-        'E': 15,  # Санитарный блок
-        'F': 15,  # Всего
-        'G': 20,  # Мертворожденные
-        'H': 20,  # Выбытие стельного скота
-        'I': 25   # Примечания
-    }
-    
-    for col, width in column_widths.items():
-        ws.column_dimensions[col].width = width
-    
-    # Вторая часть отчёта - детализация по причинам
-    ws2 = wb.create_sheet(title="Детализация по причинам")
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     
     # Заголовок
-    ws2.merge_cells('B1:H1')
-    ws2['B1'] = "ДЕТАЛИЗАЦИЯ ПРИЧИН ВЫБЫТИЯ"
-    ws2['B1'].font = title_font
-    ws2['B1'].alignment = center_alignment
+    writer.writerow(['ID записи', 'Идентиф. номер AITS (РБ) / Инв. №', 'Ферма / МТФ', 'Категория', 'Причина (диагноз)', 'Дата выбытия', 'Лактация/Возраст', 'Живая масса (кг)', 'Заключение ветврача', 'Дата внесения'])
     
-    # Группируем данные по фермам и категориям
-    detail_row = 3
-    for farm in farms:
-        farm_data = [cow for cow in data if cow['farm_name'] == farm]
-        if not farm_data:
-            continue
+    for row in rows:
+        writer.writerow([
+            row['cow_id'],
+            row['ear_tag'] or '-',
+            row['farm_name'],
+            row['category'],
+            row['reason'],
+            row['disposal_date'],
+            row['lactation'] or '-',
+            row['weight'] or '-',
+            row['notes'] or '-',
+            row['created_at']
+        ])
         
-        # Заголовок фермы
-        ws2.cell(row=detail_row, column=2, value=f"Хозяйство: {farm}").font = Font(bold=True)
-        detail_row += 1
+    output.seek(0)
+    return output.getvalue()
+
+def generate_simple_excel_report(start_date, end_date, farm_name=None):
+    """Генерация простого Excel отчета со всеми полями"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    params = [start_date, end_date]
+    
+    if farm_name and farm_name != 'all':
+        where_clause += " AND farm_name = ?"
+        params.append(farm_name)
         
-        # Группируем по категориям
-        for category in Config.DISPOSAL_CATEGORIES.keys():
-            category_data = [cow for cow in farm_data if cow['category'] == category]
-            if not category_data:
-                continue
-            
-            ws2.cell(row=detail_row, column=2, value=f"  Категория: {category}").font = Font(bold=True, italic=True)
-            detail_row += 1
-            
-            # Группируем по причинам
-            reasons = {}
-            for cow in category_data:
-                reason = cow['reason']
-                reasons[reason] = reasons.get(reason, 0) + 1
-            
-            for reason, count in sorted(reasons.items()):
-                ws2.cell(row=detail_row, column=3, value=f"    {reason}")
-                ws2.cell(row=detail_row, column=4, value=count)
-                detail_row += 1
+    cursor.execute(f'''
+        SELECT cow_id, ear_tag, farm_name, category, reason, disposal_date, lactation, weight, notes 
+        FROM cows 
+        {where_clause}
+        ORDER BY farm_name, disposal_date DESC
+    ''', params)
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Ведомость выбытия"
+    
+    ws.append(['ID записи', 'Идентиф. номер AITS (РБ) / Бирка', 'Ферма / МТФ', 'Категория', 'Причина выбытия', 'Дата выбытия', 'Лактация', 'Масса (кг)', 'Заключение ветврача'])
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
         
-        detail_row += 1  # Пустая строка между фермами
+    for row in rows:
+        ws.append([
+            row['cow_id'],
+            row['ear_tag'] or '-',
+            row['farm_name'],
+            row['category'],
+            row['reason'],
+            row['disposal_date'],
+            row['lactation'] or '-',
+            row['weight'] or '-',
+            row['notes'] or '-'
+        ])
+        
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
+        
+    return wb
+
+def generate_form_209_apk_excel(start_date, end_date, farm_name=None):
+    """
+    Генерация официального Акта на выбытие животных и птицы (забой, прирезка и падёж)
+    Типовая форма 209-АПК, утвержденная Министерством сельского хозяйства и продовольствия Республики Беларусь
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    # Настраиваем ширину колонок
-    ws2.column_dimensions['B'].width = 40
-    ws2.column_dimensions['C'].width = 40
-    ws2.column_dimensions['D'].width = 15
+    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    params = [start_date, end_date]
+    if farm_name and farm_name != 'all':
+        where_clause += " AND farm_name = ?"
+        params.append(farm_name)
+        
+    cursor.execute(f'''
+        SELECT cow_id, ear_tag, farm_name, category, reason, disposal_date, lactation, weight, notes 
+        FROM cows 
+        {where_clause}
+        ORDER BY disposal_date ASC
+    ''', params)
+    rows = cursor.fetchall()
+    conn.close()
     
-    # Третья часть - месячная статистика
-    ws3 = wb.create_sheet(title="Месячная статистика")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Форма 209-АПК (РБ)"
     
-    # Сохраняем файл в папке reports
-    import os
-    if not os.path.exists('reports'):
-        os.makedirs('reports')
+    # Стили
+    title_font = Font(name='Arial', size=11, bold=True)
+    header_font = Font(name='Arial', size=9, bold=True)
+    body_font = Font(name='Arial', size=9)
+    bold_body_font = Font(name='Arial', size=9, bold=True)
+    small_font = Font(name='Arial', size=8, italic=True)
     
-    filename = f'reports/комплексный_отчет_{start_date}_по_{end_date}.xlsx'
-    wb.save(filename)
+    thin_border = Border(
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
+    )
+    header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
     
-    # Полный абсолютный путь
-    full_path = os.path.abspath(filename)
+    # Шапка формы 209-АПК (РБ)
+    ws.merge_cells('F1:I1')
+    ws['F1'] = "Типовая форма 209-АПК"
+    ws['F1'].font = Font(name='Arial', size=9, bold=True)
+    ws['F1'].alignment = Alignment(horizontal='right')
     
-    return full_path
+    ws.merge_cells('E2:I2')
+    ws['E2'] = "Утверждена постановлением Минсельхозпрода Республики Беларусь"
+    ws['E2'].font = small_font
+    ws['E2'].alignment = Alignment(horizontal='right')
+    
+    ws['A4'] = f"Сельскохозяйственная организация: {farm_name if (farm_name and farm_name != 'all') else 'Сводный акт по хозяйству (фермам)'}"
+    ws['A4'].font = Font(name='Arial', size=10, bold=True)
+    
+    ws.merge_cells('A6:I6')
+    ws['A6'] = "АКТ НА ВЫБЫТИЕ ЖИВОТНЫХ И ПТИЦЫ (ЗАБОЙ, ПРИРЕЗКА И ПАДЁЖ)"
+    ws['A6'].font = title_font
+    ws['A6'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    ws.merge_cells('A7:I7')
+    ws['A7'] = f"за период с {start_date} по {end_date} года"
+    ws['A7'].font = body_font
+    ws['A7'].alignment = Alignment(horizontal='center', vertical='center')
+    
+    # Табличная часть
+    headers = [
+        ('№ п/п', 5),
+        ('Учетный номер', 14),
+        ('Идент. № (AITS / Бирка)', 18),
+        ('Подразделение / МТФ', 18),
+        ('Вид выбытия (РБ)', 16),
+        ('Причина выбытия (диагноз)', 25),
+        ('Лактация / Возраст', 15),
+        ('Живая масса (кг)', 14),
+        ('Дата выбытия', 13)
+    ]
+    
+    row_num = 9
+    for col_idx, (h_title, width) in enumerate(headers, 1):
+        cell = ws.cell(row=row_num, column=col_idx, value=h_title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = width
+    ws.row_dimensions[row_num].height = 28
+    
+    total_weight = 0.0
+    for idx, r in enumerate(rows, 1):
+        row_num += 1
+        ws.row_dimensions[row_num].height = 20
+        
+        w_val = r['weight'] or 0.0
+        total_weight += float(w_val)
+        
+        vals = [
+            idx,
+            r['cow_id'],
+            r['ear_tag'] or '-',
+            r['farm_name'],
+            r['category'].capitalize(),
+            r['reason'],
+            r['lactation'] or '-',
+            r['weight'] if r['weight'] is not None else '-',
+            r['disposal_date']
+        ]
+        
+        for col_idx, val in enumerate(vals, 1):
+            cell = ws.cell(row=row_num, column=col_idx, value=val)
+            cell.font = body_font
+            cell.border = thin_border
+            if col_idx in [1, 2, 3, 7, 8, 9]:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            else:
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+                
+    # Строка Итого
+    row_num += 1
+    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=7)
+    ws.cell(row=row_num, column=1, value="ИТОГО ВЫБЫЛО ПО АКТУ:").font = bold_body_font
+    ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='right', vertical='center')
+    for c in range(1, 8):
+        ws.cell(row=row_num, column=c).border = thin_border
+        ws.cell(row=row_num, column=c).fill = header_fill
+        
+    cell_head_cnt = ws.cell(row=row_num, column=8, value=f"{total_weight:.1f} кг" if total_weight > 0 else "-")
+    cell_head_cnt.font = bold_body_font
+    cell_head_cnt.alignment = Alignment(horizontal='center', vertical='center')
+    cell_head_cnt.border = thin_border
+    cell_head_cnt.fill = header_fill
+    
+    cell_total_cows = ws.cell(row=row_num, column=9, value=f"{len(rows)} гол.")
+    cell_total_cows.font = bold_body_font
+    cell_total_cows.alignment = Alignment(horizontal='center', vertical='center')
+    cell_total_cows.border = thin_border
+    cell_total_cows.fill = header_fill
+    
+    # Блок подписей комиссии сельхозорганизации РБ
+    row_num += 3
+    ws.cell(row=row_num, column=1, value="Комиссия сельхозорганизации:").font = bold_body_font
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="Руководитель хозяйства (Директор): _______________________ (подпись)").font = body_font
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="Главный ветеринарный врач:        _______________________ (подпись)").font = body_font
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="Главный зоотехник:                 _______________________ (подпись)").font = body_font
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="Заведующий МТФ / фермой:           _______________________ (подпись)").font = body_font
+    row_num += 1
+    ws.cell(row=row_num, column=1, value="Материально ответственное лицо:    _______________________ (подпись)").font = body_font
+    
+    return wb
+
+# Синоним для совместимости
+generate_sp54_act_excel = generate_form_209_apk_excel

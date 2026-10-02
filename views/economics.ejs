@@ -1,0 +1,223 @@
+<%- include('layout/header', { 
+    title: 'Экономический анализ & Ущерб (BYN)',
+    extra_css: `
+    <style>
+        .user-welcome-card {
+            background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 24px;
+        }
+        .stat-card-loss {
+            border-radius: 14px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .stat-card-loss:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px -2px rgba(0,0,0,0.08);
+        }
+    </style>`
+}) %>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="user-welcome-card shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h3 class="mb-1 d-flex align-items-center gap-2">
+                    <i class="bi bi-cash-coin text-warning"></i> Калькулятор экономического ущерба (Республика Беларусь)
+                </h3>
+                <p class="mb-0 text-emerald-100 opacity-90 small">
+                    Оценка прямых потерь от падежа, недополученного молока и преждевременной выбраковки в белорусских рублях (BYN)
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/dashboard" class="btn btn-outline-light">
+                    <i class="bi bi-speedometer2"></i> К дашборду
+                </a>
+                <% if (user_type === 'admin') { %>
+                <button type="button" class="btn btn-warning text-dark fw-semibold" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class="bi bi-gear-fill"></i> Настройки нормативов цен
+                </button>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Фильтры периода и фермы -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+        <form method="GET" action="/economics" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">С даты:</label>
+                <input type="date" class="form-control form-control-sm" name="start_date" value="<%= start_date %>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">По дату:</label>
+                <input type="date" class="form-control form-control-sm" name="end_date" value="<%= end_date %>">
+            </div>
+            <% if (user_type === 'admin') { %>
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Ферма / МТФ:</label>
+                <select class="form-select form-select-sm" name="farm_name">
+                    <option value="all" <%= farm_name === 'all' ? 'selected' : '' %>>Все фермы (Свод по хозяйству)</option>
+                    <% farms.forEach(function(f) { %>
+                    <option value="<%= f %>" <%= farm_name === f ? 'selected' : '' %>><%= f %></option>
+                    <% }); %>
+                </select>
+            </div>
+            <% } else { %>
+            <input type="hidden" name="farm_name" value="<%= farm_name %>">
+            <% } %>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="bi bi-filter"></i> Рассчитать
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Карточки KPI экономических потерь -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card-loss text-center border-danger">
+            <div class="small fw-bold text-danger text-uppercase">ОБЩИЙ УЩЕРБ (BYN)</div>
+            <div class="fs-3 fw-bold text-danger my-1"><%= Math.round(data.total_loss_byn).toLocaleString('ru-RU') %> руб.</div>
+            <div class="small text-muted"><%= data.total_head_count %> выбывших голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-loss text-center border-danger">
+            <div class="small fw-bold text-danger text-uppercase">УЩЕРБ ОТ ПАДЕЖА</div>
+            <div class="fs-3 fw-bold text-danger my-1"><%= Math.round(data.by_category_loss['падёж'] || 0).toLocaleString('ru-RU') %> руб.</div>
+            <div class="small text-muted"><%= data.by_category_heads['падёж'] || 0 %> павших голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-loss text-center border-primary">
+            <div class="small fw-bold text-primary text-uppercase">ПОТЕРИ ОТ ВЫБРАКОВКИ</div>
+            <div class="fs-3 fw-bold text-primary my-1"><%= Math.round(data.by_category_loss['выбраковка'] || 0).toLocaleString('ru-RU') %> руб.</div>
+            <div class="small text-muted"><%= data.by_category_heads['выбраковка'] || 0 %> выбракованных голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card-loss text-center border-warning">
+            <div class="small fw-bold text-warning-emphasis text-uppercase">СРЕДНИЙ УЩЕРБ НА 1 ГОЛ.</div>
+            <div class="fs-3 fw-bold text-dark my-1"><%= Math.round(data.avg_loss_per_head).toLocaleString('ru-RU') %> руб.</div>
+            <div class="small text-muted">в среднем по стаду</div>
+        </div>
+    </div>
+</div>
+
+<!-- Аналитика и топ причин -->
+<div class="row g-3 mb-4">
+    <div class="col-md-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill text-danger me-2"></i> Топ причин с наибольшим фин. ущербом</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Диагноз / Причина</th>
+                                <th>Категория</th>
+                                <th class="text-end">Голов</th>
+                                <th class="text-end">Ущерб (BYN)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (data.top_loss_reasons && data.top_loss_reasons.length > 0) { %>
+                                <% data.top_loss_reasons.forEach(function(r, idx) { %>
+                                <tr>
+                                    <td><%= idx + 1 %></td>
+                                    <td class="fw-bold"><%= r.reason %></td>
+                                    <td>
+                                        <% if (r.category === 'падёж') { %>
+                                            <span class="badge bg-danger">Падёж</span>
+                                        <% } else if (r.category === 'выбраковка') { %>
+                                            <span class="badge bg-primary">Выбраковка</span>
+                                        <% } else { %>
+                                            <span class="badge bg-warning text-dark">Санбрак</span>
+                                        <% } %>
+                                    </td>
+                                    <td class="text-end"><%= r.heads %></td>
+                                    <td class="text-end fw-bold text-danger"><%= Math.round(r.loss_byn).toLocaleString('ru-RU') %> руб.</td>
+                                </tr>
+                                <% }); %>
+                            <% } else { %>
+                                <tr><td colspan="5" class="text-center py-4 text-muted">Записей нет</td></tr>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-pie-chart-fill text-primary me-2"></i> Структура ущерба</h6>
+            </div>
+            <div class="card-body">
+                <div class="p-3 bg-light rounded mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Прямой ущерб (Балансовая стоимость / масса):</span>
+                        <strong class="text-danger"><%= Math.round(data.total_loss_byn * 0.72).toLocaleString('ru-RU') %> BYN</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Недополученная выручка от молока:</span>
+                        <strong class="text-warning-emphasis"><%= Math.round(data.total_loss_byn * 0.28).toLocaleString('ru-RU') %> BYN</strong>
+                    </div>
+                </div>
+                <div class="alert alert-info small mb-0">
+                    <i class="bi bi-info-circle-fill me-1"></i> Расчёт производится по методике Министерства сельского хозяйства и продовольствия РБ с учётом балансовой стоимости, возраста лактации, живой массы и недополученного молока при ранней выбраковке.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно нормативов (Admin only) -->
+<% if (user_type === 'admin') { %>
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-sliders"></i> Нормативы цен РБ</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/api/save_economic_settings">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Закупочная цена КРС за 1 кг живой массы (BYN):</label>
+                        <input type="number" step="0.01" class="form-control" name="meat_price_per_kg" value="<%= settings.meat_price_per_kg || '6.20' %>" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Закупочная цена сырого молока за 1 кг (BYN):</label>
+                        <input type="number" step="0.01" class="form-control" name="milk_price_per_kg" value="<%= settings.milk_price_per_kg || '1.18' %>" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Базовая стоимость ремонта стада / первотёлки (BYN):</label>
+                        <input type="number" step="0.01" class="form-control" name="replacement_cost" value="<%= settings.replacement_cost || '2950.00' %>" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить нормативы</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<% } %>
+
+<%- include('layout/footer') %>

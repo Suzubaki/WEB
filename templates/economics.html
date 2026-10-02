@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Экономический анализ & Ущерб (BYN) - АгроУчёт PRO{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="user-welcome-card shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h3 class="mb-1 d-flex align-items-center gap-2">
+                    <i class="bi bi-cash-coin text-warning"></i> Калькулятор экономического ущерба (Республика Беларусь)
+                </h3>
+                <p class="mb-0 text-blue-100 opacity-90">
+                    Оценка прямых потерь от падежа, недополученного молока и преждевременной выбраковки в белорусских рублях (BYN)
+                </p>
+            </div>
+            {% if session.user_type == 'admin' %}
+            <button type="button" class="btn btn-warning text-dark fw-semibold" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                <i class="bi bi-gear-fill"></i> Настройки нормативов цен
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Фильтры периода и фермы -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+        <form method="GET" action="{{ url_for('economics_dashboard') }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">С даты:</label>
+                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">По дату:</label>
+                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ end_date }}">
+            </div>
+            {% if session.user_type == 'admin' %}
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Ферма / МТФ:</label>
+                <select class="form-select form-select-sm" name="farm_name">
+                    <option value="all">Все фермы (Свод по хозяйству)</option>
+                    {% for f in farms %}
+                    <option value="{{ f }}" {% if farm_name == f %}selected{% endif %}>{{ f }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="bi bi-filter"></i> Рассчитать
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Карточки KPI экономических потерь -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card stat-card-danger p-3 shadow-sm text-center">
+            <div class="stat-title text-danger small">ОБЩИЙ УЩЕРБ (BYN)</div>
+            <div class="stat-value text-danger my-1">{{ "{:,.2f}".format(data.total_loss_byn) }} руб.</div>
+            <div class="small text-muted">{{ data.total_head_count }} выбывших голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card stat-card-danger p-3 shadow-sm text-center">
+            <div class="stat-title text-danger small">УЩЕРБ ОТ ПАДЕЖА</div>
+            <div class="stat-value text-danger my-1">{{ "{:,.2f}".format(data.by_category_loss.get('падёж', 0)) }} руб.</div>
+            <div class="small text-muted">{{ data.by_category_heads.get('падёж', 0) }} павших голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card stat-card-primary p-3 shadow-sm text-center">
+            <div class="stat-title text-primary small">ПОТЕРИ ОТ ВЫБРАКОВКИ</div>
+            <div class="stat-value text-primary my-1">{{ "{:,.2f}".format(data.by_category_loss.get('выбраковка', 0)) }} руб.</div>
+            <div class="small text-muted">{{ data.by_category_heads.get('выбраковка', 0) }} выбракованных голов</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card stat-card-warning p-3 shadow-sm text-center">
+            <div class="stat-title text-warning small">СРЕДНИЙ УЩЕРБ НА 1 ГОЛОВУ</div>
+            <div class="stat-value text-dark my-1">{{ "{:,.2f}".format(data.avg_loss_per_head) }} руб.</div>
+            <div class="small text-muted">в среднем по стаду</div>
+        </div>
+    </div>
+</div>
+
+<!-- Аналитика и топ причин -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-bar-chart-fill text-danger"></i> Топ причин с наибольшим фин. ущербом</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Причина выбытия / Диагноз</th>
+                                <th class="text-end">Ущерб (BYN)</th>
+                                <th class="text-end">Доля</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in data.top_reasons %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td class="fw-semibold">{{ item.reason }}</td>
+                                <td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(item.loss) }} руб.</td>
+                                <td class="text-end text-muted">
+                                    {% if data.total_loss_byn > 0 %}
+                                    {{ "{:.1f}%".format(item.loss / data.total_loss_byn * 100) }}
+                                    {% else %}0%{% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-3 text-muted">Данных за период нет</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-buildings text-primary"></i> Распределение ущерба по фермам / МТФ</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ферма / МТФ</th>
+                                <th class="text-end">Суммарный ущерб (BYN)</th>
+                                <th class="text-end">Доля</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for farm, loss in data.by_farm_loss.items() %}
+                            <tr>
+                                <td class="fw-semibold">{{ farm }}</td>
+                                <td class="text-end fw-bold text-primary">{{ "{:,.2f}".format(loss) }} руб.</td>
+                                <td class="text-end text-muted">
+                                    {% if data.total_loss_byn > 0 %}
+                                    {{ "{:.1f}%".format(loss / data.total_loss_byn * 100) }}
+                                    {% else %}0%{% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center py-3 text-muted">Данных нет</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно настроек цен (для администратора) -->
+{% if session.user_type == 'admin' %}
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('save_economic_settings') }}">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-sliders"></i> Настройки нормативов цен (РБ)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Закупочная цена 1 кг живой массы КРС (BYN):</label>
+                        <input type="number" step="0.01" class="form-control" name="meat_price_per_kg" 
+                               value="{{ data.prices_used.meat_price }}" required>
+                        <div class="form-text">Применяется для оценки стоимости мяса павших и прирезанных животных</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Закупочная цена 1 кг базисного молока (BYN):</label>
+                        <input type="number" step="0.01" class="form-control" name="milk_price_per_kg" 
+                               value="{{ data.prices_used.milk_price }}" required>
+                        <div class="form-text">Используется при расчете упущенной выгоды от преждевременной выбраковки</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Базовая стоимость нетели / коровы (BYN):</label>
+                        <input type="number" step="1" class="form-control" name="replacement_cost" 
+                               value="{{ data.prices_used.replacement_cost }}" required>
+                        <div class="form-text">Стоимость восстановления продуктивного поголовья</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">УНП сельхозорганизации (для AITS):</label>
+                        <input type="text" class="form-control" name="farm_unp" value="{{ unp }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Полное наименование хозяйства (РБ):</label>
+                        <input type="text" class="form-control" name="farm_org_name" value="{{ org_name }}" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить нормативы</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

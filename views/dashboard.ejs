@@ -1,0 +1,684 @@
+<%- include('layout/header', { 
+    title: 'Аналитический дашборд',
+    extra_css: `
+    <style>
+        .kpi-card {
+            border-radius: 14px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px -2px rgba(0,0,0,0.08);
+        }
+        .kpi-title {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .kpi-value {
+            font-size: 1.85rem;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+        .kpi-icon-badge {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+        }
+        .chart-box {
+            position: relative;
+            height: 290px;
+            width: 100%;
+        }
+        .user-welcome-card {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 24px;
+        }
+        .filter-chip {
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .filter-chip.active {
+            background-color: #2563eb;
+            color: white;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+        }
+        .filter-chip:not(.active) {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+        .filter-chip:not(.active):hover {
+            background-color: #e2e8f0;
+            color: #0f172a;
+        }
+        @media print {
+            .navbar, .filter-toolbar, .no-print, footer {
+                display: none !important;
+            }
+            body { background-color: white !important; }
+            .user-welcome-card { background: #1e3a8a !important; -webkit-print-color-adjust: exact; }
+            .card { border: 1px solid #ccc !important; box-shadow: none !important; }
+        }
+    </style>`
+}) %>
+
+<!-- Шапка дашборда -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="user-welcome-card shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-warning text-dark mb-2 fw-semibold px-2 py-1">
+                    <i class="bi bi-shield-check"></i> Ветеринарно-зоотехнический мониторинг РБ
+                </span>
+                <h3 class="mb-1 fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2"></i> Аналитический дашборд выбытия КРС
+                </h3>
+                <p class="mb-0 text-blue-100 opacity-90 small">
+                    Период анализа: <strong><%= d.period_info.title %></strong> | 
+                    <% if (user_type === 'admin') { %>
+                        Охват: <strong><%= d.all_farms.length %> ферм/МТФ</strong>
+                    <% } else { %>
+                        Подразделение: <strong><%= farm_name || 'Хозяйство' %></strong>
+                    <% } %>
+                </p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap no-print">
+                <% if (user_type !== 'admin') { %>
+                <a href="/add_cows_dynamic" class="btn btn-light text-primary fw-semibold">
+                    <i class="bi bi-plus-circle-fill"></i> Ввод выбытия
+                </a>
+                <a href="/import_cows" class="btn btn-outline-light">
+                    <i class="bi bi-upload"></i> Импорт
+                </a>
+                <% } %>
+                <a href="/economics" class="btn btn-warning text-dark fw-semibold">
+                    <i class="bi bi-cash-coin"></i> Расчёт ущерба (BYN)
+                </a>
+                <button type="button" class="btn btn-outline-light" onclick="window.print()" title="Печать сводки">
+                    <i class="bi bi-printer"></i> Печать
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Панель интерактивных фильтров периода и фермы -->
+<div class="card shadow-sm mb-4 filter-toolbar">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <!-- Быстрые кнопки-пресеты периода -->
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="small text-muted fw-bold me-1"><i class="bi bi-calendar3"></i> Период:</span>
+                <a href="/dashboard?period=this_month&farm=<%= selected_farm %>" 
+                   class="filter-chip <%= d.period_info.period === 'this_month' ? 'active' : '' %>">Этот месяц</a>
+                <a href="/dashboard?period=last_month&farm=<%= selected_farm %>" 
+                   class="filter-chip <%= d.period_info.period === 'last_month' ? 'active' : '' %>">Прошлый месяц</a>
+                <a href="/dashboard?period=quarter&farm=<%= selected_farm %>" 
+                   class="filter-chip <%= d.period_info.period === 'quarter' ? 'active' : '' %>">Квартал</a>
+                <a href="/dashboard?period=ytd&farm=<%= selected_farm %>" 
+                   class="filter-chip <%= d.period_info.period === 'ytd' ? 'active' : '' %>">С начала года (YTD)</a>
+                <a href="/dashboard?period=all&farm=<%= selected_farm %>" 
+                   class="filter-chip <%= d.period_info.period === 'all' ? 'active' : '' %>">Всё время</a>
+            </div>
+
+            <!-- Селектор фермы для Администратора и произвольный период -->
+            <form method="GET" action="/dashboard" class="d-flex align-items-center gap-2 flex-wrap">
+                <input type="hidden" name="period" value="custom">
+                <% if (user_type === 'admin') { %>
+                <select class="form-select form-select-sm" name="farm" onchange="this.form.submit()" style="width: 190px;">
+                    <option value="all" <%= selected_farm === 'all' ? 'selected' : '' %>>Все фермы (Свод)</option>
+                    <% d.all_farms.forEach(function(f) { %>
+                    <option value="<%= f %>" <%= selected_farm === f ? 'selected' : '' %>><%= f %></option>
+                    <% }); %>
+                </select>
+                <% } else { %>
+                <input type="hidden" name="farm" value="<%= farm_name %>">
+                <% } %>
+                <div class="input-group input-group-sm" style="width: 270px;">
+                    <input type="date" class="form-control" name="custom_start" value="<%= d.period_info.start_date %>" required>
+                    <span class="input-group-text">-</span>
+                    <input type="date" class="form-control" name="custom_end" value="<%= d.period_info.end_date %>" required>
+                    <button class="btn btn-primary" type="submit" title="Применить период"><i class="bi bi-search"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Предупреждения об аномалиях (Alerts ветслужбы) -->
+<% if (alerts && alerts.length > 0) { %>
+<div class="row mb-4">
+    <div class="col-md-12">
+        <% alerts.forEach(function(alert) { %>
+        <div class="alert alert-<%= alert.type %> d-flex align-items-center gap-3 shadow-sm mb-2" role="alert">
+            <i class="bi <%= alert.icon %> fs-3"></i>
+            <div>
+                <strong><%= alert.title %>:</strong> <%= alert.message %>
+            </div>
+        </div>
+        <% }); %>
+    </div>
+</div>
+<% } %>
+
+<% if (d.kpi.total_disposals === 0 && d.kpi.all_time_total > 0) { %>
+<div class="alert alert-warning d-flex align-items-center justify-content-between shadow-sm mb-4 flex-wrap gap-2" role="alert">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-info-circle-fill fs-4 text-warning"></i>
+        <div>
+            <strong>За выбранный период (<%= d.period_info.title %>) выбытия не зарегистрировано.</strong>
+            Всего в журнале содержится <strong><%= d.kpi.all_time_total %></strong> записей.
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/dashboard?period=last_month&farm=<%= selected_farm %>" class="btn btn-sm btn-outline-dark">Показать за прошлый месяц</a>
+        <a href="/dashboard?period=all&farm=<%= selected_farm %>" class="btn btn-sm btn-primary">Показать за всё время</a>
+    </div>
+</div>
+<% } %>
+
+<!-- KPI Карточки (5 метрик) -->
+<div class="row g-3 mb-4">
+    <!-- 1. Всего выбыло -->
+    <div class="col-md">
+        <div class="kpi-card h-100">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title">Всего выбыло</div>
+                    <div class="kpi-value text-dark"><%= d.kpi.total_disposals %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-primary-subtle text-primary">
+                    <i class="bi bi-clipboard2-data-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small">
+                <% if (d.kpi.growth_pct > 0) { %>
+                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-arrow-up-right"></i> +<%= d.kpi.growth_pct %>%</span>
+                <% } else if (d.kpi.growth_pct < 0) { %>
+                    <span class="badge bg-success-subtle text-success"><i class="bi bi-arrow-down-right"></i> <%= d.kpi.growth_pct %>%</span>
+                <% } else { %>
+                    <span class="badge bg-light text-muted">0.0%</span>
+                <% } %>
+                <span class="text-muted ms-1">к пред. периоду</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Падёж -->
+    <div class="col-md">
+        <div class="kpi-card h-100 border-danger-subtle">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-danger">Падёж скота</div>
+                    <div class="kpi-value text-danger"><%= d.kpi.death_count %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-danger-subtle text-danger">
+                    <i class="bi bi-heart-pulse-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Доля в выбытии: <strong class="text-danger"><%= d.kpi.death_rate_pct %>%</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Выбраковка -->
+    <div class="col-md">
+        <div class="kpi-card h-100 border-primary-subtle">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-primary">Выбраковка</div>
+                    <div class="kpi-value text-primary"><%= d.kpi.culling_count %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-primary-subtle text-primary">
+                    <i class="bi bi-tags-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Плановое снятие со стада
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Санитарный брак -->
+    <div class="col-md">
+        <div class="kpi-card h-100 border-warning-subtle">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-warning">Санитарная прирезка</div>
+                    <div class="kpi-value text-warning"><%= d.kpi.sanitary_count %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-warning-subtle text-warning">
+                    <i class="bi bi-bandaid-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Вынужденный убой на санбойне
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Оценочный ущерб (BYN) -->
+    <div class="col-md">
+        <div class="kpi-card h-100 border-success-subtle bg-light">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-success">Ущерб (BYN)</div>
+                    <div class="kpi-value text-success fs-4"><%= Math.round(d.kpi.financial_loss_byn).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">руб.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-success-subtle text-success">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                В ср. на 1 гол: <strong><%= Math.round(d.kpi.avg_loss_per_cow).toLocaleString('ru-RU') %> руб.</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ряд 1 графиков: Динамика 12 месяцев + Структура категорий -->
+<div class="row g-3 mb-4">
+    <!-- Помесячная динамика 12 месяцев -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-graph-up text-primary me-2"></i> Помесячная динамика выбытия (за последние 12 месяцев)</h6>
+                <span class="badge bg-light text-muted">Падёж / Выбраковка / Санбрак</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box" style="height: 300px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Структура категорий (Doughnut) -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-pie-chart-fill text-danger me-2"></i> Доли категорий выбытия</h6>
+            </div>
+            <div class="card-body d-flex flex-column justify-content-center">
+                <div class="chart-box" style="height: 250px;">
+                    <canvas id="categoryDoughnut"></canvas>
+                </div>
+                <div class="d-flex justify-content-around text-center mt-3 pt-2 border-top">
+                    <div>
+                        <small class="text-danger fw-bold d-block">Падёж</small>
+                        <span class="fw-bold"><%= d.kpi.death_count %></span>
+                    </div>
+                    <div>
+                        <small class="text-primary fw-bold d-block">Выбраковка</small>
+                        <span class="fw-bold"><%= d.kpi.culling_count %></span>
+                    </div>
+                    <div>
+                        <small class="text-warning fw-bold d-block">Санбрак</small>
+                        <span class="fw-bold"><%= d.kpi.sanitary_count %></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ряд 2 графиков: Половозрастные группы (ПВГ) + Патологический профиль -->
+<div class="row g-3 mb-4">
+    <!-- Половозрастные группы -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-diagram-3-fill text-success me-2"></i> Выбытие по половозрастным группам (ПВГ)</h6>
+                <span class="badge bg-light text-success border">Телята (0-6 мес.): <%= d.kpi.calf_disposals %> гол.</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="ageGroupChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Патологический профиль (По системам органов) -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-activity text-primary me-2"></i> Патологический профиль (по системам органов)</h6>
+                <span class="badge bg-light text-muted">Ветстандарт РБ</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="pathologyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ряд 3: Топ частых причин + Выбытие по фермам (если админ) -->
+<div class="row g-3 mb-4">
+    <div class="<%= user_type === 'admin' ? 'col-lg-6' : 'col-lg-12' %>">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-card-checklist text-danger me-2"></i> Топ частых причин выбытия за период</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Причина / Диагноз</th>
+                                <th>Категория</th>
+                                <th class="text-end">Голов</th>
+                                <th class="text-end">Доля</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (d.top_reasons && d.top_reasons.length > 0) { %>
+                                <% d.top_reasons.forEach(function(r, idx) { %>
+                                <tr>
+                                    <td><%= idx + 1 %></td>
+                                    <td class="fw-bold"><%= r.reason %></td>
+                                    <td>
+                                        <% if (r.category === 'падёж') { %>
+                                            <span class="badge bg-danger">Падёж</span>
+                                        <% } else if (r.category === 'выбраковка') { %>
+                                            <span class="badge bg-primary">Выбраковка</span>
+                                        <% } else { %>
+                                            <span class="badge bg-warning text-dark">Санбрак</span>
+                                        <% } %>
+                                    </td>
+                                    <td class="text-end fw-bold"><%= r.count %></td>
+                                    <td class="text-end text-muted">
+                                        <%= d.kpi.total_disposals > 0 ? (r.count / d.kpi.total_disposals * 100).toFixed(1) + '%' : '0%' %>
+                                    </td>
+                                </tr>
+                                <% }); %>
+                            <% } else { %>
+                                <tr><td colspan="5" class="text-center py-4 text-muted">За выбранный период выбытия нет</td></tr>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <% if (user_type === 'admin') { %>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-buildings-fill text-primary me-2"></i> Рейтинг ферм / МТФ по количеству выбытия</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="farmBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+</div>
+
+<!-- Оперативный мониторинг: Последние выбытия за выбранный период -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history text-secondary me-2"></i> Последние зарегистрированные записи (Мониторинг)</h6>
+        <a href="/cows" class="btn btn-sm btn-outline-primary">
+            Открыть полный журнал (<%= d.kpi.all_time_total %> записей) <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Бирка AITS</th>
+                        <th>Ферма</th>
+                        <th>ПВГ</th>
+                        <th>Категория</th>
+                        <th>Диагноз / Причина</th>
+                        <th>Дата</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (d.recent_cows && d.recent_cows.length > 0) { %>
+                        <% d.recent_cows.forEach(function(c) { %>
+                        <tr>
+                            <td><span class="badge bg-secondary font-monospace"><%= c.cow_id %></span></td>
+                            <td><strong><%= c.ear_tag || '-' %></strong></td>
+                            <td><%= c.farm_name %></td>
+                            <td><span class="badge bg-light text-dark border"><%= c.age_group || 'Дойное' %></span></td>
+                            <td>
+                                <% if (c.category === 'падёж') { %>
+                                    <span class="badge bg-danger">Падёж</span>
+                                <% } else if (c.category === 'выбраковка') { %>
+                                    <span class="badge bg-primary">Выбраковка</span>
+                                <% } else { %>
+                                    <span class="badge bg-warning text-dark">Санбрак</span>
+                                <% } %>
+                            </td>
+                            <td><%= c.reason %></td>
+                            <td><%= c.disposal_date %></td>
+                            <td class="text-end text-nowrap">
+                                <a href="/cows" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Просмотр в журнале">
+                                    <i class="bi bi-eye"></i> Просмотр
+                                </a>
+                            </td>
+                        </tr>
+                        <% }); %>
+                    <% } else { %>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">Записей нет</td></tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="/chart.umd.js"></script>
+<script>
+if (typeof Chart === 'undefined') {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\\/script>');
+}
+</script>
+
+<script>
+(function() {
+    function initCharts() {
+        if (typeof Chart === 'undefined') {
+            setTimeout(initCharts, 100);
+            return;
+        }
+
+        Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        Chart.defaults.color = '#64748b';
+
+        // 1. Помесячный тренд (12 месяцев)
+        const trendCtx = document.getElementById('trendChart');
+        if (trendCtx) {
+            const trendLabels = <%- JSON.stringify(d.charts.trend.labels || []) %>;
+            const trendDatasets = <%- JSON.stringify(d.charts.trend.datasets || []) %>;
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: trendDatasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: { padding: 10, cornerRadius: 8 }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 2. Доли категорий (Doughnut)
+        const catCtx = document.getElementById('categoryDoughnut');
+        if (catCtx) {
+            const catLabels = <%- JSON.stringify(d.charts.categories.labels || ['Падёж', 'Выбраковка', 'Санитарный брак']) %>;
+            const catData = <%- JSON.stringify(d.charts.categories.data || [0, 0, 0]) %>;
+            const catColors = <%- JSON.stringify(d.charts.categories.colors || ['#EF4444', '#3B82F6', '#F59E0B']) %>;
+            const totalCases = catData.reduce((a, b) => a + b, 0);
+
+            new Chart(catCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: totalCases > 0 ? catLabels : ['Нет данных'],
+                    datasets: [{
+                        data: totalCases > 0 ? catData : [1],
+                        backgroundColor: totalCases > 0 ? catColors : ['#E2E8F0'],
+                        borderWidth: 2,
+                        hoverOffset: totalCases > 0 ? 4 : 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (totalCases === 0) return ' Нет данных за период';
+                                    const val = context.raw || 0;
+                                    const pct = totalCases > 0 ? ((val / totalCases) * 100).toFixed(1) : 0;
+                                    return ` ${context.label}: ${val} гол. (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        // 3. Половозрастные группы (ПВГ)
+        const ageCtx = document.getElementById('ageGroupChart');
+        if (ageCtx) {
+            const ageLabels = <%- JSON.stringify(d.charts.age_groups.labels || []) %>;
+            const ageData = <%- JSON.stringify(d.charts.age_groups.data || []) %>;
+            new Chart(ageCtx, {
+                type: 'bar',
+                data: {
+                    labels: ageLabels.length > 0 ? ageLabels : ['Нет данных'],
+                    datasets: [{
+                        label: 'Выбыло (гол.)',
+                        data: ageData.length > 0 ? ageData : [0],
+                        backgroundColor: '#10B981',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false }, ticks: { maxRotation: 25, minRotation: 0 } }
+                    }
+                }
+            });
+        }
+
+        // 4. Патологический профиль (По системам органов)
+        const pathCtx = document.getElementById('pathologyChart');
+        if (pathCtx) {
+            const pathLabels = <%- JSON.stringify(d.charts.pathology.labels || []) %>;
+            const pathData = <%- JSON.stringify(d.charts.pathology.data || []) %>;
+            new Chart(pathCtx, {
+                type: 'bar',
+                data: {
+                    labels: pathLabels.length > 0 ? pathLabels : ['Нет данных'],
+                    datasets: [{
+                        label: 'Случаев',
+                        data: pathData.length > 0 ? pathData : [0],
+                        backgroundColor: '#6366F1',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 5. Фермы (для администратора)
+        <% if (user_type === 'admin') { %>
+        const farmCtx = document.getElementById('farmBarChart');
+        if (farmCtx) {
+            const farmLabels = <%- JSON.stringify(d.charts.farms.labels || []) %>;
+            const farmData = <%- JSON.stringify(d.charts.farms.data || []) %>;
+            new Chart(farmCtx, {
+                type: 'bar',
+                data: {
+                    labels: farmLabels.length > 0 ? farmLabels : ['Нет данных'],
+                    datasets: [{
+                        label: 'Выбыло скота (гол.)',
+                        data: farmData.length > 0 ? farmData : [0],
+                        backgroundColor: '#0284C7',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+        <% } %>
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCharts);
+    } else {
+        initCharts();
+    }
+})();
+</script>
+
+<%- include('layout/footer') %>

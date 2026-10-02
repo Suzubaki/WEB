@@ -1,76 +1,266 @@
+# database.py - Работа с базой данных SQLite
 import sqlite3
 import os
+import shutil
 from datetime import datetime
+from config import Config
+
+def get_db_connection():
+    """Создает соединение с базой данных SQLite"""
+    conn = sqlite3.connect(Config.DATABASE)
+    conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
+    return conn
+
+def sync_farm_data():
+    """
+    Синхронизация названий ферм в таблице cows с актуальными названиями ферм пользователей (по created_by)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE cows
+            SET farm_name = (
+                SELECT u.farm_name 
+                FROM users u 
+                WHERE u.id = cows.created_by 
+                  AND u.farm_name IS NOT NULL 
+                  AND u.farm_name != ''
+            )
+            WHERE created_by IN (
+                SELECT id FROM users 
+                WHERE farm_name IS NOT NULL 
+                  AND farm_name != ''
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Ошибка синхронизации названий ферм: {e}")
 
 def init_db():
-    """Инициализация базы данных SQLite"""
-    conn = sqlite3.connect('livestock.db')
+    """Инициализация базы данных и создание/миграция таблиц"""
+    conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
+    # 1. Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             user_type TEXT NOT NULL,  -- 'admin' или 'farm'
-            farm_name TEXT,  -- название фермы (для пользователей типа farm)
+            farm_name TEXT,           -- Название фермы для пользователей типа 'farm'
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
-    # Таблица коров
+    # 2. Таблица коров (учет выбытия)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cows (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cow_id TEXT NOT NULL,  -- уникальный идентификатор коровы
-            farm_name TEXT NOT NULL,  -- к какой ферме принадлежит
-            category TEXT NOT NULL,  -- 'падёж', 'выбраковка', 'санитарный'
-            reason TEXT NOT NULL,  -- конкретная причина
-            disposal_date DATE NOT NULL,  -- дата выбытия
+            cow_id TEXT NOT NULL,        -- Системный номер выбытия ('Farm1-001')
+            ear_tag TEXT,               -- Инвентарный / ушной номер AITS (РБ)
+            farm_name TEXT NOT NULL,     -- Название фермы / МТФ
+            category TEXT NOT NULL,      -- 'падёж', 'выбраковка', 'санитарный'
+            reason TEXT NOT NULL,        -- Причина выбытия (диагноз)
+            disposal_date DATE NOT NULL, -- Дата выбытия
+            lactation INTEGER,          -- Номер лактации / возраст
+            weight REAL,                -- Живая масса (кг)
+            notes TEXT,                 -- Примечание / заключение ветеринара
+            age_group TEXT,             -- Половозрастная группа скота (ПВГ)
+            breed TEXT,                 -- Порода
+            milk_yield REAL,            -- Надой за последнюю лактацию (кг)
+            book_value REAL,            -- Балансовая / первоначальная стоимость (BYN)
+            autopsy_protocol TEXT,      -- Протокол вскрытия (патологоанатомическая картина)
+            autopsy_vet TEXT,           -- Ветврач, проводивший вскрытие
+            autopsy_date DATE,          -- Дата вскрытия
+            autopsy_lab_sample TEXT,    -- Направление патматериала в райветстанцию
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by INTEGER,
-            FOREIGN KEY (created_by) REFERENCES users (id)
+            created_by INTEGER,          -- ID пользователя, добавившего запись
+            updated_at TIMESTAMP,
+            updated_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users (id),
+            FOREIGN KEY (updated_by) REFERENCES users (id)
         )
     ''')
     
-    # Создаём индексы для быстрого поиска
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_farm ON cows(farm_name)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_date ON cows(disposal_date)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_category ON cows(category)')
+    # 3. Динамический справочник причин выбытия
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS disposal_reasons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,     -- 'падёж', 'выбраковка', 'санитарный'
+            name TEXT NOT NULL,         -- Название причины
+            is_active INTEGER DEFAULT 1, -- 1: активна, 0: скрыта
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(category, name)
+        )
+    ''')
     
+    # 4. Журнал аудита действий (Audit Log)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT NOT NULL,
+            farm_name TEXT,
+            action TEXT NOT NULL,       -- 'CREATE', 'UPDATE', 'DELETE', 'IMPORT', 'BACKUP'
+            entity_type TEXT NOT NULL,  -- 'COW', 'USER', 'REASON', 'SETTINGS'
+            entity_id TEXT,
+            details TEXT,
+            ip_address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # 5. Системные настройки (включая экономические расценки)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            description TEXT
+        )
+    ''')
+    
+    # Миграция: проверка и добавление недостающих колонок в cows
+    cursor.execute("PRAGMA table_info(cows)")
+    existing_cols = [row['name'] for row in cursor.fetchall()]
+    columns_to_add = {
+        'ear_tag': 'TEXT',
+        'lactation': 'INTEGER',
+        'weight': 'REAL',
+        'notes': 'TEXT',
+        'age_group': 'TEXT',
+        'breed': 'TEXT',
+        'milk_yield': 'REAL',
+        'book_value': 'REAL',
+        'autopsy_protocol': 'TEXT',
+        'autopsy_vet': 'TEXT',
+        'autopsy_date': 'DATE',
+        'autopsy_lab_sample': 'TEXT',
+        'updated_at': 'TIMESTAMP',
+        'updated_by': 'INTEGER'
+    }
+    for col_name, col_type in columns_to_add.items():
+        if col_name not in existing_cols:
+            cursor.execute(f"ALTER TABLE cows ADD COLUMN {col_name} {col_type}")
+    
+    # Заполнение справочника причин по умолчанию, если он пуст
+    cursor.execute("SELECT COUNT(*) as cnt FROM disposal_reasons")
+    if cursor.fetchone()['cnt'] == 0:
+        for cat, reasons in Config.DISPOSAL_CATEGORIES.items():
+            for reason in reasons:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO disposal_reasons (category, name, is_active)
+                    VALUES (?, ?, 1)
+                ''', (cat, reason))
+                
+    # Заполнение настроек по умолчанию, если пусты
+    default_settings = [
+        ('meat_price_per_kg', str(Config.DEFAULT_PRICES['meat_price_per_kg']), 'Закупочная цена 1 кг живой массы КРС (BYN)'),
+        ('milk_price_per_kg', str(Config.DEFAULT_PRICES['milk_price_per_kg']), 'Закупочная цена 1 кг базисного молока (BYN)'),
+        ('replacement_cost', str(Config.DEFAULT_PRICES['replacement_cost']), 'Стоимость восстановления головы / нетели (BYN)'),
+        ('farm_unp', '190000000', 'УНП сельскохозяйственной организации (для ГИС AITS)'),
+        ('farm_org_name', 'ОАО «Агро-Плем»', 'Полное наименование сельхозпредприятия (РБ)')
+    ]
+    for k, v, d in default_settings:
+        cursor.execute('''
+            INSERT OR IGNORE INTO system_settings (key, value, description)
+            VALUES (?, ?, ?)
+        ''', (k, v, d))
+        
     conn.commit()
     conn.close()
     
-    print("База данных инициализирована")
+    # Вызов синхронизации названий ферм
+    sync_farm_data()
 
-def get_db_connection():
-    """Получение соединения с базой данных"""
-    conn = sqlite3.connect('livestock.db')
-    conn.row_factory = sqlite3.Row  # Возвращает словари вместо кортежей
-    return conn
+def get_setting(key, default=None):
+    """Получение значения настройки из БД"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM system_settings WHERE key = ?', (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['value'] if row else default
 
-if __name__ == '__main__':
-    init_db()
+def set_setting(key, value, description=None):
+    """Сохранение или обновление настройки в БД"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if description:
+        cursor.execute('''
+            INSERT INTO system_settings (key, value, description) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, description = excluded.description
+        ''', (key, str(value), description))
+    else:
+        cursor.execute('''
+            INSERT INTO system_settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        ''', (key, str(value)))
+    conn.commit()
+    conn.close()
 
+def get_all_settings():
+    """Получение всех настроек в виде словаря"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM system_settings')
+    rows = cursor.fetchall()
+    conn.close()
+    return {r['key']: r['value'] for r in rows}
+
+def log_audit_event(username, farm_name, action, entity_type, entity_id=None, details=None, user_id=None, ip_address=None):
+    """Запись события в журнал аудита"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO audit_logs (user_id, username, farm_name, action, entity_type, entity_id, details, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, farm_name, action, entity_type, str(entity_id) if entity_id else None, details, ip_address))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Ошибка логирования аудита: {e}")
 
 def generate_cow_id(farm_name):
-    """Генерация автоматического ID коровы для фермы"""
+    """Генерирует следующий номер выбытия для фермы в формате 'FarmName-XXX'"""
     conn = get_db_connection()
-    
-    # Получаем максимальный номер для этой фермы
-    cursor = conn.execute('''
-        SELECT MAX(CAST(SUBSTR(cow_id, INSTR(cow_id, "-") + 1) AS INTEGER)) as max_num
-        FROM cows 
-        WHERE farm_name = ? AND cow_id LIKE ? || '-%'
-    ''', (farm_name, farm_name))
-    
-    result = cursor.fetchone()
-    max_num = result['max_num'] if result['max_num'] else 0
-    
-    # Генерируем новый ID
-    new_num = max_num + 1
-    new_id = f"{farm_name}-{new_num:03d}"  # Формат: ФЕРМА-001
-    
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT cow_id FROM cows 
+        WHERE farm_name = ? 
+        ORDER BY id DESC LIMIT 1
+    ''', (farm_name,))
+    last_cow = cursor.fetchone()
     conn.close()
-    return new_id
+    
+    if last_cow:
+        last_id = last_cow['cow_id']
+        try:
+            parts = last_id.split('-')
+            number = int(parts[-1])
+            new_number = number + 1
+        except (IndexError, ValueError):
+            new_number = 1
+    else:
+        new_number = 1
+    
+    return f"{farm_name}-{new_number:03d}"
+
+def get_reasons_for_category(category, include_inactive=False):
+    """Получение причин выбытия из базы данных"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if include_inactive:
+        cursor.execute('SELECT * FROM disposal_reasons WHERE category = ? ORDER BY name ASC', (category,))
+    else:
+        cursor.execute('SELECT name FROM disposal_reasons WHERE category = ? AND is_active = 1 ORDER BY name ASC', (category,))
+    results = cursor.fetchall()
+    conn.close()
+    
+    if include_inactive:
+        return [dict(r) for r in results]
+    else:
+        return [r['name'] for r in results]

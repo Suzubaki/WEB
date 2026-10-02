@@ -1,486 +1,260 @@
 {% extends "base.html" %}
 
-{% block title %}Добавление коров (динамически){% endblock %}
+{% block title %}Добавление коров (динамически) - АгроУчёт PRO{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-11">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-plus-circle-dotted"></i> Оперативный ввод выбытия скота (РБ)</h4>
+                <span class="badge bg-light text-primary">Ферма: {{ farm_name }}</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-info py-2 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <i class="bi bi-lightning-charge-fill text-warning"></i>
+                        Добавляйте записи списком. Поддерживаются номера бирок AITS и расчёт экономического ущерба (BYN).
+                    </div>
+                    <div>
+                        <a href="{{ url_for('import_cows') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-upload"></i> Импорт ведомости из Excel
+                        </a>
+                    </div>
+                </div>
+                
+                <form id="cows-form">
+                    <div id="cows-container"></div>
+                    
+                    <div class="text-center my-3">
+                        <button type="button" id="add-cow-btn" class="btn btn-outline-primary btn-sm px-4">
+                            <i class="bi bi-plus-lg"></i> Добавить ещё одну строку
+                        </button>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
+                        <button type="button" id="cancel-btn" class="btn btn-outline-danger">
+                            <i class="bi bi-x-circle"></i> Сбросить
+                        </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> В журнал
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                                <i class="bi bi-save-fill"></i> Сохранить все записи
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
     let cowCount = 1;
-    let draftData = [];
-    
-    // Функция создания строки коровы
+    const today = '{{ today }}';
+
     function createCowRow(index) {
-        // Получаем сегодняшнюю дату
-        var today = new Date().toISOString().split('T')[0];
-        
         return `
-            <div class="card cow-row mb-3" id="cow-row-${index}">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Корова #${index}</h5>
-                    <button type="button" class="btn btn-sm btn-outline-danger delete-cow-btn" data-index="${index}">
-                        <i class="bi bi-trash"></i> Удалить
+            <div class="card cow-row mb-3 border shadow-none" id="cow-row-${index}">
+                <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-primary">Животное #${index}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 delete-cow-btn" data-index="${index}">
+                        <i class="bi bi-trash"></i>
                     </button>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Категория *</label>
-                            <select class="form-select category-select" data-index="${index}" required>
-                                <option value="">Выберите категорию</option>
+                <div class="card-body py-3">
+                    <div class="row g-2">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Категория *</label>
+                            <select class="form-select form-select-sm category-select" data-index="${index}" required>
+                                <option value="">Выберите...</option>
                                 <option value="падёж">Падёж</option>
                                 <option value="выбраковка">Выбраковка</option>
-                                <option value="санитарный">Санитарный блок</option>
+                                <option value="санитарный">Санитарный брак</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Причина *</label>
-                            <select class="form-select reason-select" id="reason-${index}" disabled required>
-                                <option value="">Сначала выберите категорию</option>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Причина / Диагноз *</label>
+                            <select class="form-select form-select-sm reason-select" id="reason-${index}" disabled required>
+                                <option value="">Сначала категорию</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Дата выбытия *</label>
-                            <input type="date" class="form-control disposal-date" required max="${today}" value="${today}">
-                            <div class="form-text text-danger date-error" style="display: none; font-size: 0.8em;">
-                                Дата не может быть позже сегодняшнего дня
-                            </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Дата выбытия *</label>
+                            <input type="date" class="form-control form-control-sm disposal-date" required max="${today}" value="${today}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Идент. № (AITS / Бирка)</label>
+                            <input type="text" class="form-control form-control-sm ear-tag" placeholder="Напр. BY 04 1234">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
+                            <select class="form-select form-select-sm age-group">
+                                <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
+                                <option value="Коровы сухостойные">Коровы сухостойные</option>
+                                <option value="Нетели">Нетели</option>
+                                <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
+                                <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
+                                <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
+                                <option value="Бычки на откорме">Бычки на откорме</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Лактация / Возраст</label>
+                            <input type="number" class="form-control form-control-sm lactation" min="0" max="20" placeholder="№">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Живая масса (кг)</label>
+                            <input type="number" step="0.1" class="form-control form-control-sm weight" min="0" placeholder="кг">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Удой за лакт. (кг)</label>
+                            <input type="number" step="1" class="form-control form-control-sm milk-yield" min="0" placeholder="кг">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-semibold">Балансовая ст. (BYN)</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm book-value" min="0" placeholder="руб.">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Примечание / Заключение</label>
+                            <input type="text" class="form-control form-control-sm notes" placeholder="Примечание ветеринара...">
                         </div>
                     </div>
                 </div>
             </div>
         `;
     }
-    
-    // Восстановление черновика из localStorage
-    const savedDraft = localStorage.getItem('cows_draft');
-    if (savedDraft) {
-        try {
-            draftData = JSON.parse(savedDraft);
-            if (Array.isArray(draftData) && draftData.length > 0) {
-                if (confirm('Обнаружен черновик с данными. Восстановить?')) {
-                    cowCount = draftData.length;
-                    draftData.forEach((cow, index) => {
-                        $('#cows-container').append(createCowRow(index + 1));
-                        setTimeout(() => {
-                            const $row = $(`#cow-row-${index + 1}`);
-                            $row.find('.category-select').val(cow.category).trigger('change');
-                            setTimeout(() => {
-                                $row.find('.reason-select').val(cow.reason);
-                                // Проверяем и валидируем дату при восстановлении
-                                var selectedDate = cow.disposal_date;
-                                var today = new Date().toISOString().split('T')[0];
-                                
-                                // Если дата из черновика позже сегодняшнего дня, устанавливаем сегодняшнюю дату
-                                var dateToSet = selectedDate;
-                                if (selectedDate && selectedDate > today) {
-                                    dateToSet = today;
-                                    showToast('Дата в черновике была позже сегодняшнего дня. Установлена сегодняшняя дата.', 'warning');
-                                }
-                                $row.find('.disposal-date').val(dateToSet);
-                            }, 100);
-                        }, 50);
-                    });
-                } else {
-                    localStorage.removeItem('cows_draft');
-                    $('#cows-container').append(createCowRow(cowCount));
-                }
-            }
-        } catch (e) {
-            localStorage.removeItem('cows_draft');
-            $('#cows-container').append(createCowRow(cowCount));
-        }
-    } else {
-        // Изначально показываем одну корову
-        $('#cows-container').append(createCowRow(cowCount));
-    }
-    
-    // Обработчик кнопки "Добавить корову"
+
+    $('#cows-container').append(createCowRow(cowCount));
+
     $('#add-cow-btn').click(function() {
         cowCount++;
         $('#cows-container').append(createCowRow(cowCount));
-        updateCowNumbers();
-        saveDraft();
+        updateIndexes();
     });
-    
-    // Обработчик кнопки удаления коровы
+
     $(document).on('click', '.delete-cow-btn', function() {
-        const index = $(this).data('index');
         if ($('.cow-row').length > 1) {
-            $(`#cow-row-${index}`).remove();
-            updateCowNumbers();
-            saveDraft();
+            $(this).closest('.cow-row').remove();
+            updateIndexes();
         } else {
-            alert('Должна остаться хотя бы одна корова');
+            alert('Должна остаться хотя бы одна строка');
         }
     });
-    
-    // Функция обновления номеров коров
-    function updateCowNumbers() {
-        $('.cow-row').each(function(index) {
-            const newIndex = index + 1;
-            $(this).find('h5').text(`Корова #${newIndex}`);
+
+    function updateIndexes() {
+        $('.cow-row').each(function(idx) {
+            const newIndex = idx + 1;
             $(this).attr('id', `cow-row-${newIndex}`);
-            
-            // Обновляем data-атрибуты и ID элементов
+            $(this).find('.card-header span').text(`Животное #${newIndex}`);
+            $(this).find('.delete-cow-btn').attr('data-index', newIndex);
             $(this).find('.category-select').attr('data-index', newIndex);
             $(this).find('.reason-select').attr('id', `reason-${newIndex}`);
-            $(this).find('.delete-cow-btn').attr('data-index', newIndex);
         });
+        cowCount = $('.cow-row').length;
     }
-    
-    // Загрузка причин при выборе категории
+
     $(document).on('change', '.category-select', function() {
-        var category = $(this).val();
-        var rowIndex = $(this).data('index');
+        const index = $(this).data('index');
+        const category = $(this).val();
+        const $reasonSelect = $(`#reason-${index}`);
+        
+        $reasonSelect.empty().append('<option value="">Загрузка...</option>');
+        $reasonSelect.prop('disabled', true);
         
         if (category) {
-            $.getJSON('/get_reasons/' + category, function(data) {
-                var $reasonSelect = $('#reason-' + rowIndex);
-                $reasonSelect.empty();
-                $reasonSelect.append('<option value="">Выберите причину</option>');
-                $.each(data, function(index, reason) {
-                    $reasonSelect.append('<option value="' + reason + '">' + reason + '</option>');
+            $.getJSON(`/get_reasons/${category}`, function(data) {
+                $reasonSelect.empty().append('<option value="">Выберите причину</option>');
+                data.forEach(reason => {
+                    $reasonSelect.append(`<option value="${reason}">${reason}</option>`);
                 });
                 $reasonSelect.prop('disabled', false);
+            }).fail(function() {
+                $reasonSelect.empty().append('<option value="">Ошибка загрузки</option>');
             });
-        }
-        saveDraft();
-    });
-    
-    // Валидация даты при изменении
-    $(document).on('change', '.disposal-date', function() {
-        var selectedDate = $(this).val();
-        var today = new Date().toISOString().split('T')[0];
-        
-        if (selectedDate > today) {
-            $(this).addClass('is-invalid');
-            $(this).siblings('.date-error').show();
         } else {
-            $(this).removeClass('is-invalid');
-            $(this).siblings('.date-error').hide();
+            $reasonSelect.empty().append('<option value="">Сначала категорию</option>');
         }
-        saveDraft();
     });
-    
-    // Сохранение черновика при изменении данных
-    $(document).on('change', '.reason-select', function() {
-        saveDraft();
-    });
-    
-    // Функция сохранения черновика
-    function saveDraft() {
-        const cowsData = [];
-        let today = new Date().toISOString().split('T')[0];
-        
-        $('.cow-row').each(function(index) {
-            var category = $(this).find('.category-select').val();
-            var reason = $(this).find('.reason-select').val();
-            var disposalDate = $(this).find('.disposal-date').val();
-            
-            // Если дата позже сегодняшнего дня, не сохраняем ее
-            var dateToSave = disposalDate;
-            if (disposalDate && disposalDate > today) {
-                dateToSave = today;
-            }
-            
-            if (category || reason || dateToSave) {
-                cowsData.push({
-                    category: category || '',
-                    reason: reason || '',
-                    disposal_date: dateToSave || ''
-                });
-            }
-        });
-        
-        if (cowsData.length > 0) {
-            localStorage.setItem('cows_draft', JSON.stringify(cowsData));
+
+    $('#cancel-btn').click(function() {
+        if (confirm('Сбросить все введенные строки?')) {
+            $('#cows-container').empty();
+            cowCount = 1;
+            $('#cows-container').append(createCowRow(cowCount));
         }
-    }
-    
-    // Отправка формы
+    });
+
     $('#cows-form').submit(function(e) {
         e.preventDefault();
         
-        var cowsData = [];
-        var isValid = true;
-        var today = new Date().toISOString().split('T')[0];
+        let cowsData = [];
+        let isValid = true;
         
-        $('.cow-row').each(function(index) {
-            var category = $(this).find('.category-select').val();
-            var reason = $(this).find('.reason-select').val();
-            var disposalDate = $(this).find('.disposal-date').val();
+        $('.cow-row').each(function() {
+            const category = $(this).find('.category-select').val();
+            const reason = $(this).find('.reason-select').val();
+            const disposalDate = $(this).find('.disposal-date').val();
+            const earTag = $(this).find('.ear-tag').val().trim();
+            const ageGroup = $(this).find('.age-group').val();
+            const lactation = $(this).find('.lactation').val();
+            const weight = $(this).find('.weight').val();
+            const milkYield = $(this).find('.milk-yield').val();
+            const bookValue = $(this).find('.book-value').val();
+            const notes = $(this).find('.notes').val().trim();
             
-            // Проверка заполненности полей
             if (!category || !reason || !disposalDate) {
                 isValid = false;
-                $(this).addClass('border-danger');
-                return;
+                return false;
             }
-            
-            // Проверка даты - не может быть позже сегодняшнего дня
-            if (disposalDate > today) {
-                isValid = false;
-                $(this).addClass('border-danger');
-                $(this).find('.disposal-date').addClass('is-invalid');
-                $(this).find('.date-error').show();
-                alert('Дата выбытия не может быть позже сегодняшнего дня');
-                return;
-            }
-            
-            $(this).removeClass('border-danger');
-            $(this).find('.disposal-date').removeClass('is-invalid');
-            $(this).find('.date-error').hide();
             
             cowsData.push({
                 category: category,
                 reason: reason,
-                disposal_date: disposalDate
+                disposal_date: disposalDate,
+                ear_tag: earTag || null,
+                age_group: ageGroup || 'Коровы дойного стада',
+                lactation: lactation ? parseInt(lactation) : null,
+                weight: weight ? parseFloat(weight) : null,
+                milk_yield: milkYield ? parseFloat(milkYield) : null,
+                book_value: bookValue ? parseFloat(bookValue) : null,
+                notes: notes || null
             });
         });
         
         if (!isValid) {
-            if (!alert('Заполните все обязательные поля для всех коров и проверьте даты')) {
-                // Прокручиваем к первой ошибке
-                $('.border-danger').first().get(0).scrollIntoView({ behavior: 'smooth' });
-            }
+            alert('Пожалуйста, заполните все обязательные поля (Категория, Причина, Дата)');
             return;
         }
         
-        // Очищаем черновик перед отправкой
-        localStorage.removeItem('cows_draft');
+        const $submitBtn = $(this).find('button[type="submit"]');
+        $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Сохранение...');
         
-        // Показываем окно подтверждения
-        if (confirm(`Сохранить ${cowsData.length} коров?`)) {
-            // Отправляем данные на сервер
-            $.ajax({
-                url: '{{ url_for("add_multiple_cows") }}',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    cows_data: cowsData
-                }),
-                success: function(response) {
+        $.ajax({
+            url: '{{ url_for("add_multiple_cows") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(cowsData),
+            success: function(response) {
+                if (response.success) {
                     window.location.href = '{{ url_for("view_cows") }}';
-                },
-                error: function(xhr, status, error) {
-                    if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.errors) {
-                        alert('Ошибки валидации: ' + xhr.responseJSON.errors.join(', '));
-                    } else {
-                        alert('Ошибка при сохранении данных: ' + error);
-                    }
-                    // Восстанавливаем черновик при ошибке
-                    saveDraft();
+                } else {
+                    alert(response.message || 'Ошибка сохранения записей');
+                    $submitBtn.prop('disabled', false).html('<i class="bi bi-save-fill"></i> Сохранить все записи');
                 }
-            });
-        } else {
-            saveDraft(); // Сохраняем черновик если отмена
-        }
-    });
-    
-    // Обработчик кнопки отмены
-    $('#cancel-btn').click(function() {
-        const hasData = $('.cow-row').filter(function() {
-            return $(this).find('.category-select').val() || 
-                   $(this).find('.reason-select').val() || 
-                   $(this).find('.disposal-date').val();
-        }).length > 0;
-        
-        if (hasData) {
-            $('#cancelConfirmModal').modal('show');
-        } else {
-            localStorage.removeItem('cows_draft');
-            window.location.href = '{{ url_for("dashboard") }}';
-        }
-    });
-    
-    // Обработчик подтверждения отмены
-    $('#confirmCancelBtn').click(function() {
-        localStorage.removeItem('cows_draft');
-        window.location.href = '{{ url_for("dashboard") }}';
-    });
-    
-    // Обработчик сохранения черновика перед отменой
-    $('#saveDraftBtn').click(function() {
-        saveDraft();
-        $('#cancelConfirmModal').modal('hide');
-        showToast('Черновик сохранен. Вы можете вернуться позже.', 'success');
-    });
-    
-    // Сохраняем черновик при закрытии страницы
-    $(window).on('beforeunload', function() {
-        const hasData = $('.cow-row').filter(function() {
-            return $(this).find('.category-select').val() || 
-                   $(this).find('.reason-select').val() || 
-                   $(this).find('.disposal-date').val();
-        }).length > 0;
-        
-        if (hasData) {
-            saveDraft();
-            // return 'У вас есть несохраненные данные. Вы уверены, что хотите покинуть страницу?';
-        }
-    });
-    
-    // Функция для показа toast уведомлений
-    function showToast(message, type = 'info') {
-        const toastId = 'toast-' + Date.now();
-        const icon = type === 'success' ? 'bi-check-circle' : 'bi-info-circle';
-        const bgColor = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
-        
-        const toastHtml = `
-            <div id="${toastId}" class="toast align-items-center ${bgColor} text-white border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        <i class="bi ${icon} me-2"></i> ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-        
-        $('.toast-container').append(toastHtml);
-        const toastEl = $('#' + toastId);
-        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-        toast.show();
-        
-        toastEl.on('hidden.bs.toast', function() {
-            $(this).remove();
-        });
-    }
-});
-
-// Проверяем наличие черновика при загрузке страницы
-$(window).on('load', function() {
-    const savedDraft = localStorage.getItem('cows_draft');
-    if (savedDraft) {
-        try {
-            const draftData = JSON.parse(savedDraft);
-            if (draftData.length > 0) {
-                const hasData = draftData.some(cow => cow.category || cow.reason || cow.disposal_date);
-                if (hasData) {
-                    showToast('Обнаружен черновик с несохраненными данными.', 'info');
-                }
+            },
+            error: function(xhr) {
+                alert('Произошла ошибка при сохранении: ' + (xhr.responseJSON?.message || 'ошибка сервера'));
+                $submitBtn.prop('disabled', false).html('<i class="bi bi-save-fill"></i> Сохранить все записи');
             }
-        } catch (e) {
-            // Игнорируем ошибки парсинга
-        }
-    }
+        });
+    });
 });
 </script>
-{% endblock %}
-
-{% block content %}
-<div class="row">
-    <div class="col-md-10 mx-auto">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-plus-circle-dotted"></i> Добавление коров (динамически)</h4>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    <h5><i class="bi bi-info-circle"></i> Инструкция</h5>
-                    <p>Добавляйте коров по одной. ID коровы будет сгенерирован автоматически в формате: <strong>{{ farm_name }}-001</strong></p>
-                    <p>Нажмите "Добавить корову" для добавления ещё одной строки.</p>
-                    <p><strong>Внимание:</strong> Дата выбытия не может быть позже сегодняшнего дня.</p>
-                    <p class="mb-0"><strong>Важно:</strong> Данные автоматически сохраняются в черновик при вводе.</p>
-                </div>
-                
-                <form id="cows-form">
-                    {{ form.csrf_token if form else '' }}
-                    <input type="hidden" name="farm_name" value="{{ farm_name }}">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Ферма</label>
-                        <input type="text" class="form-control" value="{{ farm_name }}" disabled>
-                        <div class="form-text">ID коров будут сгенерированы для этой фермы</div>
-                    </div>
-                    
-                    <!-- Контейнер для динамически добавляемых коров -->
-                    <div id="cows-container"></div>
-                    
-                    <!-- Кнопка добавления новой коровы -->
-                    <div class="text-center mb-4">
-                        <button type="button" id="add-cow-btn" class="btn btn-outline-primary">
-                            <i class="bi bi-plus-circle"></i> Добавить корову
-                        </button>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="button" id="cancel-btn" class="btn btn-danger me-2">
-                            <i class="bi bi-x-circle"></i> Отмена
-                        </button>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary me-2">
-                            <i class="bi bi-arrow-left"></i> Назад
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Сохранить всех коров
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <div class="card mt-3">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Категории выбытия</h5>
-            </div>
-            <div class="card-body">
-                <div class="accordion" id="categoriesAccordion">
-                    {% for category, reasons in categories.items() %}
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading{{ loop.index }}">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                                    data-bs-target="#collapse{{ loop.index }}">
-                                {{ category|capitalize }}
-                            </button>
-                        </h2>
-                        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" 
-                             data-bs-parent="#categoriesAccordion">
-                            <div class="accordion-body">
-                                <ul class="list-group list-group-flush">
-                                    {% for reason in reasons %}
-                                    <li class="list-group-item">{{ reason }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Контейнер для toast уведомлений -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1050;"></div>
-
-<!-- Модальное окно подтверждения отмены -->
-<div class="modal fade" id="cancelConfirmModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Подтверждение отмены</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>У вас есть несохраненные данные. Что вы хотите сделать?</p>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    <small>Черновик автоматически сохраняется при вводе данных.</small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-arrow-left"></i> Вернуться
-                </button>
-                <button type="button" class="btn btn-success" id="saveDraftBtn">
-                    <i class="bi bi-save"></i> Сохранить черновик
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmCancelBtn">
-                    <i class="bi bi-trash"></i> Удалить и выйти
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}

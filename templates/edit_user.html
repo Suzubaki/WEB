@@ -1,54 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}Редактирование пользователя{% endblock %}
+{% block title %}Редактирование пользователя - Учёт выбытия скота{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8 mx-auto">
+<div class="row justify-content-center">
+    <div class="col-md-6">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-person-gear"></i> Редактирование пользователя</h4>
+                <h4 class="mb-0"><i class="bi bi-pencil-square"></i> Редактирование пользователя: {{ user.username }}</h4>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('edit_user', user_id=user.id) }}">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Имя пользователя *</label>
-                        <input type="text" class="form-control" id="username" name="username" 
-                               value="{{ user.username }}" required>
-                        <div class="form-text">Уникальное имя для входа в систему</div>
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <input type="text" class="form-control" id="username" name="username" value="{{ user.username }}" required>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="password" class="form-label">Новый пароль</label>
+                        <label for="password" class="form-label">Новый пароль (оставьте пустым, если не меняете)</label>
                         <input type="password" class="form-control" id="password" name="password">
-                        <div class="form-text">Оставьте поле пустым, чтобы не изменять пароль</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="user_type" class="form-label">Тип пользователя *</label>
-                        <select class="form-select" id="user_type" name="user_type" required>
+                        <label for="user_type" class="form-label">Тип пользователя</label>
+                        <select class="form-select" id="user_type" name="user_type" required onchange="toggleFarmField()">
                             <option value="admin" {% if user.user_type == 'admin' %}selected{% endif %}>Администратор</option>
                             <option value="farm" {% if user.user_type == 'farm' %}selected{% endif %}>Ферма</option>
                         </select>
-                        <div class="form-text">Администратор имеет полный доступ, пользователь фермы - только к своей ферме</div>
                     </div>
                     
-                    <div class="mb-3" id="farm_name_field" style="display: {% if user.user_type == 'farm' %}block{% else %}none{% endif %};">
+                    <div class="mb-3" id="farm_name_field" {% if user.user_type != 'farm' %}style="display: none;"{% endif %}>
                         <label for="farm_name" class="form-label">Название фермы</label>
-                        <input type="text" class="form-control" id="farm_name" name="farm_name" 
-                               value="{{ user.farm_name or '' }}">
-                        <div class="form-text">Укажите название фермы для пользователя типа "Ферма"</div>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>Внимание:</strong> Изменения вступят в силу немедленно. 
-                        Если пользователь в данный момент в системе, ему потребуется перезайти.
+                        <input type="text" class="form-control" id="farm_name" name="farm_name" value="{{ user.farm_name or '' }}">
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('user_management') }}" class="btn btn-secondary me-2">
-                            <i class="bi bi-arrow-left"></i> Назад к списку
+                            <i class="bi bi-arrow-left"></i> Назад
                         </a>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Сохранить изменения
@@ -57,49 +45,22 @@
                 </form>
             </div>
         </div>
-        
-        <div class="card mt-3">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Информация о пользователе</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-sm">
-                    <tr>
-                        <th style="width: 40%;">ID пользователя:</th>
-                        <td>{{ user.id }}</td>
-                    </tr>
-                    <tr>
-                        <th>Текущий тип:</th>
-                        <td>
-                            {% if user.user_type == 'admin' %}
-                                <span class="badge bg-danger">Администратор</span>
-                            {% else %}
-                                <span class="badge bg-success">Ферма</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Текущая ферма:</th>
-                        <td>{{ user.farm_name or 'Не указана' }}</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 
 <script>
-$(document).ready(function() {
-    // Показ/скрытие поля фермы при изменении типа пользователя
-    $('#user_type').change(function() {
-        if ($(this).val() === 'farm') {
-            $('#farm_name_field').show();
-            $('#farm_name').prop('required', true);
-        } else {
-            $('#farm_name_field').hide();
-            $('#farm_name').prop('required', false);
-        }
-    });
-});
+function toggleFarmField() {
+    var userType = document.getElementById('user_type').value;
+    var farmField = document.getElementById('farm_name_field');
+    var farmInput = document.getElementById('farm_name');
+    
+    if (userType === 'farm') {
+        farmField.style.display = 'block';
+        farmInput.required = true;
+    } else {
+        farmField.style.display = 'none';
+        farmInput.required = false;
+    }
+}
 </script>
 {% endblock %}

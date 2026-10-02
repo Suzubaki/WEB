@@ -1,0 +1,67 @@
+<%- include('layout/header', { title: 'Регистрация' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="bi bi-person-plus"></i> Регистрация нового пользователя</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/register">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">Уникальное имя для входа в систему</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Пароль</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="user_type" class="form-label">Тип пользователя</label>
+                        <select class="form-select" id="user_type" name="user_type" required onchange="toggleFarmField()">
+                            <option value="">Выберите тип</option>
+                            <option value="admin">Администратор</option>
+                            <option value="farm">Ферма</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="farm_name_field" style="display: none;">
+                        <label for="farm_name" class="form-label">Название фермы</label>
+                        <input type="text" class="form-control" id="farm_name" name="farm_name">
+                        <div class="form-text">Укажите уникальное название вашей фермы</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-person-plus"></i> Зарегистрировать
+                        </button>
+                        <a href="/user_management" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад к списку пользователей
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleFarmField() {
+    var userType = document.getElementById('user_type').value;
+    var farmField = document.getElementById('farm_name_field');
+    var farmInput = document.getElementById('farm_name');
+    
+    if (userType === 'farm') {
+        farmField.style.display = 'block';
+        farmInput.required = true;
+    } else {
+        farmField.style.display = 'none';
+        farmInput.required = false;
+    }
+}
+</script>
+
+<%- include('layout/footer') %>

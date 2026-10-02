@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Акт выбраковки (Форма 210-АПК РБ) - АгроУчёт PRO{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .navbar, .footer, .no-print {
+            display: none !important;
+        }
+        body {
+            background-color: white !important;
+            font-size: 10pt;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .table {
+            border: 1px solid black !important;
+        }
+        .table th, .table td {
+            border: 1px solid black !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-11">
+        <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+            <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Назад к отчётам
+            </a>
+            <button type="button" class="btn btn-primary" onclick="window.print()">
+                <i class="bi bi-printer-fill"></i> Распечатать Акт 210-АПК
+            </button>
+        </div>
+
+        <div class="card shadow-sm p-4 bg-white">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="small">
+                    <div><strong>Сельхозорганизация:</strong> {{ org_name }}</div>
+                    <div><strong>Ферма / МТФ:</strong> {{ farm_filter if farm_filter and farm_filter != 'all' else 'Сводный акт по организации' }}</div>
+                </div>
+                <div class="text-end small">
+                    <div class="fw-bold">Типовая форма 210-АПК</div>
+                    <div class="text-muted">Утверждена постановлением Минсельхозпрода Республики Беларусь</div>
+                    <div class="mt-2 text-start border p-2 rounded">
+                        <strong>УТВЕРЖДАЮ</strong><br>
+                        Руководитель: ___________________<br>
+                        «____» _______________ 2026 г.
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center my-3">
+                <h3 class="fw-bold mb-1">АКТ НА ВЫБРАКОВКУ ЖИВОТНЫХ ИЗ ОСНОВНОГО СТАДА</h3>
+                <div class="text-muted">за период с <strong>{{ start_date }}</strong> по <strong>{{ end_date }}</strong> года</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light text-center">
+                        <tr>
+                            <th style="width: 30px;">№</th>
+                            <th>Идент. № (AITS / Инв.)</th>
+                            <th>Подразделение</th>
+                            <th>Порода</th>
+                            <th>Лактация</th>
+                            <th>Живая масса (кг)</th>
+                            <th>Удой за посл. лактацию (кг)</th>
+                            <th>Балансовая стоим. (BYN)</th>
+                            <th>Причина выбраковки (диагноз)</th>
+                            <th>Дальнейшее использование</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cow in cows %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td class="text-center fw-bold">{{ cow.ear_tag or cow.cow_id }}</td>
+                            <td>{{ cow.farm_name }}</td>
+                            <td>{{ cow.breed or 'Черно-пёстрая' }}</td>
+                            <td class="text-center">{{ cow.lactation or '-' }}</td>
+                            <td class="text-center">{{ cow.weight or '-' }}</td>
+                            <td class="text-center">{{ cow.milk_yield or '-' }}</td>
+                            <td class="text-center">{{ cow.book_value or '-' }}</td>
+                            <td>{{ cow.reason }}</td>
+                            <td>{{ 'Сдача на мясокомбинат' if cow.category == 'выбраковка' else 'Санбойня' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="10" class="text-center py-3 text-muted">Выбракованных животных за указанный период не обнаружено</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="5" class="text-end">ИТОГО ВЫБРАКОВАНО:</td>
+                            <td class="text-center">{{ total_weight }} кг</td>
+                            <td class="text-center">-</td>
+                            <td class="text-center">{{ total_value }} руб.</td>
+                            <td colspan="2" class="text-center">{{ cows|length }} голов</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="row mt-5 pt-3">
+                <div class="col-6 mb-3">Главный зоотехник: _______________________ (подпись)</div>
+                <div class="col-6 mb-3">Главный ветврач: _______________________ (подпись)</div>
+                <div class="col-6 mb-3">Главный бухгалтер: _______________________ (подпись)</div>
+                <div class="col-6 mb-3">Заведующий МТФ: _______________________ (подпись)</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,120 +1,21 @@
-#!/usr/bin/env python3
-"""
-Скрипт для создания тестовых пользователей на PythonAnywhere
-Запустите в консоли PythonAnywhere после создания базы данных
-"""
-
+# create_users.py - Создание тестовых пользователей
 import sqlite3
-import os
-from werkzeug.security import generate_password_hash
+from database import init_db, get_db_connection
+from auth import register_user
 
-def create_test_users():
-    """Создание тестовых пользователей"""
+def create_default_users():
+    init_db()
     
-    # Проверяем существует ли база данных
-    db_path = 'livestock.db'
-    if not os.path.exists(db_path):
-        print(f"❌ Файл базы данных не найден: {db_path}")
-        print("Сначала создайте базу данных:")
-        print("python -c \"from database import init_db; init_db()\"")
-        return False
+    # 1. Создаем администратора
+    success, msg = register_user('admin', 'admin123', 'admin')
+    print(f"Администратор admin: {msg}")
     
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    # 2. Создаем пользователей ферм
+    success, msg = register_user('farm1', 'farm123', 'farm', 'Ферма 1')
+    print(f"Пользователь farm1: {msg}")
     
-    print("=" * 50)
-    print("СОЗДАНИЕ ТЕСТОВЫХ ПОЛЬЗОВАТЕЛЕЙ")
-    print("=" * 50)
-    
-    # Список тестовых пользователей
-    test_users = [
-        {
-            'username': 'admin',
-            'password': 'admin123',
-            'user_type': 'admin',
-            'farm_name': None
-        },
-        {
-            'username': 'farm1',
-            'password': 'farm123',
-            'user_type': 'farm',
-            'farm_name': 'Ферма 1'
-        },
-        {
-            'username': 'farm2',
-            'password': 'farm123',
-            'user_type': 'farm',
-            'farm_name': 'Ферма 2'
-        }
-    ]
-    
-    created_count = 0
-    
-    for user in test_users:
-        username = user['username']
-        
-        # Проверяем существует ли пользователь
-        cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
-        existing_user = cursor.fetchone()
-        
-        if existing_user:
-            print(f"⚠️ Пользователь '{username}' уже существует")
-        else:
-            # Создаем нового пользователя
-            password_hash = generate_password_hash(user['password'])
-            
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, user_type, farm_name)
-                VALUES (?, ?, ?, ?)
-            ''', (username, password_hash, user['user_type'], user['farm_name']))
-            
-            print(f"✅ Создан пользователь: {username}")
-            print(f"   Тип: {user['user_type']}")
-            if user['farm_name']:
-                print(f"   Ферма: {user['farm_name']}")
-            print(f"   Пароль: {user['password']}")
-            created_count += 1
-    
-    conn.commit()
-    
-    # Показываем всех пользователей
-    print("\n" + "=" * 50)
-    print("ВСЕ ПОЛЬЗОВАТЕЛИ В БАЗЕ ДАННЫХ:")
-    print("=" * 50)
-    
-    cursor.execute('SELECT id, username, user_type, farm_name FROM users ORDER BY user_type, username')
-    all_users = cursor.fetchall()
-    
-    if not all_users:
-        print("Нет пользователей в базе данных")
-    else:
-        for user in all_users:
-            print(f"ID: {user[0]}, Имя: {user[1]}, Тип: {user[2]}, Ферма: {user[3] or '-'}")
-    
-    conn.close()
-    
-    print("\n" + "=" * 50)
-    if created_count > 0:
-        print(f"✅ СОЗДАНО {created_count} ПОЛЬЗОВАТЕЛЕЙ")
-    else:
-        print("ℹ️ Все пользователи уже существуют")
-    
-    print("\nТЕСТОВЫЕ АККАУНТЫ:")
-    print("-------------------")
-    for user in test_users:
-        print(f"{user['username']} / {user['password']} ({user['user_type']})")
-    
-    print("\n" + "=" * 50)
-    return True
+    success, msg = register_user('farm2', 'farm123', 'farm', 'Ферма 2')
+    print(f"Пользователь farm2: {msg}")
 
 if __name__ == '__main__':
-    try:
-        create_test_users()
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        print("\nВозможные причины:")
-        print("1. База данных не создана")
-        print("2. Таблица users не существует")
-        print("3. Ошибка в структуре базы данных")
-        print("\nСначала создайте базу данных:")
-        print("python -c \"from database import init_db; init_db()\"")
+    create_default_users()

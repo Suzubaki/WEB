@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Протокол вскрытия - {{ cow.cow_id }}</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            font-size: 11pt;
+            line-height: 1.35;
+            color: #000;
+            background: #fff;
+            margin: 20mm 15mm 20mm 20mm;
+        }
+        .header {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .org-header {
+            text-align: left;
+            font-size: 10pt;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 6px;
+        }
+        .title {
+            font-size: 14pt;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            font-size: 11pt;
+            font-weight: normal;
+            font-style: italic;
+        }
+        table.info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        table.info-table td {
+            padding: 4px 6px;
+            vertical-align: top;
+            border: 1px solid #777;
+            font-size: 10pt;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-top: 12px;
+            margin-bottom: 4px;
+            text-decoration: underline;
+        }
+        .text-block {
+            text-align: justify;
+            margin-bottom: 8px;
+            text-indent: 25px;
+        }
+        .signatures {
+            margin-top: 35px;
+            width: 100%;
+        }
+        .signatures td {
+            vertical-align: top;
+            padding-top: 10px;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="margin-bottom: 20px; background: #f1f5f9; padding: 10px; border-radius: 6px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            Печать протокола (Ctrl + P)
+        </button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">
+            Закрыть
+        </button>
+    </div>
+
+    <div class="org-header">
+        <div><strong>СЕЛЬСКОХОЗЯЙСТВЕННАЯ ОРГАНИЗАЦИЯ:</strong> {{ org_name }}</div>
+        <div><strong>ВЕТЕРИНАРНАЯ СЛУЖБА ХОЗЯЙСТВА:</strong> МТФ / ферма: {{ cow.farm_name }}</div>
+    </div>
+
+    <div class="header">
+        <div class="title">ПРОТОКОЛ</div>
+        <div class="subtitle">патологоанатомического вскрытия трупа крупного рогатого скота</div>
+        <div style="margin-top: 8px; font-weight: normal;">
+            «{{ cow.autopsy_date.split('-')[2] if cow.autopsy_date else '___' }}» 
+            {{ cow.autopsy_date.split('-')[1] if cow.autopsy_date else '_______' }} 
+            {{ cow.autopsy_date.split('-')[0] if cow.autopsy_date else '2026' }} г.
+        </div>
+    </div>
+
+    <table class="info-table">
+        <tr>
+            <td style="width: 25%;"><strong>Идент. № (AITS / бирка):</strong></td>
+            <td style="width: 25%;">{{ cow.ear_tag or cow.cow_id }}</td>
+            <td style="width: 25%;"><strong>Учетный номер:</strong></td>
+            <td style="width: 25%;">{{ cow.cow_id }}</td>
+        </tr>
+        <tr>
+            <td><strong>Порода / Группа:</strong></td>
+            <td>{{ cow.breed or 'Черно-пёстрая' }} / {{ cow.age_group or 'Коровы дойные' }}</td>
+            <td><strong>Возраст / Лактация:</strong></td>
+            <td>{{ cow.lactation or '-' }} лактация</td>
+        </tr>
+        <tr>
+            <td><strong>Живая масса:</strong></td>
+            <td>{{ cow.weight or '-' }} кг</td>
+            <td><strong>Дата падежа:</strong></td>
+            <td>{{ cow.disposal_date }}</td>
+        </tr>
+        <tr>
+            <td><strong>Вскрытие проводил:</strong></td>
+            <td colspan="3"><strong>{{ cow.autopsy_vet or 'Ветеринарный врач' }}</strong></td>
+        </tr>
+    </table>
+
+    <div class="section-title">I. Анамнестические данные:</div>
+    <div class="text-block">{{ protocol.anamnesis or 'Животное находилось на стойловом содержании. Предшествующие клинические симптомы: угнетение, отказ от корма.' }}</div>
+
+    <div class="section-title">II. Наружный осмотр трупа:</div>
+    <div class="text-block">{{ protocol.external_exam or 'Труп правильного телосложения, упитанность средняя. Трупное окоченение выражено. Видимые слизистые оболочки синюшные. Естественные отверстия чистые.' }}</div>
+
+    <div class="section-title">III. Внутренний осмотр:</div>
+    <div class="text-block"><strong>Органы дыхания:</strong> {{ protocol.respiratory or 'Слизистая трахеи и бронхов гиперемирована, в просвете пенистый экссудат. Легкие увеличены в объеме, отечны.' }}</div>
+    <div class="text-block"><strong>Сердечно-сосудистая система:</strong> {{ protocol.cardiovascular or 'В перикарде содержится умеренное количество соломенно-желтой жидкости. Миокард дряблый, в полостях темные сгустки крови.' }}</div>
+    <div class="text-block"><strong>Органы пищеварения:</strong> {{ protocol.digestive or 'Рубец умеренно наполнен кормовыми массами. Сетка и книжка без видимых патологий и инородных тел. Слизистая сычуга гиперемирована.' }}</div>
+    <div class="text-block"><strong>Печень, селезенка, почки:</strong> {{ protocol.liver_spleen or 'Печень кровенаполнена, края слегка закруглены. Селезенка без выраженных изменений. Почки плотные, капсула снимается легко.' }}</div>
+
+    <div class="section-title">IV. Лабораторные исследования:</div>
+    <div class="text-block">
+        {{ protocol.lab_tests or 'Материал (ухо/мазок крови) проверен на исключение сибирской язвы — результат отрицательный.' }}
+        {% if protocol.lab_doc_num %}(Сопроводительный документ: {{ protocol.lab_doc_num }}){% endif %}
+    </div>
+
+    <div class="section-title">V. Патологоанатомический диагноз:</div>
+    <div class="text-block" style="font-weight: bold; font-size: 11.5pt;">
+        {{ protocol.pat_diagnosis or cow.reason }}
+    </div>
+
+    <div class="section-title">VI. Заключение:</div>
+    <div class="text-block">
+        {{ protocol.conclusion or 'На основании клинической картины и данных патологоанатомического вскрытия смерть животного наступила от указанной выше патологии.' }}
+    </div>
+
+    <table class="signatures">
+        <tr>
+            <td style="width: 50%;">
+                Ветеринарный врач:<br>
+                _____________________ / {{ cow.autopsy_vet or 'Подпись' }} /
+            </td>
+            <td style="width: 50%;">
+                Заведующий фермой / МТФ:<br>
+                _____________________ / Подпись /
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

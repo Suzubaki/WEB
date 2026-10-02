@@ -1,0 +1,101 @@
+<%- include('layout/header', { title: 'Предпросмотр отчёта' }) %>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-file-earmark-text"></i> Предпросмотр отчёта</h4>
+                <div>
+                    <span class="badge bg-light text-dark">Период: <%= start_date %> — <%= end_date %></span>
+                    <% if (farm_filter && farm_filter !== 'all') { %>
+                    <span class="badge bg-light text-dark">Ферма: <%= farm_filter %></span>
+                    <% } %>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Сводка -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h3><%= summary.total_cows %></h3>
+                                <p class="text-muted mb-0">Всего записей</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h3><%= summary.by_category['падёж'] || 0 %></h3>
+                                <p class="text-muted mb-0">Падёж</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h3><%= summary.by_category['выбраковка'] || 0 %></h3>
+                                <p class="text-muted mb-0">Выбраковка</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h3><%= summary.by_category['санитарный'] || 0 %></h3>
+                                <p class="text-muted mb-0">Санитарный</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Таблица данных -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>ID коровы</th>
+                                <th>Ферма</th>
+                                <th>Категория</th>
+                                <th>Причина</th>
+                                <th>Дата выбытия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% data.forEach(function(cow, index) { %>
+                            <tr>
+                                <td><%= index + 1 %></td>
+                                <td><strong><%= cow.cow_id %></strong></td>
+                                <td><%= cow.farm_name %></td>
+                                <td>
+                                    <% if (cow.category === 'падёж') { %>
+                                        <span class="badge bg-danger">Падёж</span>
+                                    <% } else if (cow.category === 'выбраковка') { %>
+                                        <span class="badge bg-warning text-dark">Выбраковка</span>
+                                    <% } else { %>
+                                        <span class="badge bg-info">Санитарный</span>
+                                    <% } %>
+                                </td>
+                                <td><%= cow.reason %></td>
+                                <td><%= cow.disposal_date %></td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <a href="/reports" class="btn btn-secondary me-2">
+                        <i class="bi bi-arrow-left"></i> Назад к отчётам
+                    </a>
+                    <button type="button" class="btn btn-primary" onclick="window.print()">
+                        <i class="bi bi-printer"></i> Распечатать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('layout/footer') %>

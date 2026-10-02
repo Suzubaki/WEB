@@ -1,0 +1,44 @@
+<%- include('layout/header', { title: 'Исправление категорий' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0"><i class="bi bi-tools"></i> Исправление категорий</h4>
+            </div>
+            <div class="card-body">
+                <p>Данная функция нормализует названия категорий и устраняет дубликаты (пробелы, регистр).</p>
+                
+                <button type="button" id="fixBtn" class="btn btn-warning">
+                    <i class="bi bi-wrench"></i> Запустить исправление
+                </button>
+                
+                <div id="resultAlert" class="alert mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('layout/footer', {
+    extra_js: `
+    <script>
+    $('#fixBtn').click(function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Выполняется...');
+        
+        $.ajax({
+            url: '/api/fix_categories',
+            type: 'POST',
+            success: function(res) {
+                $('#resultAlert').removeClass('alert-danger').addClass('alert-success').text(res.message).show();
+                $btn.prop('disabled', false).html('<i class="bi bi-wrench"></i> Запустить исправление');
+            },
+            error: function(xhr) {
+                $('#resultAlert').removeClass('alert-success').addClass('alert-danger').text('Ошибка: ' + xhr.responseText).show();
+                $btn.prop('disabled', false).html('<i class="bi bi-wrench"></i> Запустить исправление');
+            }
+        });
+    });
+    </script>
+    `
+}) %>
