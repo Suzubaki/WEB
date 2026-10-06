@@ -22,6 +22,9 @@
                     <a href="{{ url_for('economics_dashboard') }}" class="btn btn-outline-warning text-dark btn-sm">
                         <i class="bi bi-cash-stack"></i> Расчет ущерба (BYN)
                     </a>
+                    <a href="{{ url_for('seed_test_data') }}" class="btn btn-warning text-dark btn-sm fw-bold" onclick="return confirm('Загрузить 1 000 реалистичных записей выбытия коров в базу данных?');">
+                        <i class="bi bi-lightning-charge-fill"></i> Добавить 1 000 коров
+                    </a>
                     <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" style="display: none;">
                         <i class="bi bi-trash"></i> Удалить выбранные (<span id="selectedCount">0</span>)
                     </button>
@@ -47,7 +50,7 @@
                                 <option value="">Все категории</option>
                                 <option value="падёж">Падёж</option>
                                 <option value="выбраковка">Выбраковка</option>
-                                <option value="санитарный">Санитарный</option>
+                                <option value="санитарный">Санитарный брак</option>
                             </select>
                         </div>
 
@@ -117,7 +120,7 @@
                         </thead>
                         <tbody>
                             {% for cow in cows %}
-                            <tr data-cow-id="{{ cow.id }}">
+                            <tr data-cow-id="{{ cow.id }}" data-category="{{ cow.category }}">
                                 <td class="text-center">
                                     <input type="checkbox" class="form-check-input cow-checkbox" value="{{ cow.id }}">
                                 </td>
@@ -131,7 +134,7 @@
                                     {% elif cow.category == 'выбраковка' %}
                                         <span class="badge bg-primary">Выбраковка</span>
                                     {% else %}
-                                        <span class="badge bg-warning text-dark">Санбрак</span>
+                                        <span class="badge bg-warning text-dark">Санитарный брак</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ cow.reason }}</td>
@@ -226,11 +229,13 @@ $(document).ready(function() {
             var rowFarm = $row.find('td:nth-child(4)').text().toLowerCase();
             var rowAgeGroup = $row.find('td:nth-child(5)').text().toLowerCase();
             var rowCategory = $row.find('td:nth-child(6)').text().toLowerCase();
+            var catAttr = ($row.attr('data-category') || '').toLowerCase();
             var rowReason = $row.find('td:nth-child(7)').text().toLowerCase();
             var rowText = $row.text().toLowerCase();
             
             var matchFarm = !farm || rowFarm.includes(farm);
-            var matchCategory = !category || rowCategory.includes(category);
+            var isSanitary = (category === 'санитарный' || category === 'санбрак') && (catAttr.includes('сан') || rowCategory.includes('сан'));
+            var matchCategory = !category || rowCategory.includes(category) || catAttr.includes(category) || isSanitary;
             var matchReason = !reason || rowReason.includes(reason);
             var matchAgeGroup = !ageGroup || rowAgeGroup.includes(ageGroup);
             var matchSearch = !search || rowText.includes(search);

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
+  <defs>
+    <!-- Golden amber gradients for the wheat grains -->
+    <linearGradient id="wheatGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="45%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+
+    <linearGradient id="wheatGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+
+    <linearGradient id="wheatTip" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#f97316" />
+    </linearGradient>
+
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#b45309" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Clean Background -->
+  <rect width="240" height="240" fill="#ffffff" rx="16" />
+
+  <!-- WHEAT EAR (КОЛОС ПШЕНИЦЫ) -->
+  <g id="wheat-ear" filter="url(#softShadow)">
+    <!-- Grain 1 (Far Left / Base) -->
+    <path d="M42 120 C38 106, 52 92, 60 90 C66 94, 62 108, 48 122 Z" fill="url(#wheatGrad1)" />
+    <path d="M44 118 Q54 100 60 92" stroke="#fef08a" stroke-width="1" fill="none" opacity="0.6" />
+
+    <!-- Grain 2 (Lower Left) -->
+    <path d="M52 122 C56 112, 70 106, 78 108 C80 116, 68 126, 54 124 Z" fill="url(#wheatGrad2)" />
+
+    <!-- Grain 3 (Upper Left) -->
+    <path d="M60 92 C62 80, 80 72, 90 72 C94 78, 88 92, 74 102 Z" fill="url(#wheatGrad1)" />
+    <path d="M64 90 Q80 76 89 74" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+
+    <!-- Grain 4 (Mid-Lower Left) -->
+    <path d="M76 104 C82 94, 98 90, 106 94 C108 102, 94 114, 80 110 Z" fill="url(#wheatGrad2)" />
+
+    <!-- Grain 5 (Center Apex - Upper) -->
+    <path d="M90 73 C96 66, 116 64, 126 68 C128 76, 116 88, 102 92 Z" fill="url(#wheatGrad1)" />
+    <path d="M96 72 Q114 66 124 70" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+
+    <!-- Grain 6 (Center Apex - Lower) -->
+    <path d="M104 94 C112 86, 130 84, 138 90 C138 98, 124 106, 110 102 Z" fill="url(#wheatGrad2)" />
+
+    <!-- Grain 7 (Mid-Right - Upper) -->
+    <path d="M124 70 C134 68, 152 72, 160 80 C158 88, 142 94, 130 90 Z" fill="url(#wheatGrad1)" />
+    <path d="M128 72 Q146 72 157 80" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+
+    <!-- Grain 8 (Mid-Right - Lower) -->
+    <path d="M136 90 C146 86, 160 88, 168 96 C164 104, 150 106, 138 98 Z" fill="url(#wheatGrad2)" />
+
+    <!-- Grain 9 (Right - Upper) -->
+    <path d="M156 82 C166 82, 180 88, 186 96 C182 102, 168 104, 158 96 Z" fill="url(#wheatGrad1)" />
+
+    <!-- Grain 10 (Right Tip) -->
+    <path d="M168 96 C176 96, 192 100, 196 106 C190 110, 178 110, 170 102 Z" fill="url(#wheatTip)" />
+
+    <!-- Awns (Усики / Ости колоса на конце справа) -->
+    <path d="M184 92 C196 90, 206 91, 210 93" stroke="#eab308" stroke-width="1.5" stroke-linecap="round" fill="none" />
+    <path d="M190 98 C202 96, 212 97, 216 100" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" fill="none" />
+    <path d="M194 104 C204 102, 214 105, 218 108" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" fill="none" />
+    <path d="M188 108 C198 108, 208 112, 212 116" stroke="#b45309" stroke-width="1.3" stroke-linecap="round" fill="none" />
+    <path d="M174 104 C184 106, 196 112, 202 118" stroke="#d97706" stroke-width="1.2" stroke-linecap="round" fill="none" />
+  </g>
+
+  <!-- TEXT: Новая Припять -->
+  <text x="120" y="148" 
+        font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" 
+        font-size="25.5" 
+        font-weight="900" 
+        font-style="italic" 
+        fill="#212529" 
+        text-anchor="middle" 
+        letter-spacing="-0.3">Новая Припять</text>
+
+  <!-- SUBTEXT: ОТКРЫТОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО -->
+  <text x="120" y="166" 
+        font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" 
+        font-size="8.2" 
+        font-weight="700" 
+        fill="#262a2e" 
+        text-anchor="middle" 
+        letter-spacing="1.2">ОТКРЫТОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО</text>
+</svg>

@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Учёт выбытия скота PRO{% endblock %}</title>
+    <title>{% block title %}ОАО «Новая Припять» - Учёт выбытия скота{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+    <link rel="alternate icon" href="/img/logo.jpg">
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -50,8 +52,11 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-2">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
-                <i class="bi bi-shield-check text-primary fs-4"></i>
-                <span>АгроУчёт <span class="badge bg-primary fs-6">PRO</span></span>
+                <img src="/img/logo.svg" onerror="this.onerror=null; this.src='/static/img/logo.svg';" alt="ОАО Новая Припять" width="38" height="38" class="rounded-circle border border-2 border-warning shadow-sm" style="object-fit: contain; background: #064e3b;">
+                <div class="lh-1">
+                    <span class="fs-6 fw-bold text-white d-block">ОАО «Новая Припять»</span>
+                    <small class="text-warning fw-normal" style="font-size: 0.72rem;">Учёт и анализ выбытия КРС</small>
+                </div>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -90,6 +95,7 @@
                             <li><a class="dropdown-item" href="{{ url_for('backup_page') }}"><i class="bi bi-shield-lock"></i> Резервная копия (Бэкап)</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('audit_log') }}"><i class="bi bi-shield-shaded"></i> Журнал аудита</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-primary fw-bold" href="{{ url_for('seed_test_data') }}"><i class="bi bi-lightning-charge-fill text-warning"></i> Загрузить 1 000 коров</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('register') }}"><i class="bi bi-person-plus"></i> Создать аккаунт</a></li>
                         </ul>
                     </li>

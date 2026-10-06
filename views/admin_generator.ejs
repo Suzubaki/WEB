@@ -1,0 +1,127 @@
+<%- include('layout/header', { title: 'Генератор тестовых данных и бенчмаркинг' }) %>
+
+<div class="row">
+    <div class="col-lg-12 mb-4">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-cpu-fill"></i> Генератор тестовых данных и бенчмаркинг СУБД</h4>
+                <span class="badge bg-warning text-dark fs-6"><i class="bi bi-database"></i> В базе: <%= cows.length %> записей</span>
+            </div>
+            <div class="card-body">
+                <p class="lead">
+                    Данный инструмент позволяет наполнить базу данных большим объёмом реалистичных зооветеринарных записей (1 000+ голов) для проверки пропускной способности, фильтрации, генерации Excel-актов и отрисовки графиков.
+                </p>
+
+                <!-- Метрики производительности -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card border-info bg-light h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-speedometer2 text-info fs-1"></i>
+                                <h3 class="mt-2 text-info mb-0"><%= benchmark_ms %> мс</h3>
+                                <small class="text-muted">Время выборки и расчета аналитики</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-success bg-light h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-memory text-success fs-1"></i>
+                                <h3 class="mt-2 text-success mb-0"><%= memory_mb %> МБ</h3>
+                                <small class="text-muted">Использование памяти Node.js (RSS)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-primary bg-light h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-buildings text-primary fs-1"></i>
+                                <h3 class="mt-2 text-primary mb-0"><%= Object.keys(farm_stats).length %> МТФ</h3>
+                                <small class="text-muted">Отделений в своде</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-warning bg-light h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-cash-stack text-warning fs-1"></i>
+                                <h3 class="mt-2 text-warning mb-0"><%= total_loss_formatted %> BYN</h3>
+                                <small class="text-muted">Суммарный экономический ущерб</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Быстрые действия генерации -->
+                <div class="card bg-light border-0 p-4 mb-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-lightning-charge-fill text-warning"></i> Управление объёмом данных:</h5>
+                    <form action="/admin/generate_test_data" method="POST" class="d-flex flex-wrap gap-2 align-items-center">
+                        <button type="submit" name="action" value="add_500" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-circle"></i> Добавить +500 коров
+                        </button>
+                        <button type="submit" name="action" value="add_1000" class="btn btn-primary">
+                            <i class="bi bi-plus-circle-fill"></i> Добавить +1 000 коров
+                        </button>
+                        <button type="submit" name="action" value="reset_1250" class="btn btn-success">
+                            <i class="bi bi-arrow-clockwise"></i> Сбросить к эталону (1 250 коров)
+                        </button>
+                        <button type="submit" name="action" value="clear_all" class="btn btn-outline-danger" onclick="return confirm('Вы уверены, что хотите полностью очистить базу коров?');">
+                            <i class="bi bi-trash"></i> Очистить всё
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Детализация по фермам и категориям -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-white fw-bold">
+                                <i class="bi bi-pie-chart"></i> Распределение по категориям
+                            </div>
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush">
+                                    <% Object.entries(cat_stats).forEach(function([cat, count]) { %>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>
+                                            <% if (cat === 'падёж') { %><span class="badge bg-danger me-2">Падёж</span>
+                                            <% } else if (cat === 'выбраковка') { %><span class="badge bg-primary me-2">Выбраковка</span>
+                                            <% } else { %><span class="badge bg-warning text-dark me-2">Санитарный</span><% } %>
+                                            <%= cat.toUpperCase() %>
+                                        </span>
+                                        <span class="badge bg-secondary rounded-pill fs-6"><%= count %> гол.</span>
+                                    </li>
+                                    <% }); %>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-white fw-bold">
+                                <i class="bi bi-geo-alt"></i> Распределение по фермам (МТФ)
+                            </div>
+                            <div class="card-body p-0">
+                                <ul class="list-group list-group-flush">
+                                    <% Object.entries(farm_stats).forEach(function([farm, count]) { %>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold"><i class="bi bi-building"></i> <%= farm %></span>
+                                        <span class="badge bg-info text-dark rounded-pill fs-6"><%= count %> гол.</span>
+                                    </li>
+                                    <% }); %>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="/cows" class="btn btn-outline-secondary"><i class="bi bi-list-check"></i> Открыть журнал записей коров</a>
+                    <a href="/dashboard" class="btn btn-success"><i class="bi bi-speedometer2"></i> Перейти на аналитический дашборд</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('layout/footer') %>

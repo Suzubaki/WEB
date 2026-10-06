@@ -37,6 +37,88 @@ from fill_original_excel import generate_official_template_excel
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Векторный логотип ОАО «Новая Припять» (Официальный колос)
+LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="wheatGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="45%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="wheatGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="wheatTip" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#f97316" />
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#b45309" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <rect width="240" height="240" fill="#ffffff" rx="16" />
+  <g id="wheat-ear" filter="url(#softShadow)">
+    <path d="M42 120 C38 106, 52 92, 60 90 C66 94, 62 108, 48 122 Z" fill="url(#wheatGrad1)" />
+    <path d="M44 118 Q54 100 60 92" stroke="#fef08a" stroke-width="1" fill="none" opacity="0.6" />
+    <path d="M52 122 C56 112, 70 106, 78 108 C80 116, 68 126, 54 124 Z" fill="url(#wheatGrad2)" />
+    <path d="M60 92 C62 80, 80 72, 90 72 C94 78, 88 92, 74 102 Z" fill="url(#wheatGrad1)" />
+    <path d="M64 90 Q80 76 89 74" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+    <path d="M76 104 C82 94, 98 90, 106 94 C108 102, 94 114, 80 110 Z" fill="url(#wheatGrad2)" />
+    <path d="M90 73 C96 66, 116 64, 126 68 C128 76, 116 88, 102 92 Z" fill="url(#wheatGrad1)" />
+    <path d="M96 72 Q114 66 124 70" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+    <path d="M104 94 C112 86, 130 84, 138 90 C138 98, 124 106, 110 102 Z" fill="url(#wheatGrad2)" />
+    <path d="M124 70 C134 68, 152 72, 160 80 C158 88, 142 94, 130 90 Z" fill="url(#wheatGrad1)" />
+    <path d="M128 72 Q146 72 157 80" stroke="#fef08a" stroke-width="1.2" fill="none" opacity="0.6" />
+    <path d="M136 90 C146 86, 160 88, 168 96 C164 104, 150 106, 138 98 Z" fill="url(#wheatGrad2)" />
+    <path d="M156 82 C166 82, 180 88, 186 96 C182 102, 168 104, 158 96 Z" fill="url(#wheatGrad1)" />
+    <path d="M168 96 C176 96, 192 100, 196 106 C190 110, 178 110, 170 102 Z" fill="url(#wheatTip)" />
+    <path d="M184 92 C196 90, 206 91, 210 93" stroke="#eab308" stroke-width="1.5" stroke-linecap="round" fill="none" />
+    <path d="M190 98 C202 96, 212 97, 216 100" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" fill="none" />
+    <path d="M194 104 C204 102, 214 105, 218 108" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" fill="none" />
+    <path d="M188 108 C198 108, 208 112, 212 116" stroke="#b45309" stroke-width="1.3" stroke-linecap="round" fill="none" />
+    <path d="M174 104 C184 106, 196 112, 202 118" stroke="#d97706" stroke-width="1.2" stroke-linecap="round" fill="none" />
+  </g>
+  <text x="120" y="148" font-family="'Trebuchet MS', 'Segoe UI', Arial, sans-serif" font-size="25.5" font-weight="900" font-style="italic" fill="#212529" text-anchor="middle" letter-spacing="-0.3">Новая Припять</text>
+  <text x="120" y="166" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="8.2" font-weight="700" fill="#262a2e" text-anchor="middle" letter-spacing="1.2">ОТКРЫТОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО</text>
+</svg>"""
+
+def _serve_logo_file(filename):
+    # Поиск файла в локальных папках
+    search_dirs = [
+        os.path.join(app.root_path, 'static', 'img'),
+        os.path.join(app.root_path, 'public', 'img'),
+        os.path.join(app.root_path, 'img'),
+        os.path.join(app.root_path, 'static')
+    ]
+    for d in search_dirs:
+        candidate = os.path.join(d, filename)
+        if os.path.exists(candidate) and os.path.isfile(candidate):
+            mimetype = 'image/jpeg' if filename.endswith('.jpg') or filename.endswith('.jpeg') else ('image/png' if filename.endswith('.png') else 'image/svg+xml')
+            return send_file(candidate, mimetype=mimetype)
+            
+    # Если запрашивается jpg, но есть svg (или нет на диске) - возвращаем SVG
+    return Response(LOGO_SVG, mimetype='image/svg+xml')
+
+@app.route('/img/<path:filename>')
+@app.route('/static/img/<path:filename>')
+def serve_img_routes(filename):
+    return _serve_logo_file(filename)
+
+@app.route('/favicon.ico')
+@app.route('/favicon.png')
+@app.route('/favicon.svg')
+def serve_favicon():
+    return Response(LOGO_SVG, mimetype='image/svg+xml')
+
+@app.route('/logo.jpg')
+@app.route('/logo.svg')
+@app.route('/img/logo.jpg')
+@app.route('/img/logo.svg')
+def serve_logo_direct():
+    return _serve_logo_file('logo.svg')
+
 def login_required(f):
     from functools import wraps
     @wraps(f)
@@ -139,7 +221,7 @@ def dashboard():
     user_type = session.get('user_type')
     farm_name = session.get('farm_name')
     
-    period = request.args.get('period')
+    period = request.args.get('period', 'all')
     custom_start = request.args.get('custom_start')
     custom_end = request.args.get('custom_end')
     
@@ -211,12 +293,12 @@ def add_cow():
         
         if not category or not reason or not disposal_date:
             flash('Заполните обязательные поля: категория, причина и дата', 'danger')
-            return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name)
+            return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name, breeds=Config.BREEDS, age_groups=Config.AGE_GROUPS)
             
         today = datetime.now().strftime('%Y-%m-%d')
         if disposal_date > today:
             flash('Дата выбытия не может быть позже сегодняшнего дня', 'danger')
-            return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name)
+            return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name, breeds=Config.BREEDS, age_groups=Config.AGE_GROUPS)
             
         cow_id = generate_cow_id(farm_name)
         
@@ -246,7 +328,7 @@ def add_cow():
         flash(f'Корова успешно добавлена с системным номером: {cow_id}', 'success')
         return redirect(url_for('view_cows'))
         
-    return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name)
+    return render_template('add_cow.html', categories=Config.DISPOSAL_CATEGORIES, farm_name=farm_name, breeds=Config.BREEDS, age_groups=Config.AGE_GROUPS)
 
 @app.route('/edit_cow/<int:cow_id>', methods=['GET', 'POST'])
 @login_required
@@ -427,6 +509,8 @@ def add_cows_dynamic():
     return render_template('add_cows_dynamic.html', 
                            categories=Config.DISPOSAL_CATEGORIES, 
                            farm_name=session.get('farm_name'),
+                           breeds=Config.BREEDS,
+                           age_groups=Config.AGE_GROUPS,
                            today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/add_multiple_cows', methods=['GET', 'POST'])
@@ -890,7 +974,7 @@ def generate_report():
             
             total_weight = sum(float(c['weight'] or 0) for c in cows_list)
             total_value = sum(float(c['book_value'] or 0) for c in cows_list)
-            org_name = get_setting('farm_org_name', 'ОАО «Агро-Плем»')
+            org_name = get_setting('farm_org_name', 'ОАО «Новая Припять»')
             return render_template('form_210_preview.html', cows=cows_list, total_weight=f"{total_weight:.1f}", 
                                    total_value=f"{total_value:.2f}", start_date=start_date, end_date=end_date, 
                                    farm_filter=farm_filter, org_name=org_name)
@@ -1000,7 +1084,7 @@ def economics_dashboard():
     conn.close()
     
     unp = get_setting('farm_unp', '190000000')
-    org_name = get_setting('farm_org_name', 'ОАО «Агро-Плем»')
+    org_name = get_setting('farm_org_name', 'ОАО «Новая Припять»')
     
     return render_template('economics.html', data=econ_data, start_date=start_date, end_date=end_date, 
                            farm_name=farm_name, farms=farms, unp=unp, org_name=org_name)
@@ -1083,7 +1167,7 @@ def print_autopsy(cow_id):
         return redirect(url_for('view_cows'))
         
     protocol = parse_autopsy_protocol(cow.get('autopsy_protocol'))
-    org_name = get_setting('farm_org_name', 'ОАО «Агро-Плем»')
+    org_name = get_setting('farm_org_name', 'ОАО «Новая Припять»')
     return render_template('autopsy_print.html', cow=cow, protocol=protocol, org_name=org_name)
 
 # -------------------- РЕЗЕРВНОЕ КОПИРОВАНИЕ И ВОССТАНОВЛЕНИЕ (BACKUP) --------------------
@@ -1136,6 +1220,14 @@ def restore_db_backup():
     else:
         flash(msg, 'danger')
     return redirect(url_for('backup_page'))
+
+@app.route('/seed_test_data')
+@login_required
+def seed_test_data():
+    from add_test_cows import generate_test_cows
+    generate_test_cows(1000)
+    flash('Успешно добавлено 1 000 коров в базу данных!', 'success')
+    return redirect(url_for('view_cows'))
 
 # -------------------- API МАРШРУТЫ --------------------
 

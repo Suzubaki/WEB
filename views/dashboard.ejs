@@ -86,21 +86,29 @@
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="user-welcome-card shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <span class="badge bg-warning text-dark mb-2 fw-semibold px-2 py-1">
-                    <i class="bi bi-shield-check"></i> Ветеринарно-зоотехнический мониторинг РБ
-                </span>
-                <h3 class="mb-1 fw-bold d-flex align-items-center gap-2">
-                    <i class="bi bi-speedometer2"></i> Аналитический дашборд выбытия КРС
-                </h3>
-                <p class="mb-0 text-blue-100 opacity-90 small">
-                    Период анализа: <strong><%= d.period_info.title %></strong> | 
-                    <% if (user_type === 'admin') { %>
-                        Охват: <strong><%= d.all_farms.length %> ферм/МТФ</strong>
-                    <% } else { %>
-                        Подразделение: <strong><%= farm_name || 'Хозяйство' %></strong>
-                    <% } %>
-                </p>
+            <div class="d-flex align-items-center gap-3">
+                <img src="/img/logo.svg" onerror="this.onerror=null; this.src='/img/logo.jpg';" alt="ОАО Новая Припять" width="70" height="70" class="rounded-3 border border-2 border-warning shadow-sm p-1" style="object-fit: contain; background: #ffffff;">
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge bg-warning text-dark fw-bold px-2 py-1">
+                            <i class="bi bi-building"></i> ОАО «Новая Припять»
+                        </span>
+                        <span class="badge bg-light text-dark fw-semibold px-2 py-1">
+                            <i class="bi bi-shield-check"></i> Мониторинг РБ
+                        </span>
+                    </div>
+                    <h3 class="mb-1 fw-bold text-white d-flex align-items-center gap-2">
+                        Аналитический дашборд выбытия КРС
+                    </h3>
+                    <p class="mb-0 text-blue-100 opacity-90 small">
+                        Период анализа: <strong><%= d.period_info.title %></strong> | 
+                        <% if (user_type === 'admin') { %>
+                            Охват: <strong><%= d.all_farms.length %> ферм/МТФ</strong>
+                        <% } else { %>
+                            Подразделение: <strong><%= farm_name || 'Хозяйство' %></strong>
+                        <% } %>
+                    </p>
+                </div>
             </div>
             <div class="d-flex gap-2 flex-wrap no-print">
                 <% if (user_type !== 'admin') { %>
@@ -130,15 +138,15 @@
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <span class="small text-muted fw-bold me-1"><i class="bi bi-calendar3"></i> Период:</span>
                 <a href="/dashboard?period=this_month&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'this_month' ? 'active' : '' %>">Этот месяц</a>
+                   class="filter-chip <%= d.period_info.period === 'this_month' ? 'active' : '' %>">Этот месяц (105)</a>
                 <a href="/dashboard?period=last_month&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'last_month' ? 'active' : '' %>">Прошлый месяц</a>
+                   class="filter-chip <%= d.period_info.period === 'last_month' ? 'active' : '' %>">Прошлый месяц (105)</a>
                 <a href="/dashboard?period=quarter&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'quarter' ? 'active' : '' %>">Квартал</a>
+                   class="filter-chip <%= d.period_info.period === 'quarter' ? 'active' : '' %>">Квартал (105)</a>
                 <a href="/dashboard?period=ytd&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'ytd' ? 'active' : '' %>">С начала года (YTD)</a>
+                   class="filter-chip <%= d.period_info.period === 'ytd' ? 'active' : '' %>">С начала года (1 042)</a>
                 <a href="/dashboard?period=all&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'all' ? 'active' : '' %>">Всё время</a>
+                   class="filter-chip <%= d.period_info.period === 'all' ? 'active' : '' %>">Всё время (1 250)</a>
             </div>
 
             <!-- Селектор фермы для Администратора и произвольный период -->

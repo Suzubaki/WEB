@@ -158,78 +158,201 @@ function getSeedDate(monthOffset: number, dayOfMonth: number): string {
   return formatDate(d);
 }
 
-const sampleCows: Cow[] = [];
+export const cows: Cow[] = [];
 
-// Seed sample cows spanning current month, previous month, quarter, and year
-const sampleSeeds = [
-  // Текущий месяц (гарантированно внутри текущего месяца)
-  { farm: 'МТФ-1 Центральная', cat: 'падёж', reason: 'Острая тимпания', mOffset: 0, day: 1, tag: 'BY 04 9812401', lact: 3, w: 540, ag: 'Коровы дойного стада', bv: 2400, createdBy: 2 },
-  { farm: 'МТФ-1 Центральная', cat: 'выбраковка', reason: 'Гнойный мастит', mOffset: 0, day: 2, tag: 'BY 04 9812402', lact: 4, w: 520, ag: 'Коровы дойного стада', bv: 1800, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'падёж', reason: 'Бронхопневмония', mOffset: 0, day: 3, tag: 'BY 04 7715011', lact: 1, w: 68, ag: 'Телята (0–6 мес.)', bv: 380, createdBy: 3 },
-  { farm: 'МТФ-2 Заречье', cat: 'санитарный', reason: 'Травма конечностей', mOffset: 0, day: 4, tag: 'BY 04 7715012', lact: 2, w: 510, ag: 'Коровы дойного стада', bv: 2600, createdBy: 3 },
-  { farm: 'МТФ-3 Полесье', cat: 'выбраковка', reason: 'Агалактия', mOffset: 0, day: 5, tag: 'BY 04 6614101', lact: 5, w: 560, ag: 'Коровы дойного стада', bv: 1500, createdBy: 4 },
-  { farm: 'МТФ-1 Центральная', cat: 'падёж', reason: 'Диспепсия', mOffset: 0, day: 6, tag: 'BY 04 9812403', lact: 0, w: 42, ag: 'Телята (0–6 мес.)', bv: 350, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'выбраковка', reason: 'Фолликулярная киста', mOffset: 0, day: 7, tag: 'BY 04 7715013', lact: 3, w: 530, ag: 'Коровы дойного стада', bv: 2200, createdBy: 3 },
-  { farm: 'МТФ-3 Полесье', cat: 'санитарный', reason: 'Стойкая атония преджелудков', mOffset: 0, day: 8, tag: 'BY 04 6614102', lact: 3, w: 495, ag: 'Коровы дойного стада', bv: 2100, createdBy: 4 },
-  
-  // Прошлый месяц (1 месяц назад)
-  { farm: 'МТФ-1 Центральная', cat: 'падёж', reason: 'Травматический ретикулит', mOffset: 1, day: 26, tag: 'BY 04 9812390', lact: 2, w: 535, ag: 'Коровы дойного стада', bv: 2500, createdBy: 2 },
-  { farm: 'МТФ-1 Центральная', cat: 'выбраковка', reason: 'Хронический эндомитрит', mOffset: 1, day: 22, tag: 'BY 04 9812391', lact: 4, w: 545, ag: 'Коровы дойного стада', bv: 1950, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'падёж', reason: 'Перитонит', mOffset: 1, day: 19, tag: 'BY 04 7715001', lact: 3, w: 525, ag: 'Коровы дойного стада', bv: 2400, createdBy: 3 },
-  { farm: 'МТФ-2 Заречье', cat: 'санитарный', reason: 'Патологические роды', mOffset: 1, day: 16, tag: 'BY 04 7715002', lact: 2, w: 550, ag: 'Нетели', bv: 2900, createdBy: 3 },
-  { farm: 'МТФ-3 Полесье', cat: 'выбраковка', reason: 'Агалактия', mOffset: 1, day: 13, tag: 'BY 04 6614090', lact: 3, w: 490, ag: 'Коровы дойного стада', bv: 2150, createdBy: 4 },
-  { farm: 'МТФ-1 Центральная', cat: 'падёж', reason: 'Гастроэнтерит', mOffset: 1, day: 10, tag: 'BY 04 9812380', lact: 1, w: 75, ag: 'Телята (0–6 мес.)', bv: 400, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'санитарный', reason: 'Кетоз', mOffset: 1, day: 6, tag: 'BY 04 7715003', lact: 3, w: 515, ag: 'Коровы дойного стада', bv: 2250, createdBy: 3 },
-  
-  // 2 месяца назад
-  { farm: 'МТФ-1 Центральная', cat: 'выбраковка', reason: 'Гнойный мастит', mOffset: 2, day: 25, tag: 'BY 04 9812365', lact: 4, w: 515, ag: 'Коровы дойного стада', bv: 1900, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'падёж', reason: 'Острая тимпания', mOffset: 2, day: 18, tag: 'BY 04 7714980', lact: 2, w: 530, ag: 'Коровы дойного стада', bv: 2550, createdBy: 3 },
-  { farm: 'МТФ-3 Полесье', cat: 'падёж', reason: 'Цирроз', mOffset: 2, day: 12, tag: 'BY 04 6614070', lact: 5, w: 480, ag: 'Коровы дойного стада', bv: 1400, createdBy: 4 },
-  { farm: 'МТФ-1 Центральная', cat: 'санитарный', reason: 'Кетоз', mOffset: 2, day: 7, tag: 'BY 04 9812340', lact: 2, w: 490, ag: 'Коровы сухостойные', bv: 2300, createdBy: 2 },
-  
-  // 3-11 месяцев назад (формирование годового тренда)
-  { farm: 'МТФ-2 Заречье', cat: 'выбраковка', reason: 'Лютеиновая киста', mOffset: 3, day: 20, tag: 'BY 04 7714950', lact: 3, w: 530, ag: 'Коровы дойного стада', bv: 2350, createdBy: 3 },
-  { farm: 'МТФ-3 Полесье', cat: 'падёж', reason: 'Бронхопневмония', mOffset: 4, day: 15, tag: 'BY 04 6614050', lact: 1, w: 60, ag: 'Телята (0–6 мес.)', bv: 360, createdBy: 4 },
-  { farm: 'МТФ-1 Центральная', cat: 'выбраковка', reason: 'Туберкулез', mOffset: 5, day: 14, tag: 'BY 04 9812310', lact: 4, w: 530, ag: 'Коровы дойного стада', bv: 1800, createdBy: 2 },
-  { farm: 'МТФ-2 Заречье', cat: 'падёж', reason: 'Разрыв маточной артерии', mOffset: 6, day: 22, tag: 'BY 04 7714920', lact: 3, w: 550, ag: 'Коровы дойного стада', bv: 2450, createdBy: 3 },
-  { farm: 'МТФ-1 Центральная', cat: 'санитарный', reason: 'Травма позвоночного столба', mOffset: 7, day: 11, tag: 'BY 04 9812280', lact: 2, w: 520, ag: 'Коровы дойного стада', bv: 2400, createdBy: 2 },
-  { farm: 'МТФ-3 Полесье', cat: 'падёж', reason: 'Диспепсия', mOffset: 8, day: 9, tag: 'BY 04 6614010', lact: 0, w: 38, ag: 'Телята (0–6 мес.)', bv: 340, createdBy: 4 },
-  { farm: 'МТФ-2 Заречье', cat: 'выбраковка', reason: 'Агалактия', mOffset: 9, day: 17, tag: 'BY 04 7714880', lact: 4, w: 510, ag: 'Коровы дойного стада', bv: 1750, createdBy: 3 },
-  { farm: 'МТФ-1 Центральная', cat: 'падёж', reason: 'Проводная язва', mOffset: 10, day: 8, tag: 'BY 04 9812240', lact: 2, w: 505, ag: 'Коровы дойного стада', bv: 2350, createdBy: 2 },
-  { farm: 'МТФ-3 Полесье', cat: 'выбраковка', reason: 'Хронический эндомитрит', mOffset: 11, day: 24, tag: 'BY 04 6613980', lact: 3, w: 525, ag: 'Коровы дойного стада', bv: 2100, createdBy: 4 },
-  { farm: 'МТФ-2 Заречье', cat: 'падёж', reason: 'Травматический ретикулит', mOffset: 11, day: 5, tag: 'BY 04 7714820', lact: 3, w: 540, ag: 'Коровы дойного стада', bv: 2400, createdBy: 3 }
-];
+// Realistic Massive Test Data Generator (1 200+ cows)
+export function populateRealisticCows(targetCount: number = 1250, clearExisting: boolean = true) {
+  if (clearExisting) {
+    cows.length = 0;
+    cowIdCounter = 1;
+  }
 
-const farmCounters: Record<string, number> = {};
+  const farms = [
+    { name: 'МТФ-1 Центральная', prefix: 'МТФ1', createdBy: 2 },
+    { name: 'МТФ-2 Заречье', prefix: 'МТФ2', createdBy: 3 },
+    { name: 'МТФ-3 Полесье', prefix: 'МТФ3', createdBy: 4 }
+  ];
 
-for (const seed of sampleSeeds) {
-  farmCounters[seed.farm] = (farmCounters[seed.farm] || 0) + 1;
-  const numStr = String(farmCounters[seed.farm]).padStart(3, '0');
-  const dateStr = getSeedDate(seed.mOffset, seed.day);
-  sampleCows.push({
-    id: cowIdCounter++,
-    cow_id: `${seed.farm.split(' ')[0]}-${numStr}`,
-    ear_tag: seed.tag,
-    farm_name: seed.farm,
-    category: seed.cat,
-    reason: seed.reason,
-    disposal_date: dateStr,
-    lactation: seed.lact,
-    weight: seed.w,
-    age_group: seed.ag,
-    breed: 'Черно-пёстрая',
-    book_value: seed.bv,
-    milk_yield: seed.ag === 'Коровы дойного стада' ? 6200 : 0,
-    created_at: `${dateStr} 12:00:00`,
-    created_by: seed.createdBy
-  });
+  const breeds = ['Белорусская черно-пёстрая', 'Голштинская', 'Лимузин'];
+
+  const reasonsPad = [
+    'Острая тимпания рубца',
+    'Бронхопневмония',
+    'Диспепсия телят',
+    'Травматический ретикулит',
+    'Кетоз (острая форма)',
+    'Анаэробная энтеротоксемия',
+    'Эшерихиоз (колибактериоз)',
+    'Перитонит',
+    'Послеродовой парез',
+    'Разрыв маточной артерии',
+    'Крупозная пневмония'
+  ];
+
+  const reasonsVyb = [
+    'Гнойный мастит',
+    'Агалактия (потеря молочности)',
+    'Хронический гнойный эндометрит',
+    'Фолликулярная киста яичников',
+    'Лютеиновая киста',
+    'Язва Рунхольца (пододерматит)',
+    'Флегмона венчика',
+    'Атрофия долей вымени',
+    'Гипотония преджелудков',
+    'Атрофия яичников / яловость',
+    'Возрастная выбраковка (предельный возраст)'
+  ];
+
+  const reasonsSan = [
+    'Травма конечностей',
+    'Травма позвоночного столба',
+    'Патологические роды',
+    'Выпадение матки',
+    'Стойкая атония преджелудков',
+    'Кетоз тяжелой степени',
+    'Перелом трубчатых костей'
+  ];
+
+  const farmCounters: Record<string, number> = {
+    'МТФ-1 Центральная': 0,
+    'МТФ-2 Заречье': 0,
+    'МТФ-3 Полесье': 0
+  };
+
+  for (const c of cows) {
+    if (farmCounters[c.farm_name] !== undefined) {
+      farmCounters[c.farm_name]++;
+    }
+  }
+
+  const currentDate = new Date();
+  const baseTime = currentDate.getTime();
+
+  for (let i = 0; i < targetCount; i++) {
+    // Farm distribution
+    const rFarm = Math.random();
+    let farm = farms[0];
+    if (rFarm > 0.76) {
+      farm = farms[2];
+    } else if (rFarm > 0.42) {
+      farm = farms[1];
+    }
+    farmCounters[farm.name] = (farmCounters[farm.name] || 0) + 1;
+
+    // Category distribution (~28% падёж, ~56% выбраковка, ~16% санитарный)
+    const rCat = Math.random();
+    let cat: 'падёж' | 'выбраковка' | 'санитарный' = 'выбраковка';
+    let reason = '';
+    if (rCat < 0.28) {
+      cat = 'падёж';
+      reason = reasonsPad[Math.floor(Math.random() * reasonsPad.length)];
+    } else if (rCat < 0.84) {
+      cat = 'выбраковка';
+      reason = reasonsVyb[Math.floor(Math.random() * reasonsVyb.length)];
+    } else {
+      cat = 'санитарный';
+      reason = reasonsSan[Math.floor(Math.random() * reasonsSan.length)];
+    }
+
+    // Age groups & physiological parameters
+    let ag = 'Коровы дойного стада';
+    let lact = 1 + Math.floor(Math.random() * 5);
+    let weight = 480 + Math.floor(Math.random() * 180);
+    let milkYield = 5500 + Math.floor(Math.random() * 3800);
+    let bookVal = 1800 + Math.floor(Math.random() * 1400);
+
+    if (reason === 'Диспепсия телят' || reason === 'Эшерихиоз (колибактериоз)' || (cat === 'падёж' && Math.random() < 0.25)) {
+      ag = 'Телята (0–6 мес.)';
+      lact = 0;
+      weight = 32 + Math.floor(Math.random() * 55);
+      milkYield = 0;
+      bookVal = 260 + Math.floor(Math.random() * 280);
+    } else if (reason.includes('роды') || reason.includes('матки') || Math.random() < 0.08) {
+      ag = 'Нетели';
+      lact = 0;
+      weight = 430 + Math.floor(Math.random() * 100);
+      milkYield = 0;
+      bookVal = 2600 + Math.floor(Math.random() * 700);
+    } else if (Math.random() < 0.12) {
+      ag = 'Коровы сухостойные';
+      lact = 2 + Math.floor(Math.random() * 4);
+      weight = 520 + Math.floor(Math.random() * 140);
+      milkYield = 5800 + Math.floor(Math.random() * 2400);
+      bookVal = 2100 + Math.floor(Math.random() * 900);
+    } else if (Math.random() < 0.10) {
+      ag = 'Молодняк (6–18 мес.)';
+      lact = 0;
+      weight = 180 + Math.floor(Math.random() * 170);
+      milkYield = 0;
+      bookVal = 850 + Math.floor(Math.random() * 700);
+    }
+
+    // Breed selection
+    const breed = breeds[Math.random() < 0.75 ? 0 : (Math.random() < 0.8 ? 1 : 2)];
+
+    // Dates distribution: exactly 12 months, ~104 cows per month, days 1..28
+    const monthOffset = i % 12;
+    const targetY = currentDate.getFullYear();
+    const targetM = currentDate.getMonth() - monthOffset;
+    const targetD = 1 + (Math.floor(i / 12) % 28);
+    const dObj = new Date(targetY, targetM, targetD);
+    const dStr = formatDate(dObj);
+
+    // Belarusian ear tag: BY 04 + 7-digit number
+    const tagNum = 7100000 + (cowIdCounter % 890000);
+    const earTag = `BY 04 ${tagNum}`;
+    const cowId = `${farm.prefix}-${String(farmCounters[farm.name]).padStart(4, '0')}`;
+
+    let autopsyProtocol: string | undefined = undefined;
+    let autopsyVet: string | undefined = undefined;
+    let autopsyDate: string | undefined = undefined;
+
+    if (cat === 'падёж' && Math.random() < 0.70) {
+      autopsyVet = 'Ковалев С.А. (ветврач)';
+      autopsyDate = dStr;
+      autopsyProtocol = JSON.stringify({
+        anamnesis: 'Животное находилось на стойловом содержании. Предшествующие клинические симптомы: угнетение, отказ от корма.',
+        external_exam: 'Упитанность средняя, трупные изменения выражены умеренно. Истечений нет.',
+        respiratory: reason.includes('пневмон') ? 'Очаги гепатизации в легких, фибринозный экссудат' : 'Легкие спавшиеся, бледно-розовые.',
+        cardiovascular: 'В полостях сердца сгустки темной крови.',
+        digestive: `Патологоанатомические изменения органов пищеварения: ${reason}.`,
+        liver_spleen: 'Печень кровенаполнена, селезенка нормальных размеров.',
+        pat_diagnosis: reason,
+        conclusion: `Смерть наступила в результате патологии: ${reason}`,
+        lab_tests: 'Бактериологическое исследование исключило сибирскую язву и эмкар.',
+        lab_doc_num: `Экспертиза № ${1000 + i}`
+      });
+    }
+
+    cows.push({
+      id: cowIdCounter++,
+      cow_id: cowId,
+      ear_tag: earTag,
+      farm_name: farm.name,
+      category: cat,
+      reason: reason,
+      disposal_date: dStr,
+      lactation: lact,
+      weight: weight,
+      age_group: ag,
+      breed: breed,
+      book_value: bookVal,
+      milk_yield: milkYield,
+      autopsy_protocol: autopsyProtocol,
+      autopsy_vet: autopsyVet,
+      autopsy_date: autopsyDate,
+      created_at: `${dStr} 10:00:00`,
+      created_by: farm.createdBy
+    });
+  }
 }
 
-const cows: Cow[] = [...sampleCows];
+// Initial Population: 1 250 records
+populateRealisticCows(1250, true);
 
 // Helpers
 function generateCowId(farmName: string): string {
-  const prefix = `${farmName}-`;
+  const prefix = `${farmName.split(' ')[0]}-`;
   let maxNum = 0;
   for (const cow of cows) {
     if (cow.farm_name === farmName && cow.cow_id.startsWith(prefix)) {
@@ -241,7 +364,7 @@ function generateCowId(farmName: string): string {
     }
   }
   const nextNum = maxNum + 1;
-  return `${farmName}-${String(nextNum).padStart(3, '0')}`;
+  return `${farmName.split(' ')[0]}-${String(nextNum).padStart(4, '0')}`;
 }
 
 // App Settings & Middlewares
@@ -253,6 +376,25 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/static', express.static(path.join(__dirname, 'public')));
+
+// Explicit Logo & Favicon Handlers for reliable rendering
+app.get(['/img/logo.svg', '/logo.svg', '/static/img/logo.svg'], (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(path.join(__dirname, 'public/img/logo.svg'));
+});
+
+app.get(['/img/logo.jpg', '/logo.jpg', '/static/img/logo.jpg'], (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(path.join(__dirname, 'public/img/logo.jpg'));
+});
+
+app.get(['/favicon.ico', '/favicon.png', '/favicon.svg'], (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(path.join(__dirname, 'public/img/logo.svg'));
+});
 
 declare module 'express-session' {
   interface SessionData {
@@ -290,6 +432,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.locals.messages = flash;
   res.locals.session = req.session;
   res.locals.all_app_users = users;
+  res.locals.cows_count = cows.length;
   next();
 });
 
@@ -346,15 +489,17 @@ function classifyPathologySystem(reason: string): string {
   }
 }
 
-function getDashboardFullData(userType?: string, farmName?: string | null, period: string = 'this_month', customStart?: string, customEnd?: string) {
+function getDashboardFullData(userType?: string, farmName?: string | null, period: string = 'all', customStart?: string, customEnd?: string) {
   const now = new Date();
   let startDate = '';
-  let endDate = formatDate(now);
+  let endDate = '2099-12-31';
   let periodTitle = '';
 
   if (period === 'this_month') {
     const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     startDate = formatDate(d);
+    endDate = formatDate(end);
     periodTitle = `Текущий месяц (${now.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })})`;
   } else if (period === 'last_month') {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -365,22 +510,26 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   } else if (period === 'quarter') {
     const qMonth = Math.floor(now.getMonth() / 3) * 3;
     const start = new Date(now.getFullYear(), qMonth, 1);
+    const end = new Date(now.getFullYear(), qMonth + 3, 0);
     startDate = formatDate(start);
+    endDate = formatDate(end);
     periodTitle = `Текущий квартал (${Math.floor(now.getMonth() / 3) + 1} кв. ${now.getFullYear()})`;
   } else if (period === 'ytd') {
     startDate = `${now.getFullYear()}-01-01`;
+    endDate = `${now.getFullYear()}-12-31`;
     periodTitle = `С начала ${now.getFullYear()} года (YTD)`;
   } else if (period === 'all') {
     startDate = '2000-01-01';
-    periodTitle = 'За всё время учёта';
+    endDate = '2099-12-31';
+    periodTitle = 'За всё время учёта (Все 1 250 голов)';
   } else if (period === 'custom' && customStart && customEnd) {
     startDate = customStart;
     endDate = customEnd;
     periodTitle = `С ${startDate} по ${endDate}`;
   } else {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    startDate = formatDate(d);
-    periodTitle = 'Текущий месяц';
+    startDate = '2000-01-01';
+    endDate = '2099-12-31';
+    periodTitle = 'За всё время учёта (Все 1 250 голов)';
   }
 
   // Filter cows
@@ -716,6 +865,72 @@ app.get('/switch_user/:username', (req: Request, res: Response) => {
   res.redirect(referer);
 });
 
+// Admin Test Data Generator & Benchmarks
+app.get('/admin/generator', loginRequired, (req: Request, res: Response) => {
+  const t0 = performance.now();
+
+  const farmStats: Record<string, number> = {};
+  const catStats: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
+  let totalLoss = 0;
+
+  const meatPrice = economicSettings.meat_price_per_kg;
+  const milkPrice = economicSettings.milk_price_per_kg;
+  const replacementCost = economicSettings.replacement_cost;
+
+  for (const c of cows) {
+    farmStats[c.farm_name] = (farmStats[c.farm_name] || 0) + 1;
+    catStats[c.category] = (catStats[c.category] || 0) + 1;
+
+    let w = c.weight || 520;
+    let bv = c.book_value || 2200;
+    const lact = c.lactation || 1;
+    if (c.category === 'падёж') {
+      totalLoss += Math.max(bv, w * meatPrice);
+    } else if (c.category === 'санитарный') {
+      totalLoss += Math.max(0, bv - (w * meatPrice * 0.55));
+    } else {
+      const meatRev = w * meatPrice * 0.90;
+      const directDeprec = Math.max(0, bv - meatRev);
+      const milkLoss = lact < 4 ? (4 - lact) * 6000 * milkPrice * 0.12 : 0;
+      totalLoss += (directDeprec + milkLoss);
+    }
+  }
+
+  const t1 = performance.now();
+  const benchmarkMs = (t1 - t0).toFixed(2);
+  const memoryMb = (process.memoryUsage().rss / (1024 * 1024)).toFixed(1);
+
+  res.render('admin_generator', {
+    cows,
+    benchmark_ms: benchmarkMs,
+    memory_mb: memoryMb,
+    farm_stats: farmStats,
+    cat_stats: catStats,
+    total_loss_formatted: Math.round(totalLoss).toLocaleString('ru-RU')
+  });
+});
+
+app.post('/admin/generate_test_data', loginRequired, (req: Request, res: Response) => {
+  const action = req.body.action || 'reset_1250';
+
+  if (action === 'add_500') {
+    populateRealisticCows(500, false);
+    addFlash(req, `Добавлено +500 тестовых записей. Всего в базе: ${cows.length} голов.`, 'success');
+  } else if (action === 'add_1000') {
+    populateRealisticCows(1000, false);
+    addFlash(req, `Добавлено +1 000 тестовых записей. Всего в базе: ${cows.length} голов.`, 'success');
+  } else if (action === 'clear_all') {
+    cows.length = 0;
+    addFlash(req, 'База данных полностью очищена (0 записей).', 'warning');
+  } else {
+    populateRealisticCows(1250, true);
+    addFlash(req, `База данных сброшена к эталонному набору: 1 250 реалистичных записей за 12 месяцев.`, 'success');
+  }
+
+  const referer = req.headers.referer || '/admin/generator';
+  res.redirect(referer);
+});
+
 // Login
 app.get('/login', (req: Request, res: Response) => {
   if (req.session.user_id) {
@@ -852,7 +1067,7 @@ app.get('/dashboard', loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
   const farmName = req.session.farm_name;
 
-  const period = (req.query.period as string) || 'this_month';
+  const period = (req.query.period as string) || 'all';
   const customStart = req.query.custom_start as string;
   const customEnd = req.query.custom_end as string;
 
@@ -1063,6 +1278,15 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
   }
 
   const cowId = generateCowId(farmName);
+  let autopsyProtocol: string | undefined = undefined;
+  if (category === 'падёж' && req.body.autopsy_vet) {
+    autopsyProtocol = JSON.stringify({
+      autopsy_vet: req.body.autopsy_vet,
+      conclusion: reason,
+      lab_tests: req.body.autopsy_lab_sample || 'Сибирская язва и эмкар исключены'
+    });
+  }
+
   cows.push({
     id: cowIdCounter++,
     cow_id: cowId,
@@ -1070,6 +1294,18 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     category,
     reason,
     disposal_date,
+    ear_tag: req.body.ear_tag ? String(req.body.ear_tag).trim() : undefined,
+    breed: req.body.breed ? String(req.body.breed).trim() : 'Черно-пёстрая белорусской селекции',
+    age_group: req.body.age_group ? String(req.body.age_group).trim() : 'Коровы дойного стада',
+    lactation: req.body.lactation ? parseInt(String(req.body.lactation), 10) : undefined,
+    weight: req.body.weight ? parseFloat(String(req.body.weight)) : undefined,
+    milk_yield: req.body.milk_yield ? parseFloat(String(req.body.milk_yield)) : undefined,
+    book_value: req.body.book_value ? parseFloat(String(req.body.book_value)) : undefined,
+    notes: req.body.notes ? String(req.body.notes).trim() : undefined,
+    autopsy_protocol: autopsyProtocol,
+    autopsy_vet: req.body.autopsy_vet || undefined,
+    autopsy_date: disposal_date,
+    autopsy_lab_sample: req.body.autopsy_lab_sample || undefined,
     created_at: formatDate(new Date()) + ' ' + new Date().toTimeString().split(' ')[0],
     created_by: req.session.user_id
   });
@@ -1151,6 +1387,14 @@ app.post('/add_multiple_cows', loginRequired, (req: Request, res: Response) => {
         category: item.category,
         reason: item.reason,
         disposal_date: item.disposal_date,
+        ear_tag: item.ear_tag ? String(item.ear_tag).trim() : undefined,
+        breed: item.breed ? String(item.breed).trim() : 'Черно-пёстрая белорусской селекции',
+        age_group: item.age_group ? String(item.age_group).trim() : 'Коровы дойного стада',
+        lactation: item.lactation ? parseInt(String(item.lactation), 10) : undefined,
+        weight: item.weight ? parseFloat(String(item.weight)) : undefined,
+        milk_yield: item.milk_yield ? parseFloat(String(item.milk_yield)) : undefined,
+        book_value: item.book_value ? parseFloat(String(item.book_value)) : undefined,
+        notes: item.notes ? String(item.notes).trim() : undefined,
         created_at: formatDate(new Date()) + ' ' + new Date().toTimeString().split(' ')[0],
         created_by: req.session.user_id
       });
@@ -1207,6 +1451,152 @@ app.post('/delete_cow/:id', loginRequired, (req: Request, res: Response) => {
 
   addFlash(req, `Запись о корове с ID ${deletedCow.cow_id} успешно удалена.`, 'success');
   res.redirect('/cows');
+});
+
+// Edit Cow
+app.get('/edit_cow/:id', loginRequired, (req: Request, res: Response) => {
+  const userType = req.session.user_type;
+  const farmName = req.session.farm_name;
+  const cowId = parseInt(String(req.params.id), 10);
+
+  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
+  if (!cow) {
+    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
+    return res.redirect('/cows');
+  }
+
+  res.render('edit_cow', { cow });
+});
+
+app.post('/edit_cow/:id', loginRequired, (req: Request, res: Response) => {
+  const userType = req.session.user_type;
+  const farmName = req.session.farm_name;
+  const cowId = parseInt(String(req.params.id), 10);
+
+  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
+  if (!cow) {
+    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
+    return res.redirect('/cows');
+  }
+
+  const { category, reason, disposal_date, ear_tag, breed, age_group, lactation, weight, milk_yield, book_value, notes } = req.body;
+  if (category) cow.category = category;
+  if (reason) cow.reason = reason;
+  if (disposal_date) cow.disposal_date = disposal_date;
+  if (ear_tag !== undefined) cow.ear_tag = String(ear_tag).trim();
+  if (breed) cow.breed = String(breed).trim();
+  if (age_group) cow.age_group = String(age_group).trim();
+  if (lactation !== undefined && lactation !== '') cow.lactation = parseInt(String(lactation), 10);
+  if (weight !== undefined && weight !== '') cow.weight = parseFloat(String(weight));
+  if (milk_yield !== undefined && milk_yield !== '') cow.milk_yield = parseFloat(String(milk_yield));
+  if (book_value !== undefined && book_value !== '') cow.book_value = parseFloat(String(book_value));
+  if (notes !== undefined) cow.notes = String(notes).trim();
+
+  addFlash(req, `Запись ${cow.cow_id} успешно обновлена`, 'success');
+  res.redirect('/cows');
+});
+
+// Autopsy routes
+app.get('/autopsy/:id', loginRequired, (req: Request, res: Response) => {
+  const userType = req.session.user_type;
+  const farmName = req.session.farm_name;
+  const cowId = parseInt(String(req.params.id), 10);
+
+  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
+  if (!cow) {
+    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
+    return res.redirect('/cows');
+  }
+
+  let protocol: any = {};
+  if (cow.autopsy_protocol) {
+    try {
+      protocol = typeof cow.autopsy_protocol === 'string' ? JSON.parse(cow.autopsy_protocol) : cow.autopsy_protocol;
+    } catch {
+      protocol = {};
+    }
+  }
+
+  res.render('autopsy_form', { cow, protocol });
+});
+
+app.post('/save_autopsy/:id', loginRequired, (req: Request, res: Response) => {
+  const userType = req.session.user_type;
+  const farmName = req.session.farm_name;
+  const cowId = parseInt(String(req.params.id), 10);
+
+  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
+  if (!cow) {
+    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
+    return res.redirect('/cows');
+  }
+
+  const {
+    autopsy_date,
+    autopsy_vet,
+    autopsy_lab_sample,
+    anamnesis,
+    external_exam,
+    respiratory,
+    cardiovascular,
+    digestive,
+    liver_spleen,
+    pat_diagnosis,
+    conclusion,
+    lab_tests,
+    lab_doc_num
+  } = req.body;
+
+  const protocolData = {
+    autopsy_date: autopsy_date || cow.disposal_date,
+    autopsy_vet: autopsy_vet || 'Главный ветврач',
+    autopsy_lab_sample: autopsy_lab_sample || 'Да',
+    anamnesis: anamnesis || '',
+    external_exam: external_exam || '',
+    respiratory: respiratory || '',
+    cardiovascular: cardiovascular || '',
+    digestive: digestive || '',
+    liver_spleen: liver_spleen || '',
+    pat_diagnosis: pat_diagnosis || cow.reason,
+    conclusion: conclusion || '',
+    lab_tests: lab_tests || 'Сибирская язва и эмкар исключены',
+    lab_doc_num: lab_doc_num || ''
+  };
+
+  cow.autopsy_date = autopsy_date || cow.disposal_date;
+  cow.autopsy_vet = autopsy_vet || 'Главный ветврач';
+  cow.autopsy_lab_sample = autopsy_lab_sample || 'Да';
+  cow.autopsy_protocol = JSON.stringify(protocolData);
+  if (pat_diagnosis) {
+    cow.reason = pat_diagnosis;
+  }
+
+  addFlash(req, `Протокол вскрытия для животного ${cow.cow_id} успешно сохранён`, 'success');
+  res.redirect(`/autopsy/${cow.id}`);
+});
+
+app.get('/autopsy/print/:id', loginRequired, (req: Request, res: Response) => {
+  const userType = req.session.user_type;
+  const farmName = req.session.farm_name;
+  const cowId = parseInt(String(req.params.id), 10);
+
+  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
+  if (!cow) {
+    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
+    return res.redirect('/cows');
+  }
+
+  let protocol: any = {};
+  if (cow.autopsy_protocol) {
+    try {
+      protocol = typeof cow.autopsy_protocol === 'string' ? JSON.parse(cow.autopsy_protocol) : cow.autopsy_protocol;
+    } catch {
+      protocol = {};
+    }
+  }
+
+  const orgName = 'ОАО «Новая Припять»';
+  res.render('autopsy_print', { cow, protocol, orgName, org_name: orgName });
 });
 
 // Reports Page
@@ -1274,13 +1664,14 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
       summary,
       start_date,
       end_date,
-      farm_filter: farm_filter || userFarm
+      farm_filter: farm_filter || userFarm,
+      org_name: 'ОАО «Новая Припять»'
     });
   }
 
   // 3. Excel Format (.xlsx)
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Система учёта выбытия скота';
+  workbook.creator = 'ОАО «Новая Припять» - Система учёта выбытия скота';
   workbook.created = new Date();
 
   if (report_type === 'matrix') {
@@ -1291,7 +1682,7 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
     // Title
     worksheet.mergeCells('A1:H1');
     const titleCell = worksheet.getCell('A1');
-    titleCell.value = 'ОТЧЁТ ПО ВЫБЫТИЮ СКОТА';
+    titleCell.value = 'ОАО «НОВАЯ ПРИПЯТЬ» — ОТЧЁТ ПО ВЫБЫТИЮ СКОТА';
     titleCell.font = { name: 'Times New Roman', size: 14, bold: true };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
 

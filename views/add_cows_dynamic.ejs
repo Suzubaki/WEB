@@ -124,36 +124,81 @@
         function createCowRow(index) {
             var today = new Date().toISOString().split('T')[0];
             return \`
-                <div class="card cow-row mb-3" id="cow-row-\${index}">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Корова #\${index}</h5>
+                <div class="card cow-row mb-3 shadow-sm border" id="cow-row-\${index}">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold text-primary">Животное #\${index}</span>
                         <button type="button" class="btn btn-sm btn-outline-danger delete-cow-btn" data-index="\${index}">
                             <i class="bi bi-trash"></i> Удалить
                         </button>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Категория *</label>
-                                <select class="form-select category-select" data-index="\${index}" required>
+                    <div class="card-body py-3">
+                        <div class="row g-2">
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Категория *</label>
+                                <select class="form-select form-select-sm category-select" data-index="\${index}" required>
                                     <option value="">Выберите категорию</option>
                                     <option value="падёж">Падёж</option>
                                     <option value="выбраковка">Выбраковка</option>
-                                    <option value="санитарный">Санитарный блок</option>
+                                    <option value="санитарный">Санитарный брак</option>
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Причина *</label>
-                                <select class="form-select reason-select" id="reason-\${index}" disabled required>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Причина / Диагноз *</label>
+                                <select class="form-select form-select-sm reason-select" id="reason-\${index}" disabled required>
                                     <option value="">Сначала выберите категорию</option>
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Дата выбытия *</label>
-                                <input type="date" class="form-control disposal-date" required max="\${today}" value="\${today}">
-                                <div class="form-text text-danger date-error" style="display: none; font-size: 0.8em;">
-                                    Дата не может быть позже сегодняшнего дня
-                                </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Дата выбытия *</label>
+                                <input type="date" class="form-control form-control-sm disposal-date" required max="\${today}" value="\${today}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Идент. № (AITS)</label>
+                                <input type="text" class="form-control form-control-sm ear-tag" placeholder="BY 04 1234">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
+                                <select class="form-select form-select-sm age-group">
+                                    <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
+                                    <option value="Коровы сухостойные">Коровы сухостойные</option>
+                                    <option value="Нетели">Нетели</option>
+                                    <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
+                                    <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
+                                    <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
+                                    <option value="Бычки на откорме">Бычки на откорме</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Порода скота</label>
+                                <select class="form-select form-select-sm breed-select">
+                                    <option value="Черно-пёстрая" selected>Черно-пёстрая</option>
+                                    <option value="Голштинская">Голштинская</option>
+                                    <option value="Красная белорусская">Красная бел.</option>
+                                    <option value="Симментальская">Симментальская</option>
+                                    <option value="Лимузин">Лимузин</option>
+                                    <option value="Помесь">Помесь</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small fw-semibold">Лактация</label>
+                                <input type="number" class="form-control form-control-sm lactation" min="0" max="20" placeholder="№">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Живая масса (кг)</label>
+                                <input type="number" step="0.1" class="form-control form-control-sm weight" min="0" placeholder="кг">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Удой за лакт. (кг)</label>
+                                <input type="number" step="1" class="form-control form-control-sm milk-yield" min="0" placeholder="кг">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Балансовая ст. (BYN)</label>
+                                <input type="number" step="0.01" class="form-control form-control-sm book-value" min="0" placeholder="руб.">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Примечание</label>
+                                <input type="text" class="form-control form-control-sm notes" placeholder="Примечание ветеринара...">
                             </div>
                         </div>
                     </div>
@@ -328,7 +373,15 @@
                 cowsData.push({
                     category: category,
                     reason: reason,
-                    disposal_date: disposalDate
+                    disposal_date: disposalDate,
+                    ear_tag: $(this).find('.ear-tag').val().trim() || null,
+                    breed: $(this).find('.breed-select').val() || 'Черно-пёстрая',
+                    age_group: $(this).find('.age-group').val() || 'Коровы дойного стада',
+                    lactation: $(this).find('.lactation').val() || null,
+                    weight: $(this).find('.weight').val() || null,
+                    milk_yield: $(this).find('.milk-yield').val() || null,
+                    book_value: $(this).find('.book-value').val() || null,
+                    notes: $(this).find('.notes').val().trim() || null
                 });
             });
             

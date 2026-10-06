@@ -1,51 +1,142 @@
 {% extends "base.html" %}
 
-{% block title %}Добавление коровы - Учёт выбытия скота{% endblock %}
+{% block title %}Добавление коровы - АгроУчёт PRO{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавление записи о выбытии</h4>
+    <div class="col-md-9">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавление записи о выбытии КРС</h4>
+                <span class="badge bg-light text-primary fs-6">Ферма: {{ farm_name }}</span>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
+                <div class="alert alert-info py-2 mb-4 d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill fs-5 text-primary"></i>
+                    <div>
+                        Заполните сведения о животном в соответствии с первичными документами (Акт ф. 209-АПК, 210-АПК, ГИС AITS).
+                    </div>
+                </div>
+
                 <form method="POST" action="{{ url_for('add_cow') }}">
-                    <div class="mb-3">
-                        <label class="form-label">Ферма</label>
-                        <input type="text" class="form-control" value="{{ farm_name }}" disabled>
-                        <div class="form-text">ID коровы будет сгенерирован автоматически</div>
+                    <div class="row g-3">
+                        <!-- Основные параметры выбытия -->
+                        <div class="col-md-4">
+                            <label for="category" class="form-label fw-semibold">Категория выбытия *</label>
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="">Выберите категорию</option>
+                                <option value="падёж">Падёж</option>
+                                <option value="выбраковка">Выбраковка</option>
+                                <option value="санитарный">Санитарный брак</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-5">
+                            <label for="reason" class="form-label fw-semibold">Причина выбытия / Диагноз *</label>
+                            <select class="form-select" id="reason" name="reason" disabled required>
+                                <option value="">Сначала выберите категорию</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="disposal_date" class="form-label fw-semibold">Дата выбытия *</label>
+                            <input type="date" class="form-control" id="disposal_date" name="disposal_date" required>
+                        </div>
+
+                        <!-- Идентификация и зоотехнические данные -->
+                        <div class="col-md-4">
+                            <label for="ear_tag" class="form-label fw-semibold">Идент. № (AITS / Бирка)</label>
+                            <input type="text" class="form-control" id="ear_tag" name="ear_tag" placeholder="Напр. BY 04 1234567">
+                            <div class="form-text">Номер в реестре идентификации РБ</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="breed" class="form-label fw-semibold">Порода скота *</label>
+                            <select class="form-select" id="breed" name="breed">
+                                {% if breeds %}
+                                    {% for b in breeds %}
+                                    <option value="{{ b }}" {% if b == 'Черно-пёстрая белорусской селекции' or b == 'Черно-пёстрая' %}selected{% endif %}>{{ b }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="Черно-пёстрая белорусской селекции" selected>Черно-пёстрая белорусской селекции</option>
+                                    <option value="Голштинская">Голштинская</option>
+                                    <option value="Красная белорусская">Красная белорусская</option>
+                                    <option value="Симментальская">Симментальская</option>
+                                    <option value="Лимузин">Лимузин</option>
+                                    <option value="Помесь">Помесь</option>
+                                {% endif %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="age_group" class="form-label fw-semibold">Половозрастная группа (ПВГ)</label>
+                            <select class="form-select" id="age_group" name="age_group">
+                                {% if age_groups %}
+                                    {% for ag in age_groups %}
+                                    <option value="{{ ag }}" {% if ag == 'Коровы дойного стада' %}selected{% endif %}>{{ ag }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
+                                    <option value="Коровы сухостойные">Коровы сухостойные</option>
+                                    <option value="Нетели">Нетели</option>
+                                    <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
+                                    <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
+                                    <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
+                                    <option value="Бычки на откорме">Бычки на откорме</option>
+                                {% endif %}
+                            </select>
+                        </div>
+
+                        <!-- Физиологические и экономические показатели -->
+                        <div class="col-md-3">
+                            <label for="lactation" class="form-label fw-semibold">Лактация / Возраст</label>
+                            <input type="number" class="form-control" id="lactation" name="lactation" min="0" max="20" placeholder="№ лактации">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="weight" class="form-label fw-semibold">Живая масса (кг)</label>
+                            <input type="number" step="0.1" class="form-control" id="weight" name="weight" min="0" placeholder="Напр. 520.0">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="milk_yield" class="form-label fw-semibold">Удой за лактацию (кг)</label>
+                            <input type="number" step="1" class="form-control" id="milk_yield" name="milk_yield" min="0" placeholder="кг молока">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="book_value" class="form-label fw-semibold">Балансовая стоим. (BYN)</label>
+                            <input type="number" step="0.01" class="form-control" id="book_value" name="book_value" min="0" placeholder="руб.">
+                        </div>
+
+                        <div class="col-md-12">
+                            <label for="notes" class="form-label fw-semibold">Заключение комиссии / Примечание</label>
+                            <input type="text" class="form-control" id="notes" name="notes" placeholder="Анамнез, клинические признаки, заключение главного ветврача...">
+                        </div>
+                    </div>
+
+                    <!-- Патологоанатомический блок для падежа -->
+                    <div id="autopsy-section" class="mt-4 p-3 bg-light border border-danger rounded-3" style="display: none;">
+                        <h6 class="text-danger fw-bold mb-2">
+                            <i class="bi bi-file-earmark-medical"></i> Патологоанатомическое вскрытие (Падёж)
+                        </h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">ФИО ветврача (патологоанатома)</label>
+                                <input type="text" class="form-control form-control-sm" name="autopsy_vet" placeholder="Главный ветврач...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Заключение райветстанции (лаборатории)</label>
+                                <input type="text" class="form-control form-control-sm" name="autopsy_lab_sample" value="Сибирская язва и эмкар исключены" placeholder="Лабораторный анализ...">
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="category" class="form-label">Категория *</label>
-                        <select class="form-select" id="category" name="category" required>
-                            <option value="">Выберите категорию</option>
-                            <option value="падёж">Падёж</option>
-                            <option value="выбраковка">Выбраковка</option>
-                            <option value="санитарный">Санитарный блок</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="reason" class="form-label">Причина *</label>
-                        <select class="form-select" id="reason" name="reason" disabled required>
-                            <option value="">Сначала выберите категорию</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="disposal_date" class="form-label">Дата выбытия *</label>
-                        <input type="date" class="form-control" id="disposal_date" name="disposal_date" required>
-                        <div class="form-text">Не может быть позже сегодняшнего дня</div>
-                    </div>
-                    
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary me-2">
-                            <i class="bi bi-arrow-left"></i> Назад
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> В журнал коров
                         </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Сохранить
+                        <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                            <i class="bi bi-save-fill"></i> Сохранить запись
                         </button>
                     </div>
                 </form>
@@ -64,6 +155,13 @@ $(document).ready(function() {
     $('#category').change(function() {
         var category = $(this).val();
         var $reasonSelect = $('#reason');
+        
+        // Показ блока вскрытия для падежа
+        if (category === 'падёж') {
+            $('#autopsy-section').slideDown(200);
+        } else {
+            $('#autopsy-section').slideUp(200);
+        }
         
         if (category) {
             $.getJSON('/get_reasons/' + encodeURIComponent(category), function(data) {

@@ -1,29 +1,44 @@
 <%- include('layout/header', { title: 'Вход в систему' }) %>
 
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0"><i class="bi bi-box-arrow-in-right"></i> Вход в систему</h4>
+<div class="row justify-content-center mt-3">
+    <div class="col-md-5">
+        <div class="text-center mb-4">
+            <img src="/img/logo.svg" onerror="this.onerror=null; this.src='/img/logo.jpg';" alt="ОАО Новая Припять" width="95" height="95" class="rounded-3 shadow border border-2 border-warning p-1 mb-2" style="object-fit: contain; background: #ffffff;">
+            <h3 class="fw-bold text-dark mb-1">ОАО «Новая Припять»</h3>
+            <p class="text-muted small">Автоматизированная система учёта и анализа выбытия КРС</p>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white d-flex align-items-center gap-2">
+                <i class="bi bi-shield-lock-fill text-warning"></i>
+                <h5 class="mb-0 fw-semibold">Вход в учётную запись</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
                 <form method="POST" action="/login">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Имя пользователя</label>
-                        <input type="text" class="form-control" id="username" name="username" required autofocus>
+                        <label for="username" class="form-label fw-semibold">Имя пользователя / Логин</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" placeholder="Напр. admin или farm1" required autofocus>
+                        </div>
                     </div>
 
                     <div class="mb-3">
-                        <label for="password" class="form-label">Пароль</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <label for="password" class="form-label fw-semibold">Пароль</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Введите пароль" required>
+                        </div>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-box-arrow-in-right"></i> Войти
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg fw-semibold shadow-sm">
+                            <i class="bi bi-box-arrow-in-right"></i> Войти в систему
                         </button>
-                        <div class="text-center mt-2">
-                            <small class="text-muted">Тестовые аккаунты: admin / admin123, farm1 / farm123, farm2 / farm123</small>
+                        <div class="text-center mt-3 p-2 bg-light rounded border">
+                            <small class="text-muted d-block fw-semibold mb-1">Демо-доступ для входа:</small>
+                            <small class="text-secondary font-monospace d-block">Администратор: <strong>admin</strong> / <strong>admin123</strong></small>
+                            <small class="text-secondary font-monospace d-block">МТФ-1 Центральная: <strong>farm1</strong> / <strong>farm123</strong></small>
                         </div>
                     </div>
                 </form>

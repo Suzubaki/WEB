@@ -1,0 +1,136 @@
+<%- include('layout/header', { title: 'Редактирование коровы' }) %>
+
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="bi bi-pencil-square"></i> Редактирование записи: <%= cow.cow_id %></h4>
+                <span class="badge bg-light text-primary">Ферма: <%= cow.farm_name %></span>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="/edit_cow/<%= cow.id %>">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="category" class="form-label fw-semibold">Категория выбытия *</label>
+                            <select class="form-select" id="category" name="category" required>
+                                <option value="падёж" <%= cow.category === 'падёж' ? 'selected' : '' %>>Падёж</option>
+                                <option value="выбраковка" <%= cow.category === 'выбраковка' ? 'selected' : '' %>>Выбраковка</option>
+                                <option value="санитарный" <%= (cow.category === 'санитарный' || cow.category === 'санбрак') ? 'selected' : '' %>>Санитарный брак</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="reason" class="form-label fw-semibold">Причина выбытия *</label>
+                            <select class="form-select" id="reason" name="reason" required>
+                                <option value="<%= cow.reason %>" selected><%= cow.reason %></option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="disposal_date" class="form-label fw-semibold">Дата выбытия *</label>
+                            <input type="date" class="form-control" id="disposal_date" name="disposal_date" value="<%= cow.disposal_date %>" required>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="ear_tag" class="form-label fw-semibold">Идент. № (AITS / Бирка)</label>
+                            <input type="text" class="form-control" id="ear_tag" name="ear_tag" value="<%= cow.ear_tag || '' %>" placeholder="BY 04 1234567">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="breed" class="form-label fw-semibold">Порода скота</label>
+                            <select class="form-select" id="breed" name="breed">
+                                <option value="Черно-пёстрая белорусской селекции" <%= (cow.breed || '').includes('Черно') ? 'selected' : '' %>>Черно-пёстрая белорусской селекции</option>
+                                <option value="Голштинская" <%= (cow.breed || '').includes('Голштин') ? 'selected' : '' %>>Голштинская</option>
+                                <option value="Красная белорусская" <%= (cow.breed || '').includes('Красн') ? 'selected' : '' %>>Красная белорусская</option>
+                                <option value="Симментальская" <%= (cow.breed || '').includes('Симмент') ? 'selected' : '' %>>Симментальская</option>
+                                <option value="Лимузин" <%= (cow.breed || '').includes('Лимузин') ? 'selected' : '' %>>Лимузин</option>
+                                <option value="Помесь" <%= (cow.breed || '').includes('Помесь') ? 'selected' : '' %>>Помесь</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="age_group" class="form-label fw-semibold">Половозрастная группа (ПВГ)</label>
+                            <select class="form-select" id="age_group" name="age_group">
+                                <option value="Коровы дойного стада" <%= cow.age_group === 'Коровы дойного стада' ? 'selected' : '' %>>Коровы дойного стада</option>
+                                <option value="Коровы сухостойные" <%= cow.age_group === 'Коровы сухостойные' ? 'selected' : '' %>>Коровы сухостойные</option>
+                                <option value="Нетели" <%= cow.age_group === 'Нетели' ? 'selected' : '' %>>Нетели</option>
+                                <option value="Тёлки старше 1 года" <%= cow.age_group === 'Тёлки старше 1 года' ? 'selected' : '' %>>Тёлки старше 1 года</option>
+                                <option value="Телята (0–6 мес.)" <%= cow.age_group === 'Телята (0–6 мес.)' ? 'selected' : '' %>>Телята (0–6 мес.)</option>
+                                <option value="Молодняк (6–12 мес.)" <%= cow.age_group === 'Молодняк (6–12 мес.)' ? 'selected' : '' %>>Молодняк (6–12 мес.)</option>
+                                <option value="Бычки на откорме" <%= cow.age_group === 'Бычки на откорме' ? 'selected' : '' %>>Бычки на откорме</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="lactation" class="form-label fw-semibold">Лактация</label>
+                            <input type="number" class="form-control" id="lactation" name="lactation" min="0" max="20" value="<%= cow.lactation || '' %>">
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="weight" class="form-label fw-semibold">Живая масса (кг)</label>
+                            <input type="number" step="0.1" class="form-control" id="weight" name="weight" min="0" value="<%= cow.weight || '' %>">
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="milk_yield" class="form-label fw-semibold">Удой (кг)</label>
+                            <input type="number" step="1" class="form-control" id="milk_yield" name="milk_yield" min="0" value="<%= cow.milk_yield || '' %>">
+                        </div>
+
+                        <div class="col-md-2">
+                            <label for="book_value" class="form-label fw-semibold">Баланс. ст. (BYN)</label>
+                            <input type="number" step="0.01" class="form-control" id="book_value" name="book_value" min="0" value="<%= cow.book_value || '' %>">
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label for="notes" class="form-label fw-semibold">Заключение комиссии / Примечание</label>
+                            <input type="text" class="form-control" id="notes" name="notes" value="<%= cow.notes || '' %>" placeholder="Диагноз, результаты вскрытия, заключение комиссии...">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="/cows" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                            <i class="bi bi-save-fill"></i> Сохранить изменения
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var catSelect = document.getElementById('category');
+    var reasonSelect = document.getElementById('reason');
+    var currentReason = <%- JSON.stringify(cow.reason || '') %>;
+
+    function loadReasons(cat, sel) {
+        if (!cat) return;
+        fetch('/get_reasons/' + encodeURIComponent(cat))
+            .then(function(r) { return r.json(); })
+            .then(function(reasons) {
+                reasonSelect.innerHTML = '';
+                reasons.forEach(function(r) {
+                    var opt = document.createElement('option');
+                    opt.value = r;
+                    opt.textContent = r;
+                    if (r === sel) opt.selected = true;
+                    reasonSelect.appendChild(opt);
+                });
+            })
+            .catch(function(e) { console.error(e); });
+    }
+
+    if (catSelect && reasonSelect) {
+        loadReasons(catSelect.value, currentReason);
+        catSelect.addEventListener('change', function() {
+            loadReasons(this.value, null);
+        });
+    }
+})();
+</script>
+
+<%- include('layout/footer') %>

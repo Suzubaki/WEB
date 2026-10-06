@@ -106,7 +106,18 @@ $(document).ready(function() {
                         </div>
                         
                         <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Лактация / Возраст</label>
+                            <label class="form-label small fw-semibold">Порода скота</label>
+                            <select class="form-select form-select-sm breed-select">
+                                <option value="Черно-пёстрая" selected>Черно-пёстрая</option>
+                                <option value="Голштинская">Голштинская</option>
+                                <option value="Красная белорусская">Красная бел.</option>
+                                <option value="Симментальская">Симментальская</option>
+                                <option value="Лимузин">Лимузин</option>
+                                <option value="Помесь">Помесь</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label small fw-semibold">Лактация</label>
                             <input type="number" class="form-control form-control-sm lactation" min="0" max="20" placeholder="№">
                         </div>
                         <div class="col-md-2">
@@ -121,7 +132,7 @@ $(document).ready(function() {
                             <label class="form-label small fw-semibold">Балансовая ст. (BYN)</label>
                             <input type="number" step="0.01" class="form-control form-control-sm book-value" min="0" placeholder="руб.">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-semibold">Примечание / Заключение</label>
                             <input type="text" class="form-control form-control-sm notes" placeholder="Примечание ветеринара...">
                         </div>
@@ -203,6 +214,7 @@ $(document).ready(function() {
             const disposalDate = $(this).find('.disposal-date').val();
             const earTag = $(this).find('.ear-tag').val().trim();
             const ageGroup = $(this).find('.age-group').val();
+            const breed = $(this).find('.breed-select').val();
             const lactation = $(this).find('.lactation').val();
             const weight = $(this).find('.weight').val();
             const milkYield = $(this).find('.milk-yield').val();
@@ -220,6 +232,7 @@ $(document).ready(function() {
                 disposal_date: disposalDate,
                 ear_tag: earTag || null,
                 age_group: ageGroup || 'Коровы дойного стада',
+                breed: breed || 'Черно-пёстрая',
                 lactation: lactation ? parseInt(lactation) : null,
                 weight: weight ? parseFloat(weight) : null,
                 milk_yield: milkYield ? parseFloat(milkYield) : null,

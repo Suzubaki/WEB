@@ -92,7 +92,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         period_title = f"С начала {now.year} года (YTD)"
     elif period == 'all':
         start_date = '2000-01-01'
-        end_date = now.strftime('%Y-%m-%d')
+        end_date = '2099-12-31'
         period_title = "За всё время учёта"
     elif period == 'custom' and custom_start and custom_end:
         start_date = custom_start
