@@ -135,15 +135,15 @@
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <span class="small text-muted fw-bold me-1"><i class="bi bi-calendar3"></i> Период:</span>
                 <a href="/dashboard?period=this_month&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'this_month' ? 'active' : '' %>">Этот месяц (105)</a>
+                   class="filter-chip <%= d.period_info.period === 'this_month' ? 'active' : '' %>">Этот месяц</a>
                 <a href="/dashboard?period=last_month&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'last_month' ? 'active' : '' %>">Прошлый месяц (105)</a>
+                   class="filter-chip <%= d.period_info.period === 'last_month' ? 'active' : '' %>">Прошлый месяц</a>
                 <a href="/dashboard?period=quarter&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'quarter' ? 'active' : '' %>">Квартал (105)</a>
+                   class="filter-chip <%= d.period_info.period === 'quarter' ? 'active' : '' %>">Квартал</a>
                 <a href="/dashboard?period=ytd&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'ytd' ? 'active' : '' %>">С начала года (1 042)</a>
+                   class="filter-chip <%= d.period_info.period === 'ytd' ? 'active' : '' %>">С начала года</a>
                 <a href="/dashboard?period=all&farm=<%= selected_farm %>" 
-                   class="filter-chip <%= d.period_info.period === 'all' ? 'active' : '' %>">Всё время (1 250)</a>
+                   class="filter-chip <%= d.period_info.period === 'all' ? 'active' : '' %>">Всё время</a>
             </div>
 
             <!-- Селектор фермы для Администратора и произвольный период -->
@@ -487,12 +487,7 @@
     </div>
 </div>
 
-<script src="/chart.umd.js"></script>
-<script>
-if (typeof Chart === 'undefined') {
-    document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\\/script>');
-}
-</script>
+<script src="/chart.umd.js" onerror="this.onerror=null; var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'; document.head.appendChild(s);"></script>
 
 <script>
 (function() {

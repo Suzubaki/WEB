@@ -12,16 +12,13 @@
                 </h4>
                 <div class="d-flex gap-2 flex-wrap">
                     {% if user_type != 'admin' %}
-                    <a href="{{ url_for('add_cows_dynamic') }}" class="btn btn-primary btn-sm">
+                    <a href="{{ url_for('cows.add_cows_dynamic') }}" class="btn btn-primary btn-sm">
                         <i class="bi bi-plus-circle"></i> Добавить запись
                     </a>
-                    <a href="{{ url_for('import_cows') }}" class="btn btn-outline-success btn-sm">
+                    <a href="{{ url_for('cows.import_cows') }}" class="btn btn-outline-success btn-sm">
                         <i class="bi bi-file-earmark-arrow-up"></i> Импорт Excel/CSV
                     </a>
                     {% endif %}
-                    <a href="{{ url_for('seed_test_data') }}" class="btn btn-warning text-dark btn-sm fw-bold" onclick="return confirm('Загрузить 1 000 реалистичных записей выбытия коров в базу данных?');">
-                        <i class="bi bi-lightning-charge-fill"></i> Добавить 1 000 коров
-                    </a>
                     <button type="button" id="bulkDeleteBtn" class="btn btn-danger btn-sm" style="display: none;">
                         <i class="bi bi-trash"></i> Удалить выбранные (<span id="selectedCount">0</span>)
                     </button>
@@ -34,9 +31,12 @@
                     <div class="row g-2 align-items-end">
                         {% if user_type == 'admin' %}
                         <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Ферма</label>
+                            <label class="form-label small fw-semibold">Ферма (МТФ)</label>
                             <select class="form-select form-select-sm" id="farm_filter">
                                 <option value="">Все фермы</option>
+                                {% for f in farms or [] %}
+                                <option value="{{ f }}">{{ f }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         {% endif %}
@@ -50,22 +50,9 @@
                                 <option value="санитарный">Санитарный брак</option>
                             </select>
                         </div>
-
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
-                            <select class="form-select form-select-sm" id="age_group_filter">
-                                <option value="">Все группы</option>
-                                <option value="Коровы дойного стада">Коровы дойные</option>
-                                <option value="Коровы сухостойные">Сухостойные</option>
-                                <option value="Нетели">Нетели</option>
-                                <option value="Тёлки старше 1 года">Тёлки > 1 года</option>
-                                <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
-                                <option value="Бычки на откорме">Бычки на откорме</option>
-                            </select>
-                        </div>
                         
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Причина</label>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Причина выбытия</label>
                             <select class="form-select form-select-sm" id="reason_filter" disabled>
                                 <option value="">Все причины</option>
                             </select>
@@ -76,6 +63,9 @@
                             <select class="form-select form-select-sm" id="date_sort">
                                 <option value="newest">Свежие сначала</option>
                                 <option value="oldest">Старые сначала</option>
+                                <option value="weight_desc">По живой массе</option>
+                                <option value="id_desc">По номеру ID (убыв.)</option>
+                                <option value="id_asc">По номеру ID (возр.)</option>
                             </select>
                         </div>
                         
@@ -87,37 +77,51 @@
                     </div>
                 </div>
                 
-                <!-- Поиск -->
-                <div class="mb-3">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchInput" class="form-control" placeholder="Поиск по бирке AITS, номеру, причине, диагнозу, ферме или примечанию...">
+                <!-- Поиск и пагинация -->
+                <div class="row align-items-center g-2 mb-3">
+                    <div class="col-md-8">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchInput" class="form-control" placeholder="Мгновенный поиск по номеру, бирке AITS, диагнозу или ферме...">
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-primary fs-6 p-2">
+                            <i class="bi bi-database"></i> Всего в базе: <span id="total_db_count">{{ total_count or 0 }}</span> гол.
+                        </span>
                     </div>
                 </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small" id="pageInfoText">
+                        Показано <strong>1–{{ [50, total_count or 0] | min }}</strong> из <strong>{{ total_count or 0 }}</strong> записей
+                    </span>
+                    <nav aria-label="Пагинация">
+                        <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+                    </nav>
+                </div>
                 
-                {% if cows %}
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle" id="cowsTable">
+                    <table class="table table-hover align-middle table-bordered" id="cowsTable">
                         <thead class="table-light">
                             <tr>
                                 <th style="width: 35px;" class="text-center">
                                     <input type="checkbox" class="form-check-input" id="selectAll">
                                 </th>
-                                <th>ID</th>
+                                <th>ID выбытия</th>
                                 <th>Идент. № (AITS / Бирка)</th>
-                                <th>Ферма</th>
+                                <th>Ферма (МТФ)</th>
                                 <th>ПВГ</th>
                                 <th>Категория</th>
                                 <th>Причина выбытия</th>
-                                <th>Лактация</th>
                                 <th>Вес (кг)</th>
                                 <th>Дата выбытия</th>
                                 <th class="text-end" style="width: 140px;">Действия</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="cowsTableBody">
                             {% for cow in cows %}
-                            <tr data-cow-id="{{ cow.id }}" data-category="{{ cow.category }}">
+                            <tr data-cow-id="{{ cow.id }}">
                                 <td class="text-center">
                                     <input type="checkbox" class="form-check-input cow-checkbox" value="{{ cow.id }}">
                                 </td>
@@ -135,19 +139,20 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ cow.reason }}</td>
-                                <td>{{ cow.lactation or '-' }}</td>
                                 <td>{{ cow.weight or '-' }}</td>
                                 <td><span class="text-nowrap">{{ cow.disposal_date }}</span></td>
                                 <td class="text-end text-nowrap">
-                                    <a href="{{ url_for('edit_cow', cow_id=cow.id) }}" class="btn btn-outline-primary btn-sm" title="Редактировать">
+                                    <a href="/edit_cow/{{ cow.id }}" class="btn btn-outline-primary btn-sm" title="Редактировать">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    {% if user_type != 'admin' %}
                                     <button type="button" class="btn btn-outline-danger btn-sm delete-cow-btn" 
                                             data-cow-id="{{ cow.id }}" 
                                             data-cow-number="{{ cow.cow_id }}"
                                             title="Удалить">
                                         <i class="bi bi-trash"></i>
                                     </button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -155,18 +160,14 @@
                     </table>
                 </div>
                 
-                <div class="d-flex justify-content-between align-items-center mt-3 text-muted small">
+                <div class="d-flex justify-content-between align-items-center mt-3 text-muted small flex-wrap gap-2">
                     <div>
-                        Отображено строк: <strong id="row_count">{{ cows | length }}</strong> из {{ cows | length }}
+                        Отображено по фильтрам: <strong id="row_count">{{ total_count or 0 }}</strong> гол.
                     </div>
+                    <nav aria-label="Пагинация снизу">
+                        <ul class="pagination pagination-sm mb-0" id="paginationControlsBottom"></ul>
+                    </nav>
                 </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-inbox text-muted" style="font-size: 3.5rem;"></i>
-                    <h5 class="mt-3">Записей пока нет</h5>
-                    <p class="text-muted">Нажмите «Добавить запись» или загрузите файл Excel с реестром коров.</p>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -176,86 +177,158 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    {% if user_type == 'admin' %}
-    $.getJSON('{{ url_for("get_farms") }}', function(data) {
-        var $farmSelect = $('#farm_filter');
-        $.each(data, function(index, farm) {
-            $farmSelect.append($('<option>', { value: farm, text: farm }));
-        });
-    });
-    {% endif %}
+    var currentPage = 1;
+    var pageSize = 50;
+    var totalFiltered = {{ total_count or 0 }};
+    var totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+    var CATEGORIES_MAP = {{ categories | tojson | safe if categories else '{}' }};
 
+    // Мгновенная загрузка причин (без задержек сети)
     $('#category_filter').change(function() {
         var category = $(this).val();
         var $reasonFilter = $('#reason_filter');
         $reasonFilter.html('<option value="">Все причины</option>');
         
-        if (category) {
-            $.getJSON('{{ url_for("get_reasons", category="") }}' + category, function(data) {
+        if (category && CATEGORIES_MAP && CATEGORIES_MAP[category]) {
+            $.each(CATEGORIES_MAP[category], function(index, reason) {
+                $reasonFilter.append($('<option>', { value: reason, text: reason }));
+            });
+            $reasonFilter.prop('disabled', false);
+            loadPage(1);
+        } else if (category) {
+            $.getJSON('/get_reasons/' + encodeURIComponent(category), function(data) {
                 $.each(data, function(index, reason) {
                     $reasonFilter.append($('<option>', { value: reason, text: reason }));
                 });
                 $reasonFilter.prop('disabled', false);
-                filterTable();
+                loadPage(1);
             });
         } else {
             $reasonFilter.prop('disabled', true);
-            filterTable();
+            loadPage(1);
         }
     });
 
-    $('#farm_filter, #reason_filter, #age_group_filter').change(filterTable);
-    $('#searchInput').on('keyup', filterTable);
+    $('#farm_filter, #reason_filter, #date_sort').change(function() {
+        loadPage(1);
+    });
 
-    function filterTable() {
-        var farm = $('#farm_filter').val() ? $('#farm_filter').val().toLowerCase() : '';
-        var category = $('#category_filter').val() ? $('#category_filter').val().toLowerCase() : '';
-        var reason = $('#reason_filter').val() ? $('#reason_filter').val().toLowerCase() : '';
-        var ageGroup = $('#age_group_filter').val() ? $('#age_group_filter').val().toLowerCase() : '';
-        var search = $('#searchInput').val().toLowerCase();
-        
-        var visibleCount = 0;
-        
-        $('#cowsTable tbody tr').each(function() {
-            var $row = $(this);
-            var rowFarm = $row.find('td:nth-child(4)').text().toLowerCase();
-            var rowAgeGroup = $row.find('td:nth-child(5)').text().toLowerCase();
-            var rowCategory = $row.find('td:nth-child(6)').text().toLowerCase();
-            var catAttr = ($row.attr('data-category') || '').toLowerCase();
-            var rowReason = $row.find('td:nth-child(7)').text().toLowerCase();
-            var rowText = $row.text().toLowerCase();
-            
-            var matchFarm = !farm || rowFarm.includes(farm);
-            var isSanitary = (category === 'санитарный' || category === 'санбрак') && (catAttr.includes('сан') || rowCategory.includes('сан'));
-            var matchCategory = !category || rowCategory.includes(category) || catAttr.includes(category) || isSanitary;
-            var matchReason = !reason || rowReason.includes(reason);
-            var matchAgeGroup = !ageGroup || rowAgeGroup.includes(ageGroup);
-            var matchSearch = !search || rowText.includes(search);
-            
-            if (matchFarm && matchCategory && matchReason && matchAgeGroup && matchSearch) {
-                $row.show();
-                visibleCount++;
-            } else {
-                $row.hide();
-            }
-        });
-        
-        $('#row_count').text(visibleCount);
-    }
+    var searchTimer = null;
+    $('#searchInput').on('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() {
+            loadPage(1);
+        }, 150);
+    });
 
     $('#reset_filters').click(function() {
         $('#farm_filter').val('');
         $('#category_filter').val('');
         $('#reason_filter').val('').prop('disabled', true);
-        $('#age_group_filter').val('');
         $('#searchInput').val('');
         $('#date_sort').val('newest');
-        filterTable();
+        loadPage(1);
+    });
+
+    function loadPage(page) {
+        currentPage = page || 1;
+        var farm = $('#farm_filter').val() || '';
+        var category = $('#category_filter').val() || '';
+        var reason = $('#reason_filter').val() || '';
+        var sort = $('#date_sort').val() || 'newest';
+        var search = $('#searchInput').val() || '';
+
+        var url = '/api/cows?page=' + currentPage + '&limit=' + pageSize +
+                  '&farm=' + encodeURIComponent(farm) +
+                  '&category=' + encodeURIComponent(category) +
+                  '&reason=' + encodeURIComponent(reason) +
+                  '&sort=' + encodeURIComponent(sort) +
+                  '&search=' + encodeURIComponent(search);
+
+        $.getJSON(url, function(res) {
+            if (!res.success) return;
+            totalFiltered = res.total_filtered;
+            totalPages = res.total_pages;
+
+            $('#row_count').text(totalFiltered);
+            $('#pageInfoText').html('Показано <strong>' + res.start_index + '–' + res.end_index + '</strong> из <strong>' + totalFiltered + '</strong> записей (Стр. ' + currentPage + ' из ' + totalPages + ')');
+
+            var tbody = $('#cowsTableBody');
+            tbody.empty();
+
+            if (!res.cows || res.cows.length === 0) {
+                tbody.html('<tr><td colspan="10" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Записи не найдены</td></tr>');
+                renderPagination();
+                return;
+            }
+
+            $.each(res.cows, function(idx, cow) {
+                var catBadge = '<span class="badge bg-warning text-dark">Санитарный брак</span>';
+                if (cow.category === 'падёж') {
+                    catBadge = '<span class="badge bg-danger">Падёж</span>';
+                } else if (cow.category === 'выбраковка') {
+                    catBadge = '<span class="badge bg-primary">Выбраковка</span>';
+                }
+
+                var row = $('<tr data-cow-id="' + cow.id + '">' +
+                    '<td class="text-center"><input type="checkbox" class="form-check-input cow-checkbox" value="' + cow.id + '"></td>' +
+                    '<td><span class="badge bg-secondary font-monospace">' + (cow.cow_id || '') + '</span></td>' +
+                    '<td><strong class="text-primary">' + (cow.ear_tag || '-') + '</strong></td>' +
+                    '<td>' + (cow.farm_name || '') + '</td>' +
+                    '<td><small class="badge bg-light text-dark border">' + (cow.age_group || 'Основное') + '</small></td>' +
+                    '<td>' + catBadge + '</td>' +
+                    '<td>' + (cow.reason || '') + '</td>' +
+                    '<td>' + (cow.weight || '-') + '</td>' +
+                    '<td><span class="text-nowrap">' + (cow.disposal_date || '') + '</span></td>' +
+                    '<td class="text-end text-nowrap">' +
+                        '<a href="/edit_cow/' + cow.id + '" class="btn btn-outline-primary btn-sm me-1" title="Редактировать"><i class="bi bi-pencil"></i></a>' +
+                        {% if user_type != 'admin' %}
+                        '<button type="button" class="btn btn-outline-danger btn-sm delete-cow-btn" data-cow-id="' + cow.id + '" data-cow-number="' + cow.cow_id + '" title="Удалить"><i class="bi bi-trash"></i></button>' +
+                        {% endif %}
+                    '</td>' +
+                '</tr>');
+                tbody.append(row);
+            });
+
+            renderPagination();
+            updateBulkDeleteButton();
+        });
+    }
+
+    function renderPagination() {
+        var html = '';
+        if (totalPages > 1) {
+            html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage - 1) + '">&laquo;</a></li>';
+            var start = Math.max(1, currentPage - 2);
+            var end = Math.min(totalPages, currentPage + 2);
+            if (start > 1) {
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+                if (start > 2) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            for (var p = start; p <= end; p++) {
+                html += '<li class="page-item ' + (p === currentPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+            }
+            if (end < totalPages) {
+                if (end < totalPages - 1) html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                html += '<li class="page-item"><a class="page-link" href="#" data-page="' + totalPages + '">' + totalPages + '</a></li>';
+            }
+            html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage + 1) + '">&raquo;</a></li>';
+        }
+        $('#paginationControls, #paginationControlsBottom').html(html);
+    }
+
+    $(document).on('click', '.page-link', function(e) {
+        e.preventDefault();
+        var p = parseInt($(this).data('page'), 10);
+        if (p && p >= 1 && p <= totalPages && p !== currentPage) {
+            loadPage(p);
+            window.scrollTo({ top: $('#cowsTable').offset().top - 100, behavior: 'smooth' });
+        }
     });
 
     // Чекбоксы и множественное удаление
     $('#selectAll').change(function() {
-        $('.cow-checkbox:visible').prop('checked', $(this).prop('checked'));
+        $('.cow-checkbox').prop('checked', $(this).prop('checked'));
         updateBulkDeleteButton();
     });
 
@@ -273,47 +346,20 @@ $(document).ready(function() {
         }
     }
 
-    $('#bulkDeleteBtn').click(function() {
-        var selectedIds = [];
-        $('.cow-checkbox:checked').each(function() {
-            selectedIds.push($(this).val());
-        });
-        
-        if (selectedIds.length === 0) return;
-        
-        if (confirm(`Вы уверены, что хотите удалить ${selectedIds.length} выбранных записей выбытия?`)) {
-            $.ajax({
-                url: '{{ url_for("bulk_delete_cows") }}',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ cow_ids: selectedIds }),
-                success: function(response) {
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        alert(response.message || 'Ошибка удаления');
-                    }
-                },
-                error: function() {
-                    alert('Ошибка сети при удалении');
-                }
-            });
-        }
-    });
-
     // Одиночное удаление
     $(document).on('click', '.delete-cow-btn', function() {
         var cowId = $(this).data('cow-id');
         var cowNum = $(this).data('cow-number');
-        if (confirm(`Вы уверены, что хотите удалить запись ${cowNum}?`)) {
-            var form = $('<form>', {
-                method: 'POST',
-                action: `/delete_cow/${cowId}`
+        if (confirm('Вы уверены, что хотите удалить запись ' + cowNum + '?')) {
+            $.post('/delete_cow/' + cowId, function() {
+                loadPage(currentPage);
+            }).fail(function() {
+                location.reload();
             });
-            $('body').append(form);
-            form.submit();
         }
     });
+
+    renderPagination();
 });
 </script>
 {% endblock %}

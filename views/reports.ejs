@@ -25,6 +25,9 @@
                         <label for="farm_filter" class="form-label">Ферма</label>
                         <select class="form-select" id="farm_filter" name="farm_filter">
                             <option value="all">Все фермы</option>
+                            <% (typeof unique_farms !== 'undefined' ? unique_farms : []).forEach(function(f) { %>
+                            <option value="<%= f %>"><%= f %></option>
+                            <% }); %>
                         </select>
                         <div class="form-text">Выберите "Все фермы" для общего отчёта</div>
                     </div>
@@ -160,17 +163,6 @@
     extra_js: `
     <script>
     $(document).ready(function() {
-        ${user_type === 'admin' ? `
-        $.getJSON('/get_farms', function(data) {
-            var $farmSelect = $('#farm_filter');
-            $farmSelect.empty();
-            $farmSelect.append('<option value="all">Все фермы</option>');
-            $.each(data, function(index, farm) {
-                $farmSelect.append($('<option>', { value: farm, text: farm }));
-            });
-        });
-        ` : ''}
-        
         function toggleCategoryField() {
             var reportType = $('#report_type').val();
             var categoryField = $('#category_field');

@@ -5,8 +5,30 @@ import shutil
 from datetime import datetime
 from config import Config
 
+_indexes_checked = False
+
+def _ensure_indexes(conn):
+    try:
+        cursor = conn.cursor()
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_farm_date ON cows (farm_name, disposal_date);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_category ON cows (category);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_cow_id ON cows (cow_id);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_ear_tag ON cows (ear_tag);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_disposal_date ON cows (disposal_date);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_date_cat_farm ON cows (disposal_date, category, farm_name);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_cat_reason_farm ON cows (category, reason, farm_name);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_date_id ON cows (disposal_date DESC, id DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_farm_date_id ON cows (farm_name, disposal_date DESC, id DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_category_date_id ON cows (category, disposal_date DESC, id DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_farm_name ON cows (farm_name);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_reason ON cows (reason);')
+        cursor.close()
+    except Exception:
+        pass
+
 def get_db_connection():
     """Создает оптимизированное соединение с базой данных SQLite с поддержкой WAL-режима"""
+    global _indexes_checked
     conn = sqlite3.connect(Config.DATABASE, timeout=10.0)
     conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
 
@@ -17,6 +39,10 @@ def get_db_connection():
     cursor.execute('PRAGMA cache_size=-10000;')      # Выделение ~10 МБ RAM под кэш страниц
     cursor.execute('PRAGMA busy_timeout=5000;')      # Ожидание освобождения блокировки до 5 секунд
     cursor.close()
+
+    if not _indexes_checked:
+        _indexes_checked = True
+        _ensure_indexes(conn)
 
     return conn
 
@@ -69,6 +95,36 @@ def optimize_database_indexes():
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_cows_cat_reason_farm 
             ON cows (category, reason, farm_name);
+        ''')
+
+        # 8. Индекс для мгновенной сортировки по дате и id (пагинация журнала)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_date_id 
+            ON cows (disposal_date DESC, id DESC);
+        ''')
+
+        # 9. Составной индекс для фильтра по ферме и сортировки
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_farm_date_id 
+            ON cows (farm_name, disposal_date DESC, id DESC);
+        ''')
+
+        # 10. Составной индекс для фильтра по категории и сортировки
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_category_date_id 
+            ON cows (category, disposal_date DESC, id DESC);
+        ''')
+
+        # 11. Индекс по названию фермы
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_farm_name 
+            ON cows (farm_name);
+        ''')
+
+        # 12. Индекс по причине выбытия
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_reason 
+            ON cows (reason);
         ''')
 
         conn.commit()
@@ -201,6 +257,13 @@ def init_db():
     for col_name, col_type in columns_to_add.items():
         if col_name not in existing_cols:
             cursor.execute(f"ALTER TABLE cows ADD COLUMN {col_name} {col_type}")
+    
+    # 6. Индексы для сверхбыстрой работы с 9 000+ записями
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_disposal_date ON cows(disposal_date DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_farm_date ON cows(farm_name, disposal_date DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_category ON cows(category)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_cow_id ON cows(cow_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_ear_tag ON cows(ear_tag)")
     
     # Заполнение справочника причин по умолчанию, если он пуст
     cursor.execute("SELECT COUNT(*) as cnt FROM disposal_reasons")

@@ -19,7 +19,7 @@ cows_bp = Blueprint('cows', __name__)
 @cows_bp.route('/cows')
 @login_required
 def view_cows():
-    """Просмотр журнала выбытия коров"""
+    """Просмотр журнала выбытия коров (пагинированный, только первые 50 строк в HTML)"""
     user_type = session.get('user_type')
     farm_name = session.get('farm_name')
     
@@ -27,15 +27,101 @@ def view_cows():
     cursor = conn.cursor()
     
     if user_type == 'admin':
-        cursor.execute('SELECT * FROM cows ORDER BY disposal_date DESC, id DESC')
+        cursor.execute('SELECT COUNT(*) as cnt FROM cows')
+        total_count = cursor.fetchone()['cnt']
+        cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL AND farm_name != "" ORDER BY farm_name')
+        farms = [r['farm_name'] for r in cursor.fetchall()]
+        cursor.execute('SELECT id, cow_id, ear_tag, farm_name, age_group, category, reason, weight, disposal_date FROM cows ORDER BY disposal_date DESC, id DESC LIMIT 50')
     else:
-        cursor.execute('SELECT * FROM cows WHERE farm_name = ? ORDER BY disposal_date DESC, id DESC', (farm_name,))
+        cursor.execute('SELECT COUNT(*) as cnt FROM cows WHERE farm_name = ?', (farm_name,))
+        total_count = cursor.fetchone()['cnt']
+        farms = [farm_name]
+        cursor.execute('SELECT id, cow_id, ear_tag, farm_name, age_group, category, reason, weight, disposal_date FROM cows WHERE farm_name = ? ORDER BY disposal_date DESC, id DESC LIMIT 50', (farm_name,))
         
     cows_data = cursor.fetchall()
     conn.close()
     
     cows = [dict(c) for c in cows_data]
-    return render_template('view_cows.html', cows=cows, user_type=user_type)
+    return render_template('view_cows.html', cows=cows, user_type=user_type, total_count=total_count, farms=farms, categories=Config.DISPOSAL_CATEGORIES)
+
+@cows_bp.route('/api/cows')
+@login_required
+def api_cows():
+    """Быстрый пагинированный API для журнала коров (0 мс задержки)"""
+    from flask import jsonify
+    user_type = session.get('user_type')
+    session_farm = session.get('farm_name')
+    
+    page = max(1, request.args.get('page', 1, type=int))
+    limit = min(1000, max(10, request.args.get('limit', 50, type=int)))
+    farm_filter = request.args.get('farm', '').strip()
+    category_filter = request.args.get('category', '').strip().lower()
+    reason_filter = request.args.get('reason', '').strip()
+    search_query = request.args.get('search', '').strip().lower()
+    sort = request.args.get('sort', 'newest').strip()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    conditions = []
+    params = []
+    
+    if user_type != 'admin':
+        conditions.append("farm_name = ?")
+        params.append(session_farm)
+    elif farm_filter and farm_filter != 'all':
+        conditions.append("farm_name = ?")
+        params.append(farm_filter)
+        
+    if category_filter and category_filter != 'all':
+        if 'сан' in category_filter:
+            conditions.append("category LIKE '%сан%'")
+        else:
+            conditions.append("category = ?")
+            params.append(category_filter)
+            
+    if reason_filter and reason_filter != 'all':
+        conditions.append("reason = ?")
+        params.append(reason_filter)
+        
+    if search_query:
+        conditions.append("(cow_id LIKE ? OR ear_tag LIKE ? OR reason LIKE ? OR farm_name LIKE ?)")
+        wild = f"%{search_query}%"
+        params.extend([wild, wild, wild, wild])
+        
+    where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+    
+    cursor.execute(f"SELECT COUNT(*) as cnt FROM cows{where_clause}", params)
+    total_filtered = cursor.fetchone()['cnt']
+    
+    if sort == 'oldest':
+        order_clause = "ORDER BY disposal_date ASC, id ASC"
+    elif sort == 'weight_desc':
+        order_clause = "ORDER BY weight DESC"
+    elif sort == 'id_asc':
+        order_clause = "ORDER BY id ASC"
+    elif sort == 'id_desc':
+        order_clause = "ORDER BY id DESC"
+    else:
+        order_clause = "ORDER BY disposal_date DESC, id DESC"
+        
+    offset = (page - 1) * limit
+    cursor.execute(f"SELECT id, cow_id, ear_tag, farm_name, age_group, category, reason, weight, disposal_date FROM cows{where_clause} {order_clause} LIMIT ? OFFSET ?", params + [limit, offset])
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    total_pages = max(1, (total_filtered + limit - 1) // limit)
+    
+    return jsonify({
+        'success': True,
+        'total_filtered': total_filtered,
+        'page': page,
+        'limit': limit,
+        'total_pages': total_pages,
+        'start_index': offset + 1 if total_filtered > 0 else 0,
+        'end_index': min(offset + limit, total_filtered),
+        'cows': rows
+    })
 
 @cows_bp.route('/add_cow', methods=['GET', 'POST'])
 @login_required
