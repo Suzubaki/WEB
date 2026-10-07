@@ -155,11 +155,6 @@
                                 <td><span class="badge bg-light text-dark border"><%= cow.disposal_date %></span></td>
                                 <td class="text-end text-nowrap">
                                     <div class="d-flex gap-1 justify-content-end">
-                                        <% if (cow.category === 'падёж') { %>
-                                        <a href="/autopsy/<%= cow.id %>" class="btn btn-outline-danger btn-sm" title="Протокол вскрытия трупа (патологоанатомический)">
-                                            <i class="bi bi-file-medical-fill"></i> Вскрытие
-                                        </a>
-                                        <% } %>
                                         <a href="/edit_cow/<%= cow.id %>" class="btn btn-outline-primary btn-sm" title="Редактировать">
                                             <i class="bi bi-pencil"></i>
                                         </a>

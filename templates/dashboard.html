@@ -122,9 +122,6 @@
                     <i class="bi bi-upload"></i> Импорт
                 </a>
                 {% endif %}
-                <a href="{{ url_for('economics_dashboard') }}" class="btn btn-warning text-dark fw-semibold">
-                    <i class="bi bi-cash-coin"></i> Расчёт ущерба (BYN)
-                </a>
                 <button type="button" class="btn btn-outline-light" onclick="window.print()" title="Печать сводки">
                     <i class="bi bi-printer"></i>
                 </button>
@@ -283,24 +280,6 @@
             </div>
             <div class="mt-2 small text-muted">
                 Вынужденный убой на санбойне
-            </div>
-        </div>
-    </div>
-
-    <!-- 5. Оценочный ущерб (BYN) -->
-    <div class="col-md">
-        <div class="kpi-card h-100 border-success-subtle bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <div class="kpi-title text-success">Ущерб (BYN)</div>
-                    <div class="kpi-value text-success fs-4">{{ "{:,.0f}".format(d.kpi.financial_loss_byn) }} <span class="fs-6 fw-normal text-muted">руб.</span></div>
-                </div>
-                <div class="kpi-icon-badge bg-success-subtle text-success">
-                    <i class="bi bi-cash-stack"></i>
-                </div>
-            </div>
-            <div class="mt-2 small text-muted">
-                В ср. на 1 гол: <strong>{{ "{:,.1f}".format(d.kpi.avg_loss_per_cow) }} руб.</strong>
             </div>
         </div>
     </div>
@@ -493,11 +472,6 @@
                         <td>{{ c.reason }}</td>
                         <td>{{ c.disposal_date }}</td>
                         <td class="text-end text-nowrap">
-                            {% if c.category == 'падёж' %}
-                            <a href="{{ url_for('autopsy_route', cow_id=c.id) }}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Протокол вскрытия">
-                                <i class="bi bi-file-medical"></i> Вскрытие
-                            </a>
-                            {% endif %}
                             <a href="{{ url_for('edit_cow', cow_id=c.id) }}" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Редактировать">
                                 <i class="bi bi-pencil"></i>
                             </a>

@@ -6,10 +6,63 @@ from datetime import datetime
 from config import Config
 
 def get_db_connection():
-    """Создает соединение с базой данных SQLite"""
-    conn = sqlite3.connect(Config.DATABASE)
+    """Создает оптимизированное соединение с базой данных SQLite с поддержкой WAL-режима"""
+    conn = sqlite3.connect(Config.DATABASE, timeout=10.0)
     conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
+
+    # Включение WAL-режима и тонкая настройка производительности SQLite
+    cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL;')       # Параллельное чтение без блокировки при записи
+    cursor.execute('PRAGMA synchronous=NORMAL;')     # Снижение нагрузки на диск при сохранении надежности в WAL
+    cursor.execute('PRAGMA cache_size=-10000;')      # Выделение ~10 МБ RAM под кэш страниц
+    cursor.execute('PRAGMA busy_timeout=5000;')      # Ожидание освобождения блокировки до 5 секунд
+    cursor.close()
+
     return conn
+
+def optimize_database_indexes():
+    """
+    Создание B-Tree индексов для ускорения поиска, фильтрации и группировки в таблице cows.
+    Устраняет Full Table Scan в аналитических отчетах, матрицах и дашборде.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Составной индекс (farm_name, disposal_date) - основной индекс для фильтрации по ферме за период
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_farm_date 
+            ON cows (farm_name, disposal_date);
+        ''')
+
+        # 2. Индекс по категории (падёж, выбраковка, санитарный) - для группировок в статистике и диаграммах
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_category 
+            ON cows (category);
+        ''')
+
+        # 3. Индекс по системному идентификатору (cow_id) - для быстрого поиска карточки животного
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_cow_id 
+            ON cows (cow_id);
+        ''')
+
+        # 4. Индекс по государственному идентификационному номеру AITS (ear_tag)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_ear_tag 
+            ON cows (ear_tag);
+        ''')
+
+        # 5. Индекс по дате выбытия - для общих временных срезов и годовых отчетов
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_disposal_date 
+            ON cows (disposal_date);
+        ''')
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Ошибка при создании индексов базы данных: {e}")
 
 def sync_farm_data():
     """
@@ -72,10 +125,6 @@ def init_db():
             breed TEXT,                 -- Порода
             milk_yield REAL,            -- Надой за последнюю лактацию (кг)
             book_value REAL,            -- Балансовая / первоначальная стоимость (BYN)
-            autopsy_protocol TEXT,      -- Протокол вскрытия (патологоанатомическая картина)
-            autopsy_vet TEXT,           -- Ветврач, проводивший вскрытие
-            autopsy_date DATE,          -- Дата вскрытия
-            autopsy_lab_sample TEXT,    -- Направление патматериала в райветстанцию
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_by INTEGER,          -- ID пользователя, добавившего запись
             updated_at TIMESTAMP,
@@ -134,10 +183,6 @@ def init_db():
         'breed': 'TEXT',
         'milk_yield': 'REAL',
         'book_value': 'REAL',
-        'autopsy_protocol': 'TEXT',
-        'autopsy_vet': 'TEXT',
-        'autopsy_date': 'DATE',
-        'autopsy_lab_sample': 'TEXT',
         'updated_at': 'TIMESTAMP',
         'updated_by': 'INTEGER'
     }
@@ -174,6 +219,9 @@ def init_db():
     
     # Вызов синхронизации названий ферм
     sync_farm_data()
+
+    # Создание и оптимизация индексов
+    optimize_database_indexes()
 
 def get_setting(key, default=None):
     """Получение значения настройки из БД"""

@@ -119,9 +119,6 @@
                     <i class="bi bi-upload"></i> Импорт
                 </a>
                 <% } %>
-                <a href="/economics" class="btn btn-warning text-dark fw-semibold">
-                    <i class="bi bi-cash-coin"></i> Расчёт ущерба (BYN)
-                </a>
                 <button type="button" class="btn btn-outline-light" onclick="window.print()" title="Печать сводки">
                     <i class="bi bi-printer"></i> Печать
                 </button>
@@ -282,24 +279,6 @@
             </div>
             <div class="mt-2 small text-muted">
                 Вынужденный убой на санбойне
-            </div>
-        </div>
-    </div>
-
-    <!-- 5. Оценочный ущерб (BYN) -->
-    <div class="col-md">
-        <div class="kpi-card h-100 border-success-subtle bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <div class="kpi-title text-success">Ущерб (BYN)</div>
-                    <div class="kpi-value text-success fs-4"><%= Math.round(d.kpi.financial_loss_byn).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">руб.</span></div>
-                </div>
-                <div class="kpi-icon-badge bg-success-subtle text-success">
-                    <i class="bi bi-cash-stack"></i>
-                </div>
-            </div>
-            <div class="mt-2 small text-muted">
-                В ср. на 1 гол: <strong><%= Math.round(d.kpi.avg_loss_per_cow).toLocaleString('ru-RU') %> руб.</strong>
             </div>
         </div>
     </div>

@@ -95,24 +95,7 @@
 
                         <div class="col-md-12">
                             <label for="notes" class="form-label fw-semibold">Заключение комиссии / Примечание</label>
-                            <input type="text" class="form-control" id="notes" name="notes" placeholder="Анамнез, клинические признаки, заключение главного ветврача...">
-                        </div>
-                    </div>
-
-                    <!-- Патологоанатомический блок для падежа -->
-                    <div id="autopsy-section" class="mt-4 p-3 bg-light border border-danger rounded-3" style="display: none;">
-                        <h6 class="text-danger fw-bold mb-2">
-                            <i class="bi bi-file-earmark-medical"></i> Патологоанатомическое вскрытие (Падёж)
-                        </h6>
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">ФИО ветврача (патологоанатома)</label>
-                                <input type="text" class="form-control form-control-sm" name="autopsy_vet" placeholder="Главный ветврач...">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Заключение райветстанции (лаборатории)</label>
-                                <input type="text" class="form-control form-control-sm" name="autopsy_lab_sample" value="Сибирская язва и эмкар исключены" placeholder="Лабораторный анализ...">
-                            </div>
+                            <input type="text" class="form-control" id="notes" name="notes" placeholder="Анамнез, клинические признаки, заключение комиссии...">
                         </div>
                     </div>
                     
@@ -141,14 +124,10 @@
 
     var catSelect = document.getElementById('category');
     var reasonSelect = document.getElementById('reason');
-    var autopsySection = document.getElementById('autopsy-section');
 
     if (catSelect && reasonSelect) {
         catSelect.addEventListener('change', function() {
             var category = this.value;
-            if (autopsySection) {
-                autopsySection.style.display = category === 'падёж' ? 'block' : 'none';
-            }
 
             if (category) {
                 fetch('/get_reasons/' + encodeURIComponent(category))

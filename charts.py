@@ -119,7 +119,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     # 2. Выборка строк за выбранный период
     cursor.execute(f'''
         SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-               lactation, weight, age_group, milk_yield, book_value, autopsy_protocol
+               lactation, weight, age_group, milk_yield, book_value
         FROM cows
         {where_clause}
         ORDER BY disposal_date DESC, id DESC
@@ -134,35 +134,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         
     total_disposals = len(period_cows)
     
-    # 4. Расчет экономического ущерба в BYN за период
-    meat_price = float(get_setting('meat_price_per_kg', 6.20))
-    milk_price = float(get_setting('milk_price_per_kg', 1.18))
-    replacement_cost = float(get_setting('replacement_cost', 2950.00))
-    
-    total_financial_loss_byn = 0.0
-    for c in period_cows:
-        w = float(c['weight'] or 0)
-        bv = float(c['book_value'] or 0)
-        cat = c['category']
-        lact = int(c['lactation'] or 1)
-        
-        if w <= 0:
-            w = 520.0 if 'тел' not in (c['age_group'] or '').lower() else 70.0
-        if bv <= 0:
-            deprec = max(0.2, 1.0 - (lact - 1) * 0.18)
-            bv = replacement_cost * deprec
-            
-        if cat == 'падёж':
-            total_financial_loss_byn += max(bv, w * meat_price)
-        elif cat == 'санитарный':
-            total_financial_loss_byn += max(0.0, bv - (w * meat_price * 0.55))
-        elif cat == 'выбраковка':
-            meat_rev = w * meat_price * 0.90
-            direct_deprec = max(0.0, bv - meat_rev)
-            milk_loss = (max(0, 4 - lact) * 6000.0 * milk_price * 0.12) if lact < 4 else 0.0
-            total_financial_loss_byn += (direct_deprec + milk_loss)
-            
-    # 5. Распределение по Половозрастным группам (ПВГ)
+    # 4. Распределение по Половозрастным группам (ПВГ)
     age_group_counts = {}
     for c in period_cows:
         ag = c['age_group'] or 'Коровы дойного стада'
@@ -302,7 +274,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     else:
         cursor.execute(f'''
             SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-                   lactation, weight, age_group, milk_yield, book_value, autopsy_protocol
+                   lactation, weight, age_group, milk_yield, book_value
             FROM cows
             {all_time_where}
             ORDER BY disposal_date DESC, id DESC
@@ -327,8 +299,6 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'culling_count': category_counts.get('выбраковка', 0),
             'sanitary_count': category_counts.get('санитарный', 0),
             'death_rate_pct': round((category_counts.get('падёж', 0) / max(total_disposals, 1)) * 100, 1),
-            'financial_loss_byn': round(total_financial_loss_byn, 2),
-            'avg_loss_per_cow': round(total_financial_loss_byn / max(total_disposals, 1), 2),
             'calf_disposals': len(calf_disposals),
             'calf_death_count': calf_death_count,
             'all_time_total': all_time_total

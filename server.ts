@@ -84,10 +84,6 @@ export interface Cow {
   breed?: string;
   milk_yield?: number;
   book_value?: number;
-  autopsy_protocol?: string;
-  autopsy_vet?: string;
-  autopsy_date?: string;
-  autopsy_lab_sample?: string;
   created_at: string;
   created_by?: number;
 }
@@ -95,12 +91,6 @@ export interface Cow {
 // Initial Data Store
 let userIdCounter = 1;
 let cowIdCounter = 1;
-
-export const economicSettings = {
-  meat_price_per_kg: 6.20,
-  milk_price_per_kg: 1.18,
-  replacement_cost: 2950.00
-};
 
 const users: User[] = [
   {
@@ -303,27 +293,6 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
     const earTag = `BY 04 ${tagNum}`;
     const cowId = `${farm.prefix}-${String(farmCounters[farm.name]).padStart(4, '0')}`;
 
-    let autopsyProtocol: string | undefined = undefined;
-    let autopsyVet: string | undefined = undefined;
-    let autopsyDate: string | undefined = undefined;
-
-    if (cat === 'падёж' && Math.random() < 0.70) {
-      autopsyVet = 'Ковалев С.А. (ветврач)';
-      autopsyDate = dStr;
-      autopsyProtocol = JSON.stringify({
-        anamnesis: 'Животное находилось на стойловом содержании. Предшествующие клинические симптомы: угнетение, отказ от корма.',
-        external_exam: 'Упитанность средняя, трупные изменения выражены умеренно. Истечений нет.',
-        respiratory: reason.includes('пневмон') ? 'Очаги гепатизации в легких, фибринозный экссудат' : 'Легкие спавшиеся, бледно-розовые.',
-        cardiovascular: 'В полостях сердца сгустки темной крови.',
-        digestive: `Патологоанатомические изменения органов пищеварения: ${reason}.`,
-        liver_spleen: 'Печень кровенаполнена, селезенка нормальных размеров.',
-        pat_diagnosis: reason,
-        conclusion: `Смерть наступила в результате патологии: ${reason}`,
-        lab_tests: 'Бактериологическое исследование исключило сибирскую язву и эмкар.',
-        lab_doc_num: `Экспертиза № ${1000 + i}`
-      });
-    }
-
     cows.push({
       id: cowIdCounter++,
       cow_id: cowId,
@@ -338,9 +307,6 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
       breed: breed,
       book_value: bookVal,
       milk_yield: milkYield,
-      autopsy_protocol: autopsyProtocol,
-      autopsy_vet: autopsyVet,
-      autopsy_date: autopsyDate,
       created_at: `${dStr} 10:00:00`,
       created_by: farm.createdBy
     });
@@ -540,15 +506,10 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   });
 
   const categoryCounts: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
-  let totalFinancialLossByn = 0;
   const ageGroupCounts: Record<string, number> = {};
   const pathologySystems: Record<string, number> = {};
   const reasonCounts: Record<string, { category: string, count: number }> = {};
   const farmCounts: Record<string, number> = {};
-
-  const meatPrice = 6.20;
-  const milkPrice = 1.18;
-  const replacementCost = 2950.00;
 
   for (const c of relevantCows) {
     categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1;
@@ -564,27 +525,6 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       reasonCounts[c.reason] = { category: c.category, count: 0 };
     }
     reasonCounts[c.reason].count++;
-
-    // Financial loss
-    let w = c.weight || 0;
-    let bv = c.book_value || 0;
-    const lact = c.lactation || 1;
-    if (w <= 0) w = ag.toLowerCase().includes('тел') ? 70 : 520;
-    if (bv <= 0) {
-      const deprec = Math.max(0.2, 1.0 - (lact - 1) * 0.18);
-      bv = replacementCost * deprec;
-    }
-
-    if (c.category === 'падёж') {
-      totalFinancialLossByn += Math.max(bv, w * meatPrice);
-    } else if (c.category === 'санитарный') {
-      totalFinancialLossByn += Math.max(0, bv - (w * meatPrice * 0.55));
-    } else if (c.category === 'выбраковка') {
-      const meatRev = w * meatPrice * 0.90;
-      const directDeprec = Math.max(0, bv - meatRev);
-      const milkLoss = lact < 4 ? (4 - lact) * 6000 * milkPrice * 0.12 : 0;
-      totalFinancialLossByn += (directDeprec + milkLoss);
-    }
   }
 
   const totalDisposals = relevantCows.length;
@@ -679,8 +619,6 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       culling_count: categoryCounts['выбраковка'],
       sanitary_count: categoryCounts['санитарный'],
       death_rate_pct: totalDisposals > 0 ? Math.round((categoryCounts['падёж'] / totalDisposals) * 1000) / 10 : 0,
-      financial_loss_byn: Math.round(totalFinancialLossByn),
-      avg_loss_per_cow: totalDisposals > 0 ? Math.round((totalFinancialLossByn / totalDisposals) * 10) / 10 : 0,
       calf_disposals: calfDisposals.length,
       calf_death_count: calfDeathCount,
       all_time_total: cows.filter(c => (userType === 'admin' && (farmName === 'all' || !farmName)) ? true : c.farm_name === farmName).length
@@ -871,29 +809,12 @@ app.get('/admin/generator', loginRequired, (req: Request, res: Response) => {
 
   const farmStats: Record<string, number> = {};
   const catStats: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
-  let totalLoss = 0;
-
-  const meatPrice = economicSettings.meat_price_per_kg;
-  const milkPrice = economicSettings.milk_price_per_kg;
-  const replacementCost = economicSettings.replacement_cost;
+  let totalWeight = 0;
 
   for (const c of cows) {
     farmStats[c.farm_name] = (farmStats[c.farm_name] || 0) + 1;
     catStats[c.category] = (catStats[c.category] || 0) + 1;
-
-    let w = c.weight || 520;
-    let bv = c.book_value || 2200;
-    const lact = c.lactation || 1;
-    if (c.category === 'падёж') {
-      totalLoss += Math.max(bv, w * meatPrice);
-    } else if (c.category === 'санитарный') {
-      totalLoss += Math.max(0, bv - (w * meatPrice * 0.55));
-    } else {
-      const meatRev = w * meatPrice * 0.90;
-      const directDeprec = Math.max(0, bv - meatRev);
-      const milkLoss = lact < 4 ? (4 - lact) * 6000 * milkPrice * 0.12 : 0;
-      totalLoss += (directDeprec + milkLoss);
-    }
+    totalWeight += (c.weight || 0);
   }
 
   const t1 = performance.now();
@@ -906,7 +827,7 @@ app.get('/admin/generator', loginRequired, (req: Request, res: Response) => {
     memory_mb: memoryMb,
     farm_stats: farmStats,
     cat_stats: catStats,
-    total_loss_formatted: Math.round(totalLoss).toLocaleString('ru-RU')
+    total_weight_formatted: Math.round(totalWeight).toLocaleString('ru-RU') + ' кг'
   });
 });
 
@@ -1101,106 +1022,6 @@ app.get('/dashboard', loginRequired, (req: Request, res: Response) => {
   });
 });
 
-// Economics Dashboard (BYN damage calculation)
-app.get('/economics', loginRequired, (req: Request, res: Response) => {
-  const userType = req.session.user_type;
-  const farmName = req.session.farm_name;
-
-  const now = new Date();
-  const startDate = (req.query.start_date as string) || formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  const endDate = (req.query.end_date as string) || formatDate(now);
-  let selectedFarm = farmName;
-  if (userType === 'admin') {
-    selectedFarm = (req.query.farm_name as string) || 'all';
-  }
-
-  const relevantCows = cows.filter(c => {
-    const farmMatch = (userType === 'admin' && (selectedFarm === 'all' || !selectedFarm)) ? true : c.farm_name === selectedFarm;
-    const dateMatch = c.disposal_date >= startDate && c.disposal_date <= endDate;
-    return farmMatch && dateMatch;
-  });
-
-  const meatPrice = economicSettings.meat_price_per_kg;
-  const milkPrice = economicSettings.milk_price_per_kg;
-  const replacementCost = economicSettings.replacement_cost;
-
-  let totalLossByn = 0;
-  const byCategoryLoss: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
-  const byCategoryHeads: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
-  const reasonLossMap: Record<string, { category: string; heads: number; loss_byn: number }> = {};
-
-  for (const c of relevantCows) {
-    byCategoryHeads[c.category] = (byCategoryHeads[c.category] || 0) + 1;
-    let w = c.weight || 0;
-    let bv = c.book_value || 0;
-    const lact = c.lactation || 1;
-    const ag = c.age_group || 'Коровы дойного стада';
-    if (w <= 0) w = ag.toLowerCase().includes('тел') ? 70 : 520;
-    if (bv <= 0) {
-      const deprec = Math.max(0.2, 1.0 - (lact - 1) * 0.18);
-      bv = replacementCost * deprec;
-    }
-
-    let loss = 0;
-    if (c.category === 'падёж') {
-      loss = Math.max(bv, w * meatPrice);
-    } else if (c.category === 'санитарный') {
-      loss = Math.max(0, bv - (w * meatPrice * 0.55));
-    } else if (c.category === 'выбраковка') {
-      const meatRev = w * meatPrice * 0.90;
-      const directDeprec = Math.max(0, bv - meatRev);
-      const milkLoss = lact < 4 ? (4 - lact) * 6000 * milkPrice * 0.12 : 0;
-      loss = directDeprec + milkLoss;
-    }
-
-    totalLossByn += loss;
-    byCategoryLoss[c.category] = (byCategoryLoss[c.category] || 0) + loss;
-
-    if (!reasonLossMap[c.reason]) {
-      reasonLossMap[c.reason] = { category: c.category, heads: 0, loss_byn: 0 };
-    }
-    reasonLossMap[c.reason].heads++;
-    reasonLossMap[c.reason].loss_byn += loss;
-  }
-
-  const topLossReasons = Object.entries(reasonLossMap)
-    .sort((a, b) => b[1].loss_byn - a[1].loss_byn)
-    .slice(0, 10)
-    .map(([reason, r]) => ({ reason, category: r.category, heads: r.heads, loss_byn: r.loss_byn }));
-
-  const distinctFarms = [...new Set(users.filter(u => u.user_type === 'farm' && u.farm_name).map(u => u.farm_name!))];
-  for (const c of cows) {
-    if (c.farm_name && !distinctFarms.includes(c.farm_name)) distinctFarms.push(c.farm_name);
-  }
-  distinctFarms.sort();
-
-  res.render('economics', {
-    user_type: userType,
-    farm_name: selectedFarm,
-    start_date: startDate,
-    end_date: endDate,
-    farms: distinctFarms,
-    settings: economicSettings,
-    data: {
-      total_loss_byn: totalLossByn,
-      total_head_count: relevantCows.length,
-      avg_loss_per_head: relevantCows.length > 0 ? totalLossByn / relevantCows.length : 0,
-      by_category_loss: byCategoryLoss,
-      by_category_heads: byCategoryHeads,
-      top_loss_reasons: topLossReasons
-    }
-  });
-});
-
-app.post('/api/save_economic_settings', loginRequired, adminRequired, (req: Request, res: Response) => {
-  const { meat_price_per_kg, milk_price_per_kg, replacement_cost } = req.body;
-  if (meat_price_per_kg) economicSettings.meat_price_per_kg = parseFloat(meat_price_per_kg) || 6.20;
-  if (milk_price_per_kg) economicSettings.milk_price_per_kg = parseFloat(milk_price_per_kg) || 1.18;
-  if (replacement_cost) economicSettings.replacement_cost = parseFloat(replacement_cost) || 2950.00;
-  addFlash(req, 'Экономические нормативы успешно сохранены', 'success');
-  res.redirect('/economics');
-});
-
 // Bulk Delete Cows
 app.post(['/bulk_delete_cows', '/delete_multiple_cows'], loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
@@ -1278,14 +1099,6 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
   }
 
   const cowId = generateCowId(farmName);
-  let autopsyProtocol: string | undefined = undefined;
-  if (category === 'падёж' && req.body.autopsy_vet) {
-    autopsyProtocol = JSON.stringify({
-      autopsy_vet: req.body.autopsy_vet,
-      conclusion: reason,
-      lab_tests: req.body.autopsy_lab_sample || 'Сибирская язва и эмкар исключены'
-    });
-  }
 
   cows.push({
     id: cowIdCounter++,
@@ -1302,10 +1115,6 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     milk_yield: req.body.milk_yield ? parseFloat(String(req.body.milk_yield)) : undefined,
     book_value: req.body.book_value ? parseFloat(String(req.body.book_value)) : undefined,
     notes: req.body.notes ? String(req.body.notes).trim() : undefined,
-    autopsy_protocol: autopsyProtocol,
-    autopsy_vet: req.body.autopsy_vet || undefined,
-    autopsy_date: disposal_date,
-    autopsy_lab_sample: req.body.autopsy_lab_sample || undefined,
     created_at: formatDate(new Date()) + ' ' + new Date().toTimeString().split(' ')[0],
     created_by: req.session.user_id
   });
@@ -1494,109 +1303,6 @@ app.post('/edit_cow/:id', loginRequired, (req: Request, res: Response) => {
 
   addFlash(req, `Запись ${cow.cow_id} успешно обновлена`, 'success');
   res.redirect('/cows');
-});
-
-// Autopsy routes
-app.get('/autopsy/:id', loginRequired, (req: Request, res: Response) => {
-  const userType = req.session.user_type;
-  const farmName = req.session.farm_name;
-  const cowId = parseInt(String(req.params.id), 10);
-
-  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
-  if (!cow) {
-    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
-    return res.redirect('/cows');
-  }
-
-  let protocol: any = {};
-  if (cow.autopsy_protocol) {
-    try {
-      protocol = typeof cow.autopsy_protocol === 'string' ? JSON.parse(cow.autopsy_protocol) : cow.autopsy_protocol;
-    } catch {
-      protocol = {};
-    }
-  }
-
-  res.render('autopsy_form', { cow, protocol });
-});
-
-app.post('/save_autopsy/:id', loginRequired, (req: Request, res: Response) => {
-  const userType = req.session.user_type;
-  const farmName = req.session.farm_name;
-  const cowId = parseInt(String(req.params.id), 10);
-
-  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
-  if (!cow) {
-    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
-    return res.redirect('/cows');
-  }
-
-  const {
-    autopsy_date,
-    autopsy_vet,
-    autopsy_lab_sample,
-    anamnesis,
-    external_exam,
-    respiratory,
-    cardiovascular,
-    digestive,
-    liver_spleen,
-    pat_diagnosis,
-    conclusion,
-    lab_tests,
-    lab_doc_num
-  } = req.body;
-
-  const protocolData = {
-    autopsy_date: autopsy_date || cow.disposal_date,
-    autopsy_vet: autopsy_vet || 'Главный ветврач',
-    autopsy_lab_sample: autopsy_lab_sample || 'Да',
-    anamnesis: anamnesis || '',
-    external_exam: external_exam || '',
-    respiratory: respiratory || '',
-    cardiovascular: cardiovascular || '',
-    digestive: digestive || '',
-    liver_spleen: liver_spleen || '',
-    pat_diagnosis: pat_diagnosis || cow.reason,
-    conclusion: conclusion || '',
-    lab_tests: lab_tests || 'Сибирская язва и эмкар исключены',
-    lab_doc_num: lab_doc_num || ''
-  };
-
-  cow.autopsy_date = autopsy_date || cow.disposal_date;
-  cow.autopsy_vet = autopsy_vet || 'Главный ветврач';
-  cow.autopsy_lab_sample = autopsy_lab_sample || 'Да';
-  cow.autopsy_protocol = JSON.stringify(protocolData);
-  if (pat_diagnosis) {
-    cow.reason = pat_diagnosis;
-  }
-
-  addFlash(req, `Протокол вскрытия для животного ${cow.cow_id} успешно сохранён`, 'success');
-  res.redirect(`/autopsy/${cow.id}`);
-});
-
-app.get('/autopsy/print/:id', loginRequired, (req: Request, res: Response) => {
-  const userType = req.session.user_type;
-  const farmName = req.session.farm_name;
-  const cowId = parseInt(String(req.params.id), 10);
-
-  const cow = cows.find(c => c.id === cowId && (userType === 'admin' || c.farm_name === farmName));
-  if (!cow) {
-    addFlash(req, 'Запись не найдена или нет доступа', 'danger');
-    return res.redirect('/cows');
-  }
-
-  let protocol: any = {};
-  if (cow.autopsy_protocol) {
-    try {
-      protocol = typeof cow.autopsy_protocol === 'string' ? JSON.parse(cow.autopsy_protocol) : cow.autopsy_protocol;
-    } catch {
-      protocol = {};
-    }
-  }
-
-  const orgName = 'ОАО «Новая Припять»';
-  res.render('autopsy_print', { cow, protocol, orgName, org_name: orgName });
 });
 
 // Reports Page

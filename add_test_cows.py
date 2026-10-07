@@ -111,35 +111,16 @@ def generate_test_cows(count=1000):
             bv = float(random.randint(2500, 3300))
 
         user_id = farm_users.get(farm, 1)
-        protocol = None
-        autopsy_vet = None
-        autopsy_date = None
-        if cat == 'падёж':
-            protocol = json.dumps({
-                'anamnesis': 'Животное находилось на стойловом содержании.',
-                'external_exam': 'Упитанность средняя, трупные изменения выражены умеренно.',
-                'respiratory': 'Легкие спавшиеся, бледно-розовые.',
-                'cardiovascular': 'В полостях сердца сгустки темной крови.',
-                'digestive': f'Патологические изменения: {reason}.',
-                'liver_spleen': 'Печень кровенаполнена, селезенка нормальных размеров.',
-                'pat_diagnosis': reason,
-                'conclusion': f'Смерть наступила в результате патологии: {reason}',
-                'lab_tests': 'Сибирская язва исключена.'
-            }, ensure_ascii=False)
-            autopsy_vet = 'Главный ветврач'
-            autopsy_date = disposal_d
 
         rows.append((
             cow_num, tag, farm, cat, reason, disposal_d,
-            lact, w, f"Выбытие скота ({cat})", ag, breed, milk, bv,
-            protocol, autopsy_vet, autopsy_date, 'Да', user_id
+            lact, w, f"Выбытие скота ({cat})", ag, breed, milk, bv, user_id
         ))
 
     cursor.executemany('''
         INSERT INTO cows (cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-                          lactation, weight, notes, age_group, breed, milk_yield, book_value,
-                          autopsy_protocol, autopsy_vet, autopsy_date, autopsy_lab_sample, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          lactation, weight, notes, age_group, breed, milk_yield, book_value, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', rows)
 
     conn.commit()

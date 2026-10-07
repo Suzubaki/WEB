@@ -5,9 +5,18 @@ class Config:
     # Секретный ключ для сессий
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
-    # База данных
+    # База данных SQLite
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     DATABASE = os.path.join(BASE_DIR, 'cattle_disposal.db')
+    
+    # Конфигурация Flask-SQLAlchemy
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{DATABASE}'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {
+            'timeout': 10
+        }
+    }
     
     # Максимальный размер загружаемого файла (16 MB)
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024

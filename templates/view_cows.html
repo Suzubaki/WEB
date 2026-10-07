@@ -19,9 +19,6 @@
                         <i class="bi bi-file-earmark-arrow-up"></i> Импорт Excel/CSV
                     </a>
                     {% endif %}
-                    <a href="{{ url_for('economics_dashboard') }}" class="btn btn-outline-warning text-dark btn-sm">
-                        <i class="bi bi-cash-stack"></i> Расчет ущерба (BYN)
-                    </a>
                     <a href="{{ url_for('seed_test_data') }}" class="btn btn-warning text-dark btn-sm fw-bold" onclick="return confirm('Загрузить 1 000 реалистичных записей выбытия коров в базу данных?');">
                         <i class="bi bi-lightning-charge-fill"></i> Добавить 1 000 коров
                     </a>
@@ -142,11 +139,6 @@
                                 <td>{{ cow.weight or '-' }}</td>
                                 <td><span class="text-nowrap">{{ cow.disposal_date }}</span></td>
                                 <td class="text-end text-nowrap">
-                                    {% if cow.category == 'падёж' %}
-                                    <a href="{{ url_for('autopsy_route', cow_id=cow.id) }}" class="btn btn-outline-danger btn-sm" title="Протокол вскрытия трупа">
-                                        <i class="bi bi-file-medical"></i>
-                                    </a>
-                                    {% endif %}
                                     <a href="{{ url_for('edit_cow', cow_id=cow.id) }}" class="btn btn-outline-primary btn-sm" title="Редактировать">
                                         <i class="bi bi-pencil"></i>
                                     </a>
