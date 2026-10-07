@@ -120,6 +120,8 @@ def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
     
     total_weight = 0.0
     total_value = 0.0
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
     
     for idx, r in enumerate(rows, 1):
         row_num += 1
@@ -152,9 +154,9 @@ def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
             cell.font = body_font
             cell.border = thin_border
             if col_idx in [1, 2, 5, 6, 7, 8, 10]:
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.alignment = align_center
             else:
-                cell.alignment = Alignment(horizontal='left', vertical='center')
+                cell.alignment = align_left
                 
     # Строка Итого
     row_num += 1

@@ -69,6 +69,9 @@ def generate_structured_excel_report(start_date, end_date, farm_name=None):
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = thin_border
         
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
     for r_idx, row in enumerate(rows, 5):
         ws.row_dimensions[r_idx].height = 20
         c1 = ws.cell(row=r_idx, column=1, value=row['cow_id'])
@@ -77,11 +80,11 @@ def generate_structured_excel_report(start_date, end_date, farm_name=None):
         c4 = ws.cell(row=r_idx, column=4, value=row['reason'])
         c5 = ws.cell(row=r_idx, column=5, value=row['disposal_date'])
         
-        c1.alignment = Alignment(horizontal='center', vertical='center')
-        c2.alignment = Alignment(horizontal='left', vertical='center')
-        c3.alignment = Alignment(horizontal='center', vertical='center')
-        c4.alignment = Alignment(horizontal='left', vertical='center')
-        c5.alignment = Alignment(horizontal='center', vertical='center')
+        c1.alignment = align_center
+        c2.alignment = align_left
+        c3.alignment = align_center
+        c4.alignment = align_left
+        c5.alignment = align_center
         
         for c in [c1, c2, c3, c4, c5]:
             c.border = thin_border

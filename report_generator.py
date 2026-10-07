@@ -98,10 +98,15 @@ def generate_simple_excel_report(start_date, end_date, farm_name=None):
             row['notes'] or '-'
         ])
         
-    for col in ws.columns:
-        max_len = max(len(str(cell.value or '')) for cell in col)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
+    ws.column_dimensions['A'].width = 16
+    ws.column_dimensions['B'].width = 22
+    ws.column_dimensions['C'].width = 18
+    ws.column_dimensions['D'].width = 16
+    ws.column_dimensions['E'].width = 28
+    ws.column_dimensions['F'].width = 14
+    ws.column_dimensions['G'].width = 12
+    ws.column_dimensions['H'].width = 14
+    ws.column_dimensions['I'].width = 30
         
     return wb
 
@@ -196,6 +201,9 @@ def generate_form_209_apk_excel(start_date, end_date, farm_name=None):
     ws.row_dimensions[row_num].height = 28
     
     total_weight = 0.0
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+
     for idx, r in enumerate(rows, 1):
         row_num += 1
         ws.row_dimensions[row_num].height = 20
@@ -220,9 +228,9 @@ def generate_form_209_apk_excel(start_date, end_date, farm_name=None):
             cell.font = body_font
             cell.border = thin_border
             if col_idx in [1, 2, 3, 7, 8, 9]:
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.alignment = align_center
             else:
-                cell.alignment = Alignment(horizontal='left', vertical='center')
+                cell.alignment = align_left
                 
     # Строка Итого
     row_num += 1

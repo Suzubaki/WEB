@@ -1375,10 +1375,147 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
     });
   }
 
+  // AITS Registry Format
+  if (report_type === 'aits_registry') {
+    let csvContent = 'УНП владельца;Сельхозорганизация;Подразделение (МТФ);Идентификационный номер животного (AITS);Код события выбытия;Наименование события;Дата выбытия (ДД.ММ.ГГГГ);Диагноз / Причина;Живая масса (кг);Половозрастная группа;Номер первичного акта\n';
+    for (const c of filteredCows) {
+      const parts = c.disposal_date.split('-');
+      const ddmmyyyy = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : c.disposal_date;
+      const code = c.category === 'падёж' ? '01' : (c.category === 'санитарный' ? '02' : '03');
+      const desc = c.category === 'падёж' ? 'Падёж' : (c.category === 'санитарный' ? 'Санитарный убой' : 'Выбраковка');
+      const tag = c.ear_tag || `БЕЗ-БИРКИ-${c.cow_id}`;
+      csvContent += `"190000000";"ОАО «Новая Припять»";"${c.farm_name}";"${tag}";"${code}";"${desc}";"${ddmmyyyy}";"${c.reason}";"${c.weight || ''}";"${c.age_group || 'КРС'}";"Акт 209-АПК от ${ddmmyyyy}"\n`;
+    }
+    const filename = `aits_registry_${start_date}_по_${end_date}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    return res.send('\uFEFF' + csvContent);
+  }
+
   // 3. Excel Format (.xlsx)
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'ОАО «Новая Припять» - Система учёта выбытия скота';
   workbook.created = new Date();
+
+  // Форма № 209-АПК РБ (Акт на выбытие животных и птицы)
+  if (report_type === 'form_209_apk' || report_type === 'sp54') {
+    const ws = workbook.addWorksheet('Форма 209-АПК (РБ)');
+    ws.mergeCells('F1:I1');
+    ws.getCell('F1').value = 'Типовая форма 209-АПК';
+    ws.getCell('F1').font = { bold: true, size: 9 };
+    ws.getCell('F1').alignment = { horizontal: 'right' };
+
+    ws.mergeCells('E2:I2');
+    ws.getCell('E2').value = 'Утверждена постановлением Минсельхозпрода Республики Беларусь';
+    ws.getCell('E2').font = { italic: true, size: 8 };
+    ws.getCell('E2').alignment = { horizontal: 'right' };
+
+    ws.getCell('A4').value = 'Сельскохозяйственная организация: ОАО «Новая Припять»';
+    ws.getCell('A4').font = { bold: true, size: 10 };
+
+    ws.mergeCells('A6:I6');
+    ws.getCell('A6').value = 'АКТ НА ВЫБЫТИЕ ЖИВОТНЫХ И ПТИЦЫ (ЗАБОЙ, ПРИРЕЗКА И ПАДЁЖ)';
+    ws.getCell('A6').font = { bold: true, size: 12 };
+    ws.getCell('A6').alignment = { horizontal: 'center' };
+
+    ws.mergeCells('A7:I7');
+    ws.getCell('A7').value = `за период с ${start_date} по ${end_date} года`;
+    ws.getCell('A7').alignment = { horizontal: 'center' };
+
+    const headerRow = ws.getRow(9);
+    headerRow.values = [
+      '№ п/п', 'Учетный номер', 'Идент. № (AITS / Бирка)', 'Подразделение / МТФ',
+      'Вид выбытия (РБ)', 'Причина выбытия (диагноз)', 'Лактация / Возраст', 'Живая масса (кг)', 'Дата выбытия'
+    ];
+    headerRow.font = { bold: true, size: 9 };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    let totalWeight = 0;
+    filteredCows.forEach((c, idx) => {
+      const w = c.weight || 0;
+      totalWeight += w;
+      const row = ws.addRow([
+        idx + 1, c.cow_id, c.ear_tag || '-', c.farm_name,
+        c.category.charAt(0).toUpperCase() + c.category.slice(1),
+        c.reason, c.lactation || '-', w > 0 ? w : '-', c.disposal_date
+      ]);
+      row.alignment = { vertical: 'middle' };
+    });
+
+    const sumRow = ws.addRow(['ИТОГО ВЫБЫЛО ПО АКТУ:', '', '', '', '', '', '', `${totalWeight.toFixed(1)} кг`, `${filteredCows.length} гол.`]);
+    sumRow.font = { bold: true };
+    sumRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+
+    ws.columns = [
+      { width: 8 }, { width: 16 }, { width: 22 }, { width: 20 },
+      { width: 18 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 14 }
+    ];
+
+    const filename = `akt_209_apk_RB_${start_date}_по_${end_date}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    return res.end();
+  }
+
+  // Форма № 210-АПК РБ (Акт на выбраковку из основного стада)
+  if (report_type === 'form_210_apk') {
+    const ws = workbook.addWorksheet('Форма 210-АПК (РБ)');
+    const vybCows = filteredCows.filter(c => c.category === 'выбраковка' || c.category === 'санитарный');
+
+    ws.mergeCells('H1:K1');
+    ws.getCell('H1').value = 'Типовая форма 210-АПК';
+    ws.getCell('H1').font = { bold: true, size: 9 };
+    ws.getCell('H1').alignment = { horizontal: 'right' };
+
+    ws.getCell('A4').value = 'Сельхозорганизация: ОАО «Новая Припять»';
+    ws.getCell('A4').font = { bold: true, size: 10 };
+
+    ws.mergeCells('A7:K7');
+    ws.getCell('A7').value = 'АКТ НА ВЫБРАКОВКУ ЖИВОТНЫХ ИЗ ОСНОВНОГО СТАДА';
+    ws.getCell('A7').font = { bold: true, size: 12 };
+    ws.getCell('A7').alignment = { horizontal: 'center' };
+
+    const headerRow = ws.getRow(9);
+    headerRow.values = [
+      '№ п/п', 'Идент. № AITS / Инв. №', 'Подразделение (МТФ)', 'Порода', 'Лактация',
+      'Живая масса (кг)', 'Удой (кг)', 'Баланс. ст. (BYN)', 'Причина выбраковки (диагноз)', 'Вид выбытия', 'Направление'
+    ];
+    headerRow.font = { bold: true, size: 9 };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE7F5' } };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    let totalWeight = 0;
+    let totalVal = 0;
+    vybCows.forEach((c, idx) => {
+      const w = c.weight || 0;
+      const bv = c.book_value || 0;
+      totalWeight += w;
+      totalVal += bv;
+      const usage = c.category === 'выбраковка' ? 'Сдача на мясокомбинат' : 'Санитарная бойня';
+      ws.addRow([
+        idx + 1, c.ear_tag || c.cow_id, c.farm_name, c.breed || 'Черно-пёстрая',
+        c.lactation || '-', w > 0 ? w : '-', c.milk_yield || '-', bv > 0 ? bv.toFixed(2) : '-',
+        c.reason, c.category.charAt(0).toUpperCase() + c.category.slice(1), usage
+      ]);
+    });
+
+    const sumRow = ws.addRow(['ИТОГО ВЫБРАКОВАНО:', '', '', '', '', `${totalWeight.toFixed(1)} кг`, '', `${totalVal.toFixed(2)} BYN`, '', '', `${vybCows.length} гол.`]);
+    sumRow.font = { bold: true };
+    sumRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE7F5' } };
+
+    ws.columns = [
+      { width: 8 }, { width: 22 }, { width: 18 }, { width: 20 }, { width: 12 },
+      { width: 16 }, { width: 14 }, { width: 18 }, { width: 28 }, { width: 14 }, { width: 22 }
+    ];
+
+    const filename = `akt_210_apk_RB_${start_date}_по_${end_date}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    return res.end();
+  }
 
   if (report_type === 'matrix') {
     const category = report_category || 'падёж';
@@ -1428,6 +1565,17 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
     totalHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF9999' } };
     totalHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
+    // Pre-aggregate matrix counts in single O(N) pass
+    const matrixCounts: Record<string, number> = {};
+    const farmTotals: Record<string, number> = {};
+    for (const c of filteredCows) {
+      if (c.category === category) {
+        const key = `${c.reason}__${c.farm_name}`;
+        matrixCounts[key] = (matrixCounts[key] || 0) + 1;
+        farmTotals[c.farm_name] = (farmTotals[c.farm_name] || 0) + 1;
+      }
+    }
+
     let currentRow = 7;
     for (const subcategory of subcategories) {
       const row = worksheet.getRow(currentRow);
@@ -1435,11 +1583,9 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
 
       let rowTotal = 0;
       farms.forEach((farm, idx) => {
-        const count = filteredCows.filter(
-          c => c.farm_name === farm && c.category === category && c.reason === subcategory
-        ).length;
+        const count = matrixCounts[`${subcategory}__${farm}`] || 0;
         const cell = row.getCell(idx + 2);
-        cell.value = count;
+        cell.value = count > 0 ? count : '-';
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         rowTotal += count;
       });
@@ -1459,7 +1605,7 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
 
     let grandTotal = 0;
     farms.forEach((farm, idx) => {
-      const count = filteredCows.filter(c => c.farm_name === farm && c.category === category).length;
+      const count = farmTotals[farm] || 0;
       const cell = summaryRow.getCell(idx + 2);
       cell.value = count;
       cell.font = { bold: true };
@@ -1569,13 +1715,38 @@ app.post('/generate_original_excel', loginRequired, adminRequired, async (req: R
     farms.push('Ферма 1', 'Ферма 2');
   }
 
+  // Pre-aggregate counts in single O(N) pass
+  const farmStats: Record<string, { padezh: number; vybrakovka: number; sanitarniy: number }> = {};
   for (const farm of farms) {
-    const padezh = cows.filter(c => c.farm_name === farm && c.category === 'падёж').length;
-    const vybrakovka = cows.filter(c => c.farm_name === farm && c.category === 'выбраковка').length;
-    const sanitarniy = cows.filter(c => c.farm_name === farm && c.category === 'санитарный').length;
-    const total = padezh + vybrakovka + sanitarniy;
-    worksheet.addRow([farm, padezh, vybrakovka, sanitarniy, total]);
+    farmStats[farm] = { padezh: 0, vybrakovka: 0, sanitarniy: 0 };
   }
+  for (const c of cows) {
+    if (farmStats[c.farm_name]) {
+      if (c.category === 'падёж') farmStats[c.farm_name].padezh++;
+      else if (c.category === 'выбраковка') farmStats[c.farm_name].vybrakovka++;
+      else if (c.category === 'санитарный') farmStats[c.farm_name].sanitarniy++;
+    }
+  }
+
+  let grandPadezh = 0;
+  let grandVybrakovka = 0;
+  let grandSanitarniy = 0;
+  let grandTotal = 0;
+
+  for (const farm of farms) {
+    const s = farmStats[farm];
+    const total = s.padezh + s.vybrakovka + s.sanitarniy;
+    grandPadezh += s.padezh;
+    grandVybrakovka += s.vybrakovka;
+    grandSanitarniy += s.sanitarniy;
+    grandTotal += total;
+    worksheet.addRow([farm, s.padezh, s.vybrakovka, s.sanitarniy, total]);
+  }
+
+  // Add Totals row
+  const totalRow = worksheet.addRow(['ИТОГО ПО ХОЗЯЙСТВУ', grandPadezh, grandVybrakovka, grandSanitarniy, grandTotal]);
+  totalRow.font = { bold: true };
+  totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE2E5' } };
 
   worksheet.columns = [
     { width: 25 },

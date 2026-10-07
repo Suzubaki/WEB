@@ -37,12 +37,14 @@
                     <% } %>
                     
                     <div class="mb-3">
-                        <label for="report_type" class="form-label">Тип отчёта *</label>
+                        <label for="report_type" class="form-label">Тип формируемого документа *</label>
                         <select class="form-select" id="report_type" name="report_type" required>
-                            <option value="">Выберите тип...</option>
-                            <option value="structured">Структурированный отчёт (Excel)</option>
-                            <option value="simple">Простой отчёт</option>
-                            <option value="matrix">Матричный отчёт (фермы × причины)</option>
+                            <option value="form_209_apk" selected>Акт на выбытие (Форма 209-АПК РБ — падёж, забой, прирезка)</option>
+                            <option value="form_210_apk">Акт на выбраковку из основного стада (Форма 210-АПК РБ)</option>
+                            <option value="aits_registry">Реестр для ГИС «AITS» (Снятие с государственного учёта)</option>
+                            <option value="matrix">Сводная матрица выбытия (МТФ × Причины выбытия)</option>
+                            <option value="structured">Структурированный сводный отчёт (Excel)</option>
+                            <option value="simple">Простая ведомость данных</option>
                         </select>
                     </div>
                     

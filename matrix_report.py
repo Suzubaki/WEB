@@ -92,73 +92,80 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None):
     cell.alignment = Alignment(horizontal='center', vertical='center')
     cell.border = thin_border
     
-    # Заполняем данные
-    data_start_row = 6
-    current_row = data_start_row
-    
+    # 3. Единый оптимизированный запрос для агрегации данных матрицы (вместо N*M запросов)
     date_filter = ""
-    params = [category]
+    sql_params = [category]
     if start_date and end_date:
         date_filter = "AND disposal_date BETWEEN ? AND ?"
-        params.extend([start_date, end_date])
+        sql_params.extend([start_date, end_date])
+
+    cursor.execute(f'''
+        SELECT reason, farm_name, COUNT(*) as cnt
+        FROM cows
+        WHERE category = ? {date_filter}
+        GROUP BY reason, farm_name
+    ''', sql_params)
     
+    matrix_counts = {}
+    for row in cursor.fetchall():
+        matrix_counts[(row['reason'], row['farm_name'])] = row['cnt']
+        
+    conn.close()
+
+    # Pre-allocate reusable style and alignment objects
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+    total_col_fill = PatternFill(start_color="EF4444", end_color="EF4444", fill_type="solid")
+
+    farm_totals = {farm: 0 for farm in farms}
+    grand_total = 0
+
     for reason in reasons:
-        ws.cell(row=current_row, column=1, value=reason).font = regular_font
-        ws.cell(row=current_row, column=1).border = thin_border
+        cell_reason = ws.cell(row=current_row, column=1, value=reason)
+        cell_reason.font = regular_font
+        cell_reason.alignment = align_left
+        cell_reason.border = thin_border
         
         row_total = 0
         for farm in farms:
-            cursor.execute(f'''
-                SELECT COUNT(*) as count 
-                FROM cows 
-                WHERE category = ? AND reason = ? AND farm_name = ? {date_filter}
-            ''', params[:1] + [reason, farm] + params[1:])
-            
-            count = cursor.fetchone()['count']
+            count = matrix_counts.get((reason, farm), 0)
             col = farm_col_map[farm]
             
             cell = ws.cell(row=current_row, column=col, value=count if count > 0 else "-")
             cell.font = regular_font
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.alignment = align_center
             cell.border = thin_border
+            
             row_total += count
+            farm_totals[farm] += count
             
         cell = ws.cell(row=current_row, column=total_col, value=row_total)
         cell.font = bold_font
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = align_center
         cell.border = thin_border
         
+        grand_total += row_total
         current_row += 1
         
-    # Итоговая строка
+    # Итоговая строка по фермам
     ws.cell(row=current_row, column=1, value="ИТОГО ПО ФЕРМАМ:").font = bold_font
     ws.cell(row=current_row, column=1).fill = total_fill
     ws.cell(row=current_row, column=1).border = thin_border
     
-    grand_total = 0
     for farm in farms:
         col = farm_col_map[farm]
-        cursor.execute(f'''
-            SELECT COUNT(*) as count 
-            FROM cows 
-            WHERE category = ? AND farm_name = ? {date_filter}
-        ''', [category, farm] + (params[1:] if len(params) > 1 else []))
-        
-        farm_total = cursor.fetchone()['count']
+        farm_total = farm_totals[farm]
         cell = ws.cell(row=current_row, column=col, value=farm_total)
         cell.font = bold_font
         cell.fill = total_fill
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = align_center
         cell.border = thin_border
-        grand_total += farm_total
         
     cell = ws.cell(row=current_row, column=total_col, value=grand_total)
     cell.font = bold_font
     cell.fill = total_fill
-    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.alignment = align_center
     cell.border = thin_border
-    
-    conn.close()
     
     ws.column_dimensions['A'].width = 38
     for col in range(2, total_col + 1):

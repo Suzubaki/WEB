@@ -59,6 +59,18 @@ def optimize_database_indexes():
             ON cows (disposal_date);
         ''')
 
+        # 6. Составной индекс для отчётов и актов (disposal_date, category, farm_name)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_date_cat_farm 
+            ON cows (disposal_date, category, farm_name);
+        ''')
+
+        # 7. Составной индекс для матричных отчетов (category, reason, farm_name)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cows_cat_reason_farm 
+            ON cows (category, reason, farm_name);
+        ''')
+
         conn.commit()
         conn.close()
     except Exception as e:
