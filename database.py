@@ -190,9 +190,13 @@ def init_db():
             weight REAL,                -- Живая масса (кг)
             notes TEXT,                 -- Примечание / заключение ветеринара
             age_group TEXT,             -- Половозрастная группа скота (ПВГ)
+            lactation_days INTEGER,     -- Дни лактации (DIM - Days in Milk)
+            lactation_phase TEXT,       -- Фаза лактации (Новотел, Раздой, Середина, Спад, Сухостой, Молодняк)
             breed TEXT,                 -- Порода
             milk_yield REAL,            -- Надой за последнюю лактацию (кг)
             book_value REAL,            -- Балансовая / первоначальная стоимость (BYN)
+            is_pregnant INTEGER DEFAULT 0, -- Стельность на момент выбытия (1: стельная, 0: нестельная)
+            gestation_days INTEGER DEFAULT 0, -- Срок стельности (дней/месяцев)
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_by INTEGER,          -- ID пользователя, добавившего запись
             updated_at TIMESTAMP,
@@ -201,6 +205,20 @@ def init_db():
             FOREIGN KEY (updated_by) REFERENCES users (id)
         )
     ''')
+
+    # Миграция колонок для стельности и мертворождений
+    try:
+        cursor.execute("ALTER TABLE cows ADD COLUMN is_pregnant INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE cows ADD COLUMN gestation_days INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE cows ADD COLUMN is_stillborn INTEGER DEFAULT 0")
+    except Exception:
+        pass
     
     # 3. Динамический справочник причин выбытия
     cursor.execute('''
@@ -248,6 +266,8 @@ def init_db():
         'weight': 'REAL',
         'notes': 'TEXT',
         'age_group': 'TEXT',
+        'lactation_days': 'INTEGER',
+        'lactation_phase': 'TEXT',
         'breed': 'TEXT',
         'milk_yield': 'REAL',
         'book_value': 'REAL',
@@ -280,8 +300,19 @@ def init_db():
         ('meat_price_per_kg', str(Config.DEFAULT_PRICES['meat_price_per_kg']), 'Закупочная цена 1 кг живой массы КРС (BYN)'),
         ('milk_price_per_kg', str(Config.DEFAULT_PRICES['milk_price_per_kg']), 'Закупочная цена 1 кг базисного молока (BYN)'),
         ('replacement_cost', str(Config.DEFAULT_PRICES['replacement_cost']), 'Стоимость восстановления головы / нетели (BYN)'),
+        ('price_calves', '900.0', 'Нормативная стоимость телят (0–6 мес.) (BYN/гол.)'),
+        ('price_youngstock', '1650.0', 'Нормативная стоимость ремонтного молодняка (6–18 мес.) (BYN/гол.)'),
+        ('price_heifers', '2700.0', 'Нормативная стоимость нетелей (BYN/гол.)'),
+        ('price_cows', '3200.0', 'Нормативная стоимость коров дойного стада (BYN/гол.)'),
+        ('price_dry_cows', '3000.0', 'Нормативная стоимость сухостойных коров (BYN/гол.)'),
+        ('norm_youngstock_preservation', '92.0', 'Целевой порог сохранности молодняка (%)'),
+        ('norm_fresh_cow_disposal', '10.0', 'Максимальный порог выбытия новотельных коров 0–30 DIM (%)'),
+        ('norm_first_lactation_culling', '20.0', 'Максимальный порог выбраковки первотёлок (%)'),
+        ('norm_mortality_rate', '25.0', 'Максимальный порог доли падежа в выбытии (%)'),
+        ('norm_locomotor_disorders', '15.0', 'Максимальный порог заболеваний копыт (%)'),
+        ('norm_mastitis_disorders', '15.0', 'Максимальный порог заболеваний вымени (%)'),
         ('farm_unp', '190000000', 'УНП сельскохозяйственной организации (для ГИС AITS)'),
-        ('farm_org_name', 'ОАО «Агро-Плем»', 'Полное наименование сельхозпредприятия (РБ)')
+        ('farm_org_name', 'ОАО «Новая Припять»', 'Полное наименование сельхозпредприятия (РБ)')
     ]
     for k, v, d in default_settings:
         cursor.execute('''

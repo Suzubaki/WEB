@@ -68,10 +68,48 @@
                                 <option value="id_asc">По номеру ID (возр.)</option>
                             </select>
                         </div>
-                        
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-success">Категория скота (ПВГ)</label>
+                            <select class="form-select form-select-sm" id="age_group_filter">
+                                <option value="">Все категории скота</option>
+                                <option value="молодняк_все">👶 Молодняк КРС (все группы)</option>
+                                <option value="Коровы дойного стада">🥛 Коровы дойного стада</option>
+                                <option value="Коровы сухостойные">💤 Коровы сухостойные</option>
+                                <option value="Нетели">🤰 Нетели</option>
+                                <option value="Телята (до 6 мес.)">🍼 Телята (до 6 мес.)</option>
+                                <option value="Молодняк (6–18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                <option value="Бычки на откорме">🐂 Бычки на откорме</option>
+                            </select>
+                        </div>
+
                         <div class="col-md-2">
-                            <button type="button" id="reset_filters" class="btn btn-outline-secondary btn-sm w-100">
-                                <i class="bi bi-arrow-counterclockwise"></i> Сбросить
+                            <label class="form-label small fw-semibold text-primary">Фаза DIM</label>
+                            <select class="form-select form-select-sm" id="lactation_phase_filter">
+                                <option value="">Все стадии</option>
+                                <option value="Новотел">⚡ Новотел (0–30)</option>
+                                <option value="Раздой">📈 Раздой (31–100)</option>
+                                <option value="Середина">⚖️ Середина (101–200)</option>
+                                <option value="Спад">📉 Спад (201+)</option>
+                                <option value="Сухостой">💤 Сухостой</option>
+                                <option value="Молодняк">👶 Молодняк</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-danger"><i class="bi bi-heart-pulse-fill me-1"></i> Выбытие стельных / Аборты</label>
+                            <select class="form-select form-select-sm border-danger-subtle fw-semibold" id="repro_filter">
+                                <option value="">Все статусы</option>
+                                <option value="pregnant" {% if repro_filter == 'pregnant' %}selected{% endif %}>⚠️ Только выбытие стельных</option>
+                                <option value="pregnant_late" {% if repro_filter == 'pregnant_late' %}selected{% endif %}>🤰 Глубокостельные (180+ дн.)</option>
+                                <option value="stillborn" {% if repro_filter == 'stillborn' %}selected{% endif %}>❌ Мертворождённые / Аборты</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1">
+                            <label class="form-label small fw-semibold d-none d-md-block">&nbsp;</label>
+                            <button type="button" id="reset_filters" class="btn btn-outline-secondary btn-sm w-100" title="Сбросить все фильтры">
+                                <i class="bi bi-arrow-counterclockwise"></i>
                             </button>
                         </div>
                     </div>
@@ -111,7 +149,8 @@
                                 <th>ID выбытия</th>
                                 <th>Идент. № (AITS / Бирка)</th>
                                 <th>Ферма (МТФ)</th>
-                                <th>ПВГ</th>
+                                <th>Категория скота</th>
+                                <th>Лактация & DIM</th>
                                 <th>Категория</th>
                                 <th>Причина выбытия</th>
                                 <th>Вес (кг)</th>
@@ -130,6 +169,21 @@
                                 <td>{{ cow.farm_name }}</td>
                                 <td><small class="badge bg-light text-dark border">{{ cow.age_group or 'Основное' }}</small></td>
                                 <td>
+                                    {% if cow.lactation_phase and ('Молодняк' in cow.lactation_phase or ('age_group' in cow and ('Телят' in cow.age_group or 'Молодняк' in cow.age_group or 'Бычки' in cow.age_group))) %}
+                                        <span class="badge bg-light text-muted border">Молодняк</span>
+                                    {% else %}
+                                        <div class="small fw-semibold">
+                                            {{ 'Лакт. ' ~ cow.lactation if cow.lactation else 'Взрослое' }}
+                                            {% if cow.lactation_days is not none %}
+                                                <span class="text-primary">• {{ cow.lactation_days }} дн.</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if cow.lactation_phase %}
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">{{ cow.lactation_phase }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if cow.category == 'падёж' %}
                                         <span class="badge bg-danger">Падёж</span>
                                     {% elif cow.category == 'выбраковка' %}
@@ -138,7 +192,15 @@
                                         <span class="badge bg-warning text-dark">Санитарный брак</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ cow.reason }}</td>
+                                <td>
+                                    {{ cow.reason }}
+                                    {% if cow.is_pregnant == 1 %}
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1" title="Срок стельности: {{ cow.gestation_days or 0 }} дн."><i class="bi bi-suit-heart-fill text-danger"></i> Стельная</span>
+                                    {% endif %}
+                                    {% if cow.is_stillborn == 1 %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1"><i class="bi bi-x-circle-fill"></i> Мертворожд./Аборт</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ cow.weight or '-' }}</td>
                                 <td><span class="text-nowrap">{{ cow.disposal_date }}</span></td>
                                 <td class="text-end text-nowrap">
@@ -209,7 +271,7 @@ $(document).ready(function() {
         }
     });
 
-    $('#farm_filter, #reason_filter, #date_sort').change(function() {
+    $('#farm_filter, #reason_filter, #date_sort, #age_group_filter, #lactation_phase_filter, #repro_filter').change(function() {
         loadPage(1);
     });
 
@@ -225,30 +287,54 @@ $(document).ready(function() {
         $('#farm_filter').val('');
         $('#category_filter').val('');
         $('#reason_filter').val('').prop('disabled', true);
+        $('#age_group_filter').val('');
+        $('#lactation_phase_filter').val('');
+        $('#repro_filter').val('');
         $('#searchInput').val('');
         $('#date_sort').val('newest');
         loadPage(1);
     });
 
+    var isFetchingCows = false;
+    var fetchTimeoutTimer = null;
     function loadPage(page) {
-        currentPage = page || 1;
+        if (isFetchingCows) return;
+        isFetchingCows = true;
+
+        clearTimeout(fetchTimeoutTimer);
+        fetchTimeoutTimer = setTimeout(function() {
+            isFetchingCows = false;
+        }, 3000);
+
+        var targetPage = page ? parseInt(page, 10) : currentPage;
+        if (isNaN(targetPage) || targetPage < 1) targetPage = 1;
+
         var farm = $('#farm_filter').val() || '';
         var category = $('#category_filter').val() || '';
         var reason = $('#reason_filter').val() || '';
+        var ageGroup = $('#age_group_filter').val() || '';
+        var lactPhase = $('#lactation_phase_filter').val() || '';
+        var repro = $('#repro_filter').val() || '';
         var sort = $('#date_sort').val() || 'newest';
         var search = $('#searchInput').val() || '';
 
-        var url = '/api/cows?page=' + currentPage + '&limit=' + pageSize +
+        var url = '/api/cows?page=' + targetPage + '&limit=' + pageSize +
                   '&farm=' + encodeURIComponent(farm) +
                   '&category=' + encodeURIComponent(category) +
                   '&reason=' + encodeURIComponent(reason) +
+                  '&age_group=' + encodeURIComponent(ageGroup) +
+                  '&lactation_phase=' + encodeURIComponent(lactPhase) +
+                  '&repro_filter=' + encodeURIComponent(repro) +
                   '&sort=' + encodeURIComponent(sort) +
                   '&search=' + encodeURIComponent(search);
 
         $.getJSON(url, function(res) {
-            if (!res.success) return;
+            clearTimeout(fetchTimeoutTimer);
+            isFetchingCows = false;
+            if (!res || !res.success) return;
             totalFiltered = res.total_filtered;
-            totalPages = res.total_pages;
+            totalPages = res.total_pages || 1;
+            currentPage = res.page || targetPage; // Обновляем строго при успехе ответа
 
             $('#row_count').text(totalFiltered);
             $('#pageInfoText').html('Показано <strong>' + res.start_index + '–' + res.end_index + '</strong> из <strong>' + totalFiltered + '</strong> записей (Стр. ' + currentPage + ' из ' + totalPages + ')');
@@ -257,7 +343,7 @@ $(document).ready(function() {
             tbody.empty();
 
             if (!res.cows || res.cows.length === 0) {
-                tbody.html('<tr><td colspan="10" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Записи не найдены</td></tr>');
+                tbody.html('<tr><td colspan="11" class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Записи не найдены</td></tr>');
                 renderPagination();
                 return;
             }
@@ -270,14 +356,38 @@ $(document).ready(function() {
                     catBadge = '<span class="badge bg-primary">Выбраковка</span>';
                 }
 
+                var lactText = '';
+                var isYoung = (cow.lactation_phase && cow.lactation_phase.indexOf('Молодняк') !== -1) ||
+                              (cow.age_group && (cow.age_group.indexOf('Телят') !== -1 || cow.age_group.indexOf('Молодняк') !== -1 || cow.age_group.indexOf('Бычки') !== -1));
+                if (isYoung) {
+                    lactText = '<span class="badge bg-light text-muted border">Молодняк</span>';
+                } else {
+                    var lNum = cow.lactation ? ('Лакт. ' + cow.lactation) : 'Взрослое';
+                    var dVal = (cow.lactation_days !== undefined && cow.lactation_days !== null) ? (' <span class="text-primary">• ' + cow.lactation_days + ' дн.</span>') : '';
+                    lactText = '<div class="small fw-semibold">' + lNum + dVal + '</div>';
+                    if (cow.lactation_phase) {
+                        lactText += '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">' + cow.lactation_phase + '</span>';
+                    }
+                }
+
+                var reproBadge = '';
+                if (cow.is_pregnant === 1) {
+                    var gTxt = cow.gestation_days ? (' (' + Math.round(cow.gestation_days / 30 * 10) / 10 + ' мес.)') : '';
+                    reproBadge = ' <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1" title="Срок стельности: ' + (cow.gestation_days || 0) + ' дн."><i class="bi bi-suit-heart-fill text-danger me-1"></i>Стельная' + gTxt + '</span>';
+                }
+                if (cow.is_stillborn === 1) {
+                    reproBadge += ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1"><i class="bi bi-x-circle-fill me-1"></i>Мертворожд.</span>';
+                }
+
                 var row = $('<tr data-cow-id="' + cow.id + '">' +
                     '<td class="text-center"><input type="checkbox" class="form-check-input cow-checkbox" value="' + cow.id + '"></td>' +
                     '<td><span class="badge bg-secondary font-monospace">' + (cow.cow_id || '') + '</span></td>' +
                     '<td><strong class="text-primary">' + (cow.ear_tag || '-') + '</strong></td>' +
                     '<td>' + (cow.farm_name || '') + '</td>' +
                     '<td><small class="badge bg-light text-dark border">' + (cow.age_group || 'Основное') + '</small></td>' +
+                    '<td>' + lactText + '</td>' +
                     '<td>' + catBadge + '</td>' +
-                    '<td>' + (cow.reason || '') + '</td>' +
+                    '<td>' + (cow.reason || '') + reproBadge + '</td>' +
                     '<td>' + (cow.weight || '-') + '</td>' +
                     '<td><span class="text-nowrap">' + (cow.disposal_date || '') + '</span></td>' +
                     '<td class="text-end text-nowrap">' +
@@ -292,6 +402,9 @@ $(document).ready(function() {
 
             renderPagination();
             updateBulkDeleteButton();
+        }).fail(function() {
+            clearTimeout(fetchTimeoutTimer);
+            isFetchingCows = false;
         });
     }
 
@@ -319,10 +432,16 @@ $(document).ready(function() {
 
     $(document).on('click', '.page-link', function(e) {
         e.preventDefault();
-        var p = parseInt($(this).data('page'), 10);
-        if (p && p >= 1 && p <= totalPages && p !== currentPage) {
+        if ($(this).parent().hasClass('disabled')) return;
+        var pageAttr = $(this).attr('data-page') || $(this).data('page');
+        if (!pageAttr) return;
+        var p = parseInt(pageAttr, 10);
+        if (!isNaN(p) && p >= 1 && p <= totalPages && p !== currentPage) {
             loadPage(p);
-            window.scrollTo({ top: $('#cowsTable').offset().top - 100, behavior: 'smooth' });
+            var tbl = $('#cowsTable');
+            if (tbl.length) {
+                window.scrollTo({ top: tbl.offset().top - 100, behavior: 'smooth' });
+            }
         }
     });
 
@@ -359,7 +478,13 @@ $(document).ready(function() {
         }
     });
 
-    renderPagination();
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('repro_filter')) {
+        $('#repro_filter').val(urlParams.get('repro_filter'));
+        loadPage(1);
+    } else {
+        renderPagination();
+    }
 });
 </script>
 {% endblock %}

@@ -154,3 +154,49 @@ def seed_test_data():
     generate_test_cows(1000)
     flash('Успешно добавлено 1 000 коров в базу данных!', 'success')
     return redirect(url_for('cows.view_cows'))
+
+@admin_bp.route('/pricing', methods=['GET', 'POST'])
+@admin_required
+def pricing():
+    """Просмотр и редактирование нормативов цен и методики расчета ущерба BYN"""
+    from database import get_setting, set_setting
+    
+    if request.method == 'POST':
+        if session.get('user_type') != 'admin':
+            flash('Редактирование доступно только администраторам', 'danger')
+            return redirect(url_for('admin.pricing'))
+            
+        fields = [
+            'price_calves', 'price_youngstock', 'price_heifers', 'price_cows', 'price_dry_cows',
+            'meat_price_per_kg', 'milk_price_per_kg', 'replacement_cost',
+            'norm_youngstock_preservation', 'norm_fresh_cow_disposal', 'norm_first_lactation_culling',
+            'norm_mortality_rate', 'norm_locomotor_disorders', 'norm_mastitis_disorders'
+        ]
+        for f in fields:
+            val = request.form.get(f)
+            if val is not None:
+                try:
+                    set_setting(f, str(float(val)))
+                except ValueError:
+                    pass
+        flash('Экономические нормативы и зоотехнические пороги цен успешно обновлены!', 'success')
+        return redirect(url_for('admin.pricing'))
+        
+    pricing_data = {
+        'price_calves': float(get_setting('price_calves', 900.0)),
+        'price_youngstock': float(get_setting('price_youngstock', 1650.0)),
+        'price_heifers': float(get_setting('price_heifers', 2700.0)),
+        'price_cows': float(get_setting('price_cows', 3200.0)),
+        'price_dry_cows': float(get_setting('price_dry_cows', 3000.0)),
+        'meat_price_per_kg': float(get_setting('meat_price_per_kg', 6.20)),
+        'milk_price_per_kg': float(get_setting('milk_price_per_kg', 1.18)),
+        'replacement_cost': float(get_setting('replacement_cost', 2950.0)),
+        'norm_youngstock_preservation': float(get_setting('norm_youngstock_preservation', 92.0)),
+        'norm_fresh_cow_disposal': float(get_setting('norm_fresh_cow_disposal', 10.0)),
+        'norm_first_lactation_culling': float(get_setting('norm_first_lactation_culling', 20.0)),
+        'norm_mortality_rate': float(get_setting('norm_mortality_rate', 25.0)),
+        'norm_locomotor_disorders': float(get_setting('norm_locomotor_disorders', 15.0)),
+        'norm_mastitis_disorders': float(get_setting('norm_mastitis_disorders', 15.0))
+    }
+    
+    return render_template('pricing.html', pricing=pricing_data, user_type=session.get('user_type'))

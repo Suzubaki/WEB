@@ -52,6 +52,90 @@
                     </div>
                 </div>
 
+                <!-- Комплексная панель защиты от DDoS и сетевых атак -->
+                <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; border-radius: 12px;">
+                    <div class="card-body p-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 border-bottom border-secondary pb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="bg-success text-white p-2 rounded-circle fs-3 d-inline-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                    <i class="bi bi-shield-check"></i>
+                                </span>
+                                <div>
+                                    <h5 class="mb-0 fw-bold text-white">Комплексная защита от DDoS и DoS атак</h5>
+                                    <small class="text-info">Многоуровневый щит: Rate Limiting, Slowloris, Brute-Force Tarpit, Payload & Memory Guard</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-success px-3 py-2 fs-6">
+                                <i class="bi bi-broadcast"></i> ЩИТ АКТИВЕН
+                            </span>
+                        </div>
+
+                        <!-- Индикаторы защиты -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 rounded bg-dark bg-opacity-50 border border-secondary text-center">
+                                    <small class="text-muted d-block">Всего обработано</small>
+                                    <span class="fs-4 fw-bold text-light"><%= security_metrics.totalRequests %> req</span>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 rounded bg-dark bg-opacity-50 border border-secondary text-center">
+                                    <small class="text-muted d-block">Заблокировано атак</small>
+                                    <span class="fs-4 fw-bold text-danger"><%= security_metrics.blockedRequestsCount %></span>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 rounded bg-dark bg-opacity-50 border border-secondary text-center">
+                                    <small class="text-muted d-block">Отслеживаемых IP в ОЗУ</small>
+                                    <span class="fs-4 fw-bold text-warning"><%= security_metrics.trackedIpsCount %></span>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 rounded bg-dark bg-opacity-50 border border-secondary text-center">
+                                    <small class="text-muted d-block">Ошибок авторизации</small>
+                                    <span class="fs-4 fw-bold text-info"><%= security_metrics.authFailuresCount %></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Слои безопасности -->
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <ul class="list-group list-group-flush bg-transparent">
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>L7 Rate Limiter:</strong> макс. 180 req/мин на IP, всплеск 35 req/5сек</span>
+                                    </li>
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>Slowloris & Timeout Guard:</strong> 25с таймаут запроса, 30с сокет</span>
+                                    </li>
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>Bcrypt CPU Defense:</strong> асинхронное хеширование, lockout после 5 сбоев</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-group list-group-flush bg-transparent">
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>Payload & Memory Bomb:</strong> строгий лимит 2 МБ на JSON / Form body</span>
+                                    </li>
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>Crash Immunity:</strong> перехват uncaughtException (сервер не падает)</span>
+                                    </li>
+                                    <li class="list-group-item bg-transparent text-light border-secondary py-1 px-2 d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                        <span><strong>Security Headers:</strong> X-Content-Type-Options: nosniff, Referrer-Policy</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Быстрые действия генерации -->
                 <div class="card bg-light border-0 p-4 mb-4">
                     <h5 class="fw-bold mb-3"><i class="bi bi-lightning-charge-fill text-warning"></i> Управление объёмом данных:</h5>

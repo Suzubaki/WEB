@@ -5,20 +5,23 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-11">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0"><i class="bi bi-plus-circle-dotted"></i> Оперативный ввод выбытия скота (РБ)</h4>
-                <span class="badge bg-light text-primary">Ферма: {{ farm_name }}</span>
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-header bg-primary bg-gradient text-white d-flex justify-content-between align-items-center py-3 px-4">
+                <div>
+                    <h4 class="mb-0 fw-bold"><i class="bi bi-plus-circle-dotted me-2"></i>Оперативный ввод выбытия и мертворождений (РБ)</h4>
+                    <small class="opacity-75">Пакетное заполнение актов 209-АПК и регистрация потерь плода</small>
+                </div>
+                <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-semibold shadow-sm">Ферма: {{ farm_name }}</span>
             </div>
             <div class="card-body p-4">
-                <div class="alert alert-info py-2 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="alert alert-info py-2 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2 rounded-3">
                     <div>
-                        <i class="bi bi-lightning-charge-fill text-warning"></i>
-                        Добавляйте записи списком. Поддерживаются номера бирок AITS и все категории выбытия.
+                        <i class="bi bi-lightning-charge-fill text-warning me-1"></i>
+                        Добавляйте записи списком. Для каждой строки доступен режим выбытия или обособленной регистрации мертворождения/аборта.
                     </div>
                     <div>
-                        <a href="{{ url_for('import_cows') }}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-upload"></i> Импорт ведомости из Excel
+                        <a href="{{ url_for('import_cows') }}" class="btn btn-sm btn-outline-primary fw-semibold">
+                            <i class="bi bi-upload me-1"></i> Импорт из Excel
                         </a>
                     </div>
                 </div>
@@ -26,22 +29,22 @@
                 <form id="cows-form">
                     <div id="cows-container"></div>
                     
-                    <div class="text-center my-3">
-                        <button type="button" id="add-cow-btn" class="btn btn-outline-primary btn-sm px-4">
-                            <i class="bi bi-plus-lg"></i> Добавить ещё одну строку
+                    <div class="text-center my-4">
+                        <button type="button" id="add-cow-btn" class="btn btn-outline-primary btn-md px-4 rounded-pill fw-semibold shadow-sm">
+                            <i class="bi bi-plus-lg me-1"></i> Добавить ещё одну карточку
                         </button>
                     </div>
                     
                     <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
-                        <button type="button" id="cancel-btn" class="btn btn-outline-danger">
-                            <i class="bi bi-x-circle"></i> Сбросить
+                        <button type="button" id="cancel-btn" class="btn btn-outline-danger px-4 rounded-3">
+                            <i class="bi bi-x-circle me-1"></i> Сбросить все
                         </button>
                         <div class="d-flex gap-2">
-                            <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left"></i> В журнал
+                            <a href="{{ url_for('view_cows') }}" class="btn btn-outline-secondary px-4 rounded-3">
+                                <i class="bi bi-arrow-left me-1"></i> В журнал
                             </a>
-                            <button type="submit" class="btn btn-primary px-4 fw-semibold">
-                                <i class="bi bi-save-fill"></i> Сохранить все записи
+                            <button type="submit" class="btn btn-primary px-5 rounded-3 fw-bold shadow">
+                                <i class="bi bi-save-fill me-1"></i> Сохранить все записи
                             </button>
                         </div>
                     </div>
@@ -60,81 +63,202 @@ $(document).ready(function() {
 
     function createCowRow(index) {
         return `
-            <div class="card cow-row mb-3 border shadow-none" id="cow-row-${index}">
-                <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                    <span class="fw-bold text-primary">Животное #${index}</span>
-                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 delete-cow-btn" data-index="${index}">
-                        <i class="bi bi-trash"></i>
+            <div class="card cow-row mb-4 border rounded-4 shadow-sm" id="cow-row-${index}" data-mode="cow">
+                <!-- Шапка карточки с переключателем режима -->
+                <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2 rounded-top-4">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="badge bg-primary fs-6 fw-bold row-index-badge">Запись #${index}</span>
+                        
+                        <!-- Переключатель типа записи -->
+                        <div class="btn-group btn-group-sm rounded-pill overflow-hidden border shadow-sm" role="group">
+                            <input type="radio" class="btn-check mode-radio-cow" name="mode_${index}" id="mode_cow_${index}" value="cow" checked>
+                            <label class="btn btn-outline-primary fw-semibold px-3 py-1" for="mode_cow_${index}">
+                                <i class="bi bi-card-checklist me-1"></i>Выбытие скота
+                            </label>
+
+                            <input type="radio" class="btn-check mode-radio-stillborn" name="mode_${index}" id="mode_stillborn_${index}" value="stillborn">
+                            <label class="btn btn-outline-danger fw-semibold px-3 py-1" for="mode_stillborn_${index}">
+                                <i class="bi bi-heartbreak-fill me-1"></i>Мертворождение / Аборт
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-sm btn-outline-danger py-1 px-3 rounded-pill delete-cow-btn" data-index="${index}">
+                        <i class="bi bi-trash"></i> Удалить
                     </button>
                 </div>
-                <div class="card-body py-3">
-                    <div class="row g-2">
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Категория *</label>
-                            <select class="form-select form-select-sm category-select" data-index="${index}" required>
-                                <option value="">Выберите...</option>
-                                <option value="падёж">Падёж</option>
-                                <option value="выбраковка">Выбраковка</option>
-                                <option value="санитарный">Санитарный брак</option>
-                            </select>
+
+                <div class="card-body p-3">
+                    <!-- СЕКЦИЯ 1: Выбытие взрослого скота и молодняка (по умолчанию) -->
+                    <div class="cow-mode-section">
+                        <!-- 1. Основные параметры выбытия -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Категория выбытия *</label>
+                                <select class="form-select form-select-sm category-select" data-index="${index}">
+                                    <option value="">Выберите категорию...</option>
+                                    <option value="падёж">Падёж</option>
+                                    <option value="выбраковка">Выбраковка</option>
+                                    <option value="санитарный">Санитарный брак</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold">Причина выбытия / Диагноз *</label>
+                                <select class="form-select form-select-sm reason-select" id="reason-${index}" disabled>
+                                    <option value="">Сначала выберите категорию</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Дата выбытия *</label>
+                                <input type="date" class="form-control form-control-sm disposal-date" max="${today}" value="${today}">
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Причина / Диагноз *</label>
-                            <select class="form-select form-select-sm reason-select" id="reason-${index}" disabled required>
-                                <option value="">Сначала категорию</option>
-                            </select>
+
+                        <!-- 2. Идентификация и зоотехнические данные -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Идент. № (AITS / Бирка)</label>
+                                <input type="text" class="form-control form-control-sm ear-tag" placeholder="BY 04 1234567">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Порода скота *</label>
+                                <select class="form-select form-select-sm breed-select">
+                                    <option value="Черно-пёстрая белорусской селекции" selected>Черно-пёстрая белорусской селекции</option>
+                                    <option value="Черно-пёстрая">Черно-пёстрая</option>
+                                    <option value="Голштинская">Голштинская</option>
+                                    <option value="Красная белорусская">Красная белорусская</option>
+                                    <option value="Симментальская">Симментальская</option>
+                                    <option value="Лимузин">Лимузин</option>
+                                    <option value="Помесь">Помесь</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
+                                <select class="form-select form-select-sm age-group">
+                                    <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
+                                    <option value="Коровы сухостойные">Коровы сухостойные</option>
+                                    <option value="Нетели">Нетели</option>
+                                    <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
+                                    <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
+                                    <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
+                                    <option value="Бычки на откорме">Бычки на откорме</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Дата выбытия *</label>
-                            <input type="date" class="form-control form-control-sm disposal-date" required max="${today}" value="${today}">
+
+                        <!-- 3. Физиологические и экономические показатели -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Номер лактации</label>
+                                <input type="number" class="form-control form-control-sm lactation" min="0" max="20" placeholder="№ лактации">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold text-primary">
+                                    <i class="bi bi-clock-history"></i> Дни лактации (DIM)
+                                </label>
+                                <input type="number" class="form-control form-control-sm lactation-days" min="0" max="999" placeholder="Дней DIM">
+                                <div class="mt-1 lactation-phase-badge">
+                                    <span class="badge bg-light text-muted border">Фаза определяется автоматически</span>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Живая масса (кг)</label>
+                                <input type="number" step="0.1" class="form-control form-control-sm weight" min="0" placeholder="кг">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Удой за лакт. (кг)</label>
+                                <input type="number" step="1" class="form-control form-control-sm milk-yield" min="0" placeholder="кг молока">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Балансовая стоим. (BYN)</label>
+                                <input type="number" step="0.01" class="form-control form-control-sm book-value" min="0" placeholder="руб.">
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Идент. № (AITS / Бирка)</label>
-                            <input type="text" class="form-control form-control-sm ear-tag" placeholder="Напр. BY 04 1234">
+
+                        <!-- 4. Воспроизводство и материнская стельность -->
+                        <div class="p-3 rounded-3 bg-light border border-primary-subtle mb-3">
+                            <h6 class="fw-bold text-primary mb-1 d-flex align-items-center gap-2 small">
+                                <i class="bi bi-suit-heart-fill text-danger"></i> Материнская стельность на дату выбытия
+                            </h6>
+                            <small class="text-muted d-block mb-2 style-subtext">Отметьте, если выбывшая корова была стельной на момент выбытия/списания.</small>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-7">
+                                    <div class="form-check">
+                                        <input class="form-check-input is-pregnant" type="checkbox" id="is_pregnant_${index}">
+                                        <label class="form-check-label fw-bold text-dark small" for="is_pregnant_${index}">
+                                            <i class="bi bi-suit-heart-fill text-danger me-1"></i> Корова была стельной на дату выбытия
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-white small text-muted">Срок стельности:</span>
+                                        <input type="number" class="form-control form-control-sm gestation-days" min="0" max="300" placeholder="напр. 180">
+                                        <span class="input-group-text bg-white small text-muted">дн.</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
-                            <select class="form-select form-select-sm age-group">
-                                <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
-                                <option value="Коровы сухостойные">Коровы сухостойные</option>
-                                <option value="Нетели">Нетели</option>
-                                <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
-                                <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
-                                <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
-                                <option value="Бычки на откорме">Бычки на откорме</option>
-                            </select>
+
+                        <!-- 5. Примечание -->
+                        <div>
+                            <label class="form-label small fw-semibold">Заключение комиссии / Примечание</label>
+                            <input type="text" class="form-control form-control-sm notes" placeholder="Анамнез, клинические признаки, заключение комиссии...">
                         </div>
-                        
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Порода скота</label>
-                            <select class="form-select form-select-sm breed-select">
-                                <option value="Черно-пёстрая" selected>Черно-пёстрая</option>
-                                <option value="Голштинская">Голштинская</option>
-                                <option value="Красная белорусская">Красная бел.</option>
-                                <option value="Симментальская">Симментальская</option>
-                                <option value="Лимузин">Лимузин</option>
-                                <option value="Помесь">Помесь</option>
-                            </select>
+                    </div>
+
+                    <!-- СЕКЦИЯ 2: Регистрация мертворождения / аборта -->
+                    <div class="stillborn-mode-section d-none">
+                        <div class="alert alert-danger bg-danger-subtle text-danger-emphasis border-0 rounded-3 mb-3 p-2 small d-flex align-items-center gap-2">
+                            <i class="bi bi-heartbreak-fill text-danger fs-5"></i>
+                            <div>
+                                <strong>Обособленный учёт мертворождений:</strong> Автоматически фиксируется как падёж плода. Включается в статистику воспроизводства.
+                            </div>
                         </div>
-                        <div class="col-md-1">
-                            <label class="form-label small fw-semibold">Лактация</label>
-                            <input type="number" class="form-control form-control-sm lactation" min="0" max="20" placeholder="№">
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-dark">Патология плода / Причина аборта *</label>
+                                <select class="form-select form-select-sm border-danger-subtle sb-reason">
+                                    <option value="Мертворождённый телёнок (в срок)" selected>Мертворождённый телёнок (в срок)</option>
+                                    <option value="Аборт (1-й триместр, до 90 дн)">Аборт (1-й триместр, до 90 дн)</option>
+                                    <option value="Аборт (2-й триместр, 91-180 дн)">Аборт (2-й триместр, 91-180 дн)</option>
+                                    <option value="Аборт (3-й триместр, 181-240 дн)">Аборт (3-й триместр, 181-240 дн)</option>
+                                    <option value="Мумификация / мацерация плода">Мумификация / мацерация плода</option>
+                                    <option value="Патология родов / гибель при родовспоможении">Патология родов / гибель при родовспоможении</option>
+                                    <option value="Инфекционный аборт">Инфекционный аборт</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-dark">Дата события *</label>
+                                <input type="date" class="form-control form-control-sm border-danger-subtle sb-disposal-date" max="${today}" value="${today}">
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Живая масса (кг)</label>
-                            <input type="number" step="0.1" class="form-control form-control-sm weight" min="0" placeholder="кг">
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Инв. № матери (AITS / Бирка)</label>
+                                <input type="text" class="form-control form-control-sm sb-ear-tag" placeholder="Напр. Корова № 4512">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Срок стельности матери (дней)</label>
+                                <input type="number" class="form-control form-control-sm sb-gestation-days" min="0" max="300" placeholder="210 дн.">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Масса плода / телёнка (кг)</label>
+                                <input type="number" step="0.1" class="form-control form-control-sm sb-weight" min="0" placeholder="Напр. 28.5 кг">
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Удой за лакт. (кг)</label>
-                            <input type="number" step="1" class="form-control form-control-sm milk-yield" min="0" placeholder="кг">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-semibold">Балансовая ст. (BYN)</label>
-                            <input type="number" step="0.01" class="form-control form-control-sm book-value" min="0" placeholder="руб.">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-semibold">Примечание / Заключение</label>
-                            <input type="text" class="form-control form-control-sm notes" placeholder="Примечание ветеринара...">
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Масса плода / телёнка (кг)</label>
+                                <input type="number" step="0.1" class="form-control form-control-sm sb-weight" min="0" placeholder="Напр. 28.5 кг">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small fw-semibold">Заключение ветврача / Примечание</label>
+                                <input type="text" class="form-control form-control-sm sb-notes" placeholder="Патологоанатомический диагноз, заключение лаборатории...">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -163,13 +287,39 @@ $(document).ready(function() {
         $('.cow-row').each(function(idx) {
             const newIndex = idx + 1;
             $(this).attr('id', `cow-row-${newIndex}`);
-            $(this).find('.card-header span').text(`Животное #${newIndex}`);
+            $(this).find('.row-index-badge').text(`Запись #${newIndex}`);
             $(this).find('.delete-cow-btn').attr('data-index', newIndex);
             $(this).find('.category-select').attr('data-index', newIndex);
             $(this).find('.reason-select').attr('id', `reason-${newIndex}`);
+            
+            // Обновляем атрибуты радио-кнопок переключения режима
+            $(this).find('.mode-radio-cow').attr('name', `mode_${newIndex}`).attr('id', `mode_cow_${newIndex}`);
+            $(this).find('.mode-radio-cow').next('label').attr('for', `mode_cow_${newIndex}`);
+            $(this).find('.mode-radio-stillborn').attr('name', `mode_${newIndex}`).attr('id', `mode_stillborn_${newIndex}`);
+            $(this).find('.mode-radio-stillborn').next('label').attr('for', `mode_stillborn_${newIndex}`);
         });
         cowCount = $('.cow-row').length;
     }
+
+    // Реактивное переключение режима строки (Выбытие vs Мертворождение)
+    $(document).on('change', '.mode-radio-cow, .mode-radio-stillborn', function() {
+        const $row = $(this).closest('.cow-row');
+        const isStillbornMode = $row.find('.mode-radio-stillborn').is(':checked');
+        
+        if (isStillbornMode) {
+            $row.attr('data-mode', 'stillborn');
+            $row.find('.cow-mode-section').addClass('d-none');
+            $row.find('.stillborn-mode-section').removeClass('d-none');
+            $row.removeClass('border-primary').addClass('border-danger');
+            $row.find('.row-index-badge').removeClass('bg-primary').addClass('bg-danger');
+        } else {
+            $row.attr('data-mode', 'cow');
+            $row.find('.stillborn-mode-section').addClass('d-none');
+            $row.find('.cow-mode-section').removeClass('d-none');
+            $row.removeClass('border-danger').addClass('border-primary');
+            $row.find('.row-index-badge').removeClass('bg-danger').addClass('bg-primary');
+        }
+    });
 
     $(document).on('change', '.category-select', function() {
         const index = $(this).data('index');
@@ -194,6 +344,83 @@ $(document).ready(function() {
         }
     });
 
+    // Автоматический расчет фазы лактации по DIM
+    function updateRowLactationPhase($row) {
+        const grp = ($row.find('.age-group').val() || '').toLowerCase();
+        const dimVal = $row.find('.lactation-days').val();
+        const $badge = $row.find('.lactation-phase-badge');
+
+        if (grp.indexOf('телят') !== -1 || grp.indexOf('молодняк') !== -1 || grp.indexOf('быч') !== -1) {
+            $badge.html('<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Молодняк КРС</span>');
+            return;
+        } else if (grp.indexOf('нетел') !== -1) {
+            $badge.html('<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Нетели (до 1-го отёла)</span>');
+            return;
+        } else if (grp.indexOf('сухосто') !== -1) {
+            $badge.html('<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Сухостойный период</span>');
+            return;
+        }
+
+        if (!dimVal || dimVal === '') {
+            $badge.html('<span class="badge bg-light text-muted border">Укажите дни DIM для расчета фазы</span>');
+            return;
+        }
+
+        const dim = parseInt(dimVal, 10);
+        if (isNaN(dim) || dim < 0) {
+            $badge.html('<span class="badge bg-danger-subtle text-danger border">Некорректное значение DIM</span>');
+        } else if (dim <= 30) {
+            $badge.html('<span class="badge bg-danger text-white"><i class="bi bi-lightning-charge-fill"></i> Новотел (0–30 дн) • Критический риск</span>');
+        } else if (dim <= 100) {
+            $badge.html('<span class="badge bg-warning text-dark"><i class="bi bi-graph-up"></i> Раздой (31–100 дн) • Пик лактации</span>');
+        } else if (dim <= 200) {
+            $badge.html('<span class="badge bg-info text-dark">Середина лактации (101–200 дн)</span>');
+        } else {
+            $badge.html('<span class="badge bg-secondary text-white">Спад лактации (201–305+ дн)</span>');
+        }
+    }
+
+    $(document).on('input change', '.lactation-days, .age-group', function() {
+        const $row = $(this).closest('.cow-row');
+        updateRowLactationPhase($row);
+    });
+
+    // Реактивное автозаполнение стельности и мертворождений
+    $(document).on('input', '.gestation-days', function() {
+        const val = parseInt($(this).val(), 10) || 0;
+        const $row = $(this).closest('.cow-row');
+        if (val > 0) {
+            $row.find('.is-pregnant').prop('checked', true);
+        }
+    });
+
+    $(document).on('change', '.age-group', function() {
+        const ag = $(this).val();
+        const $row = $(this).closest('.cow-row');
+        const $gest = $row.find('.gestation-days');
+        const $preg = $row.find('.is-pregnant');
+        if (ag === 'Коровы сухостойные') {
+            $preg.prop('checked', true);
+            if (!$gest.val() || parseInt($gest.val(), 10) === 0) $gest.val(210);
+        } else if (ag === 'Нетели') {
+            $preg.prop('checked', true);
+            if (!$gest.val() || parseInt($gest.val(), 10) === 0) $gest.val(180);
+        }
+        updateRowLactationPhase($row);
+    });
+
+    $(document).on('change', '.reason-select', function() {
+        const rea = ($(this).val() || '').toLowerCase();
+        const $row = $(this).closest('.cow-row');
+        const stillbornKeys = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок'];
+        if (stillbornKeys.some(k => rea.includes(k))) {
+            $row.find('.is-stillborn').prop('checked', true);
+        }
+        if (rea.includes('стельн')) {
+            $row.find('.is-pregnant').prop('checked', true);
+        }
+    });
+
     $('#cancel-btn').click(function() {
         if (confirm('Сбросить все введенные строки?')) {
             $('#cows-container').empty();
@@ -209,40 +436,76 @@ $(document).ready(function() {
         let isValid = true;
         
         $('.cow-row').each(function() {
-            const category = $(this).find('.category-select').val();
-            const reason = $(this).find('.reason-select').val();
-            const disposalDate = $(this).find('.disposal-date').val();
-            const earTag = $(this).find('.ear-tag').val().trim();
-            const ageGroup = $(this).find('.age-group').val();
-            const breed = $(this).find('.breed-select').val();
-            const lactation = $(this).find('.lactation').val();
-            const weight = $(this).find('.weight').val();
-            const milkYield = $(this).find('.milk-yield').val();
-            const bookValue = $(this).find('.book-value').val();
-            const notes = $(this).find('.notes').val().trim();
-            
-            if (!category || !reason || !disposalDate) {
-                isValid = false;
-                return false;
+            const isStillbornMode = $(this).find('.mode-radio-stillborn').is(':checked');
+
+            if (isStillbornMode) {
+                const reason = $(this).find('.sb-reason').val();
+                const disposalDate = $(this).find('.sb-disposal-date').val();
+                const earTag = $(this).find('.sb-ear-tag').val().trim();
+                const ageGroup = $(this).find('.sb-age-group').val() || 'Мертворождённый телёнок';
+                const weight = $(this).find('.sb-weight').val();
+                const gestationDays = $(this).find('.sb-gestation-days').val();
+                const notes = $(this).find('.sb-notes').val().trim();
+
+                if (!reason || !disposalDate) {
+                    isValid = false;
+                    return false;
+                }
+
+                cowsData.push({
+                    category: 'падёж',
+                    reason: reason,
+                    disposal_date: disposalDate,
+                    ear_tag: earTag || null,
+                    age_group: ageGroup,
+                    breed: 'Черно-пёстрая',
+                    weight: weight ? parseFloat(weight) : null,
+                    gestation_days: gestationDays ? parseInt(gestationDays, 10) : 0,
+                    notes: notes || null,
+                    is_pregnant: 0,
+                    is_stillborn: 1,
+                    form_mode: 'stillborn'
+                });
+            } else {
+                const category = $(this).find('.category-select').val();
+                const reason = $(this).find('.reason-select').val();
+                const disposalDate = $(this).find('.disposal-date').val();
+                const earTag = $(this).find('.ear-tag').val().trim();
+                const ageGroup = $(this).find('.age-group').val();
+                const breed = $(this).find('.breed-select').val();
+                const lactation = $(this).find('.lactation').val();
+                const weight = $(this).find('.weight').val();
+                const milkYield = $(this).find('.milk-yield').val();
+                const bookValue = $(this).find('.book-value').val();
+                const notes = $(this).find('.notes').val().trim();
+                
+                if (!category || !reason || !disposalDate) {
+                    isValid = false;
+                    return false;
+                }
+                
+                cowsData.push({
+                    category: category,
+                    reason: reason,
+                    disposal_date: disposalDate,
+                    ear_tag: earTag || null,
+                    age_group: ageGroup || 'Коровы дойного стада',
+                    breed: breed || 'Черно-пёстрая',
+                    lactation: lactation ? parseInt(lactation) : null,
+                    weight: weight ? parseFloat(weight) : null,
+                    milk_yield: milkYield ? parseFloat(milkYield) : null,
+                    book_value: bookValue ? parseFloat(bookValue) : null,
+                    notes: notes || null,
+                    is_pregnant: $(this).find('.is-pregnant').is(':checked') ? 1 : 0,
+                    gestation_days: parseInt($(this).find('.gestation-days').val(), 10) || 0,
+                    is_stillborn: $(this).find('.is-stillborn').is(':checked') ? 1 : 0,
+                    form_mode: 'cow'
+                });
             }
-            
-            cowsData.push({
-                category: category,
-                reason: reason,
-                disposal_date: disposalDate,
-                ear_tag: earTag || null,
-                age_group: ageGroup || 'Коровы дойного стада',
-                breed: breed || 'Черно-пёстрая',
-                lactation: lactation ? parseInt(lactation) : null,
-                weight: weight ? parseFloat(weight) : null,
-                milk_yield: milkYield ? parseFloat(milkYield) : null,
-                book_value: bookValue ? parseFloat(bookValue) : null,
-                notes: notes || null
-            });
         });
         
         if (!isValid) {
-            alert('Пожалуйста, заполните все обязательные поля (Категория, Причина, Дата)');
+            alert('Пожалуйста, заполните все обязательные поля в каждой карточке!');
             return;
         }
         
@@ -250,13 +513,13 @@ $(document).ready(function() {
         $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Сохранение...');
         
         $.ajax({
-            url: '{{ url_for("add_multiple_cows") }}',
+            url: '{{ url_for("cows.add_multiple_cows") }}',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(cowsData),
             success: function(response) {
                 if (response.success) {
-                    window.location.href = '{{ url_for("view_cows") }}';
+                    window.location.href = '{{ url_for("cows.view_cows") }}';
                 } else {
                     alert(response.message || 'Ошибка сохранения записей');
                     $submitBtn.prop('disabled', false).html('<i class="bi bi-save-fill"></i> Сохранить все записи');

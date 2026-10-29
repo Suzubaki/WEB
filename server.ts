@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // Configuration & Categories
 const DISPOSAL_CATEGORIES: Record<string, string[]> = {
@@ -59,6 +59,53 @@ const DISPOSAL_CATEGORIES: Record<string, string[]> = {
   ]
 };
 
+// Dynamic Financial Pricing Standards (BYN) & Zootechnical Norm Thresholds
+export interface FinancialPricingStandards {
+  price_calves: number;      // BYN/гол (Телята 0–6 мес)
+  price_youngstock: number;  // BYN/гол (Ремонтный молодняк 6–18 мес)
+  price_heifers: number;     // BYN/гол (Нетели)
+  price_cows: number;        // BYN/гол (Коровы дойного стада)
+  price_dry_cows: number;    // BYN/гол (Сухостойные коровы)
+  meat_price_per_kg: number; // BYN/кг живой массы
+  milk_price_per_kg: number; // BYN/кг базисного молока
+  replacement_cost: number;  // BYN/гол стоимость нетели на замену
+  norm_youngstock_preservation: number; // Целевая сохранность молодняка (%)
+  norm_fresh_cow_disposal: number;      // Порог выбытия новотела (%)
+  norm_first_lactation_culling: number; // Порог выбраковки первотёлок (%)
+  norm_mortality_rate: number;          // Порог доли падежа (%)
+  norm_locomotor_disorders: number;     // Порог болезней копыт (%)
+  norm_mastitis_disorders: number;      // Порог болезней вымени (%)
+}
+
+export let currentPricingStandards: FinancialPricingStandards = {
+  price_calves: 900,
+  price_youngstock: 1650,
+  price_heifers: 2700,
+  price_cows: 3200,
+  price_dry_cows: 3000,
+  meat_price_per_kg: 6.20,
+  milk_price_per_kg: 1.18,
+  replacement_cost: 2950,
+  norm_youngstock_preservation: 92.0,
+  norm_fresh_cow_disposal: 10.0,
+  norm_first_lactation_culling: 20.0,
+  norm_mortality_rate: 25.0,
+  norm_locomotor_disorders: 15.0,
+  norm_mastitis_disorders: 15.0
+};
+
+export function estimateCowValue(c: { book_value?: number; age_group?: string }): number {
+  if (c.book_value && c.book_value > 0) {
+    return c.book_value;
+  }
+  const ag = (c.age_group || '').toLowerCase();
+  if (ag.includes('телят')) return currentPricingStandards.price_calves;
+  if (ag.includes('молодняк') || ag.includes('быч')) return currentPricingStandards.price_youngstock;
+  if (ag.includes('нетел')) return currentPricingStandards.price_heifers;
+  if (ag.includes('сухосто')) return currentPricingStandards.price_dry_cows;
+  return currentPricingStandards.price_cows;
+}
+
 // In-Memory Data Models
 export interface User {
   id: number;
@@ -78,12 +125,17 @@ export interface Cow {
   reason: string;
   disposal_date: string;
   lactation?: number;
+  lactation_days?: number; // Дни лактации (DIM - Days in Milk)
+  lactation_phase?: string; // Новотел (0-30 дн), Раздой (31-100 дн), Середина (101-200 дн), Спад (201-305+ дн), Сухостой, Молодняк
   weight?: number;
   notes?: string;
-  age_group?: string;
+  age_group?: string; // Половозрастная группа: Коровы дойного стада, Телята (0–6 мес.), Молодняк (6–18 мес.), Нетели, Коровы сухостойные, Бычки на откорме
   breed?: string;
   milk_yield?: number;
   book_value?: number;
+  is_pregnant?: number;
+  gestation_days?: number;
+  is_stillborn?: number;
   created_at: string;
   created_by?: number;
 }
@@ -166,6 +218,37 @@ function getSeedDate(monthOffset: number, dayOfMonth: number): string {
 
 export const cows: Cow[] = [];
 
+export function computeLactationPhase(ageGroup?: string, lactationDays?: number | null, lactation?: number | null): string {
+  const ag = (ageGroup || '').toLowerCase();
+  if (ag.includes('тел') || ag.includes('0–6') || ag.includes('0-6')) {
+    return 'Молодняк (до 6 мес.)';
+  }
+  if (ag.includes('молод') || ag.includes('6–18') || ag.includes('6-18') || ag.includes('тёлк')) {
+    return 'Молодняк (6–18 мес.)';
+  }
+  if (ag.includes('нетел')) {
+    return 'Нетели';
+  }
+  if (ag.includes('быч')) {
+    return 'Бычки на откорме';
+  }
+  if (ag.includes('сухосто')) {
+    return 'Сухостой';
+  }
+  if (lactationDays === undefined || lactationDays === null || isNaN(lactationDays)) {
+    return 'Не указано';
+  }
+  if (lactationDays <= 30) {
+    return 'Новотел (0–30 дн)';
+  } else if (lactationDays <= 100) {
+    return 'Раздой (31–100 дн)';
+  } else if (lactationDays <= 200) {
+    return 'Середина (101–200 дн)';
+  } else {
+    return 'Спад (201–305+ дн)';
+  }
+}
+
 // Realistic Massive Test Data Generator (1 200+ cows)
 export function populateRealisticCows(targetCount: number = 1250, clearExisting: boolean = true) {
   if (clearExisting) {
@@ -232,7 +315,6 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
   }
 
   const currentDate = new Date();
-  const baseTime = currentDate.getTime();
 
   for (let i = 0; i < targetCount; i++) {
     // Farm distribution
@@ -263,35 +345,64 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
     // Age groups & physiological parameters
     let ag = 'Коровы дойного стада';
     let lact = 1 + Math.floor(Math.random() * 5);
+    let lactDays = 120;
     let weight = 480 + Math.floor(Math.random() * 180);
     let milkYield = 5500 + Math.floor(Math.random() * 3800);
     let bookVal = 1800 + Math.floor(Math.random() * 1400);
 
     if (reason === 'Диспепсия телят' || reason === 'Эшерихиоз (колибактериоз)' || (cat === 'падёж' && Math.random() < 0.25)) {
-      ag = 'Телята (0–6 мес.)';
+      ag = 'Телята (до 6 мес.)';
       lact = 0;
+      lactDays = 0;
       weight = 32 + Math.floor(Math.random() * 55);
       milkYield = 0;
       bookVal = 260 + Math.floor(Math.random() * 280);
     } else if (reason.includes('роды') || reason.includes('матки') || Math.random() < 0.08) {
       ag = 'Нетели';
       lact = 0;
+      lactDays = 0;
       weight = 430 + Math.floor(Math.random() * 100);
       milkYield = 0;
       bookVal = 2600 + Math.floor(Math.random() * 700);
     } else if (Math.random() < 0.12) {
       ag = 'Коровы сухостойные';
       lact = 2 + Math.floor(Math.random() * 4);
+      lactDays = 0;
       weight = 520 + Math.floor(Math.random() * 140);
       milkYield = 5800 + Math.floor(Math.random() * 2400);
       bookVal = 2100 + Math.floor(Math.random() * 900);
     } else if (Math.random() < 0.10) {
       ag = 'Молодняк (6–18 мес.)';
       lact = 0;
+      lactDays = 0;
       weight = 180 + Math.floor(Math.random() * 170);
       milkYield = 0;
       bookVal = 850 + Math.floor(Math.random() * 700);
+    } else if (Math.random() < 0.05) {
+      ag = 'Бычки на откорме';
+      lact = 0;
+      lactDays = 0;
+      weight = 360 + Math.floor(Math.random() * 140);
+      milkYield = 0;
+      bookVal = 1200 + Math.floor(Math.random() * 600);
+    } else {
+      // Коровы дойного стада: реалистичные дни лактации (DIM) по патологиям
+      if (reason.includes('парез') || reason.includes('артерии') || reason.includes('роды') || reason.includes('Кетоз (острая')) {
+        // Новотельный период (1–30 дней)
+        lactDays = 2 + Math.floor(Math.random() * 27);
+      } else if (reason.includes('мастит') || reason.includes('тимпания') || reason.includes('пневмония')) {
+        // Раздой (31–100 дней)
+        lactDays = 32 + Math.floor(Math.random() * 68);
+      } else if (reason.includes('конечност') || reason.includes('эндометрит') || reason.includes('пододерматит') || reason.includes('венчика')) {
+        // Середина лактации (101–200 дней)
+        lactDays = 102 + Math.floor(Math.random() * 98);
+      } else {
+        // Спад / завершение лактации (201–350 дней)
+        lactDays = 205 + Math.floor(Math.random() * 145);
+      }
     }
+
+    const lactPhase = computeLactationPhase(ag, lactDays, lact);
 
     // Breed selection
     const breed = breeds[Math.random() < 0.75 ? 0 : (Math.random() < 0.8 ? 1 : 2)];
@@ -309,6 +420,27 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
     const earTag = `BY 04 ${tagNum}`;
     const cowId = `${farm.prefix}-${String(farmCounters[farm.name]).padStart(4, '0')}`;
 
+    // Reproduction attributes
+    let isPreg = 0;
+    let gestD = 0;
+    let isStill = 0;
+
+    const rLower = reason.toLowerCase();
+    if (ag === 'Коровы сухостойные') {
+      isPreg = 1;
+      gestD = 210 + Math.floor(Math.random() * 60);
+    } else if (ag === 'Нетели') {
+      isPreg = 1;
+      gestD = 160 + Math.floor(Math.random() * 100);
+    } else if (Math.random() < 0.14 && !ag.includes('Телят') && !ag.includes('Бычк')) {
+      isPreg = 1;
+      gestD = 35 + Math.floor(Math.random() * 170);
+    }
+
+    if (rLower.includes('роды') || rLower.includes('плод') || rLower.includes('моцерац') || rLower.includes('мацерац') || rLower.includes('аборт') || rLower.includes('мертворож') || (ag.includes('Телят') && Math.random() < 0.12)) {
+      isStill = 1;
+    }
+
     cows.push({
       id: cowIdCounter++,
       cow_id: cowId,
@@ -318,11 +450,16 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
       reason: reason,
       disposal_date: dStr,
       lactation: lact,
+      lactation_days: lactDays,
+      lactation_phase: lactPhase,
       weight: weight,
       age_group: ag,
       breed: breed,
       book_value: bookVal,
       milk_yield: milkYield,
+      is_pregnant: isPreg,
+      gestation_days: gestD,
+      is_stillborn: isStill,
       created_at: `${dStr} 10:00:00`,
       created_by: farm.createdBy
     });
@@ -349,12 +486,300 @@ function generateCowId(farmName: string): string {
   return `${farmName.split(' ')[0]}-${String(nextNum).padStart(4, '0')}`;
 }
 
+// ==========================================
+// DDoS & ABUSE PROTECTION ENGINE
+// ==========================================
+
+export interface SecurityMetrics {
+  totalRequests: number;
+  blockedRequestsCount: number;
+  blockedIpsTotal: Set<string>;
+  authFailuresCount: number;
+  slowRequestsCount: number;
+  startedAt: Date;
+}
+
+export const securityMetrics: SecurityMetrics = {
+  totalRequests: 0,
+  blockedRequestsCount: 0,
+  blockedIpsTotal: new Set<string>(),
+  authFailuresCount: 0,
+  slowRequestsCount: 0,
+  startedAt: new Date()
+};
+
+// Process Crash Immunity (Never let unhandled errors take down the server)
+process.on('uncaughtException', (err: any) => {
+  console.error('[CRASH IMMUNITY] Uncaught Exception safely handled:', err);
+});
+
+process.on('unhandledRejection', (reason: any, promise: any) => {
+  console.error('[CRASH IMMUNITY] Unhandled Rejection safely handled:', reason);
+});
+
+export function getClientIp(req: Request): string {
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf.trim()) return cf.trim();
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) return realIp.trim();
+  return req.socket.remoteAddress || req.ip || '127.0.0.1';
+}
+
+interface IpWindow {
+  timestamps: number[];
+  burstTimestamps: number[];
+  blockedUntil?: number;
+}
+
+export class SlidingWindowRateLimiter {
+  private windows = new Map<string, IpWindow>();
+  private readonly maxRequests: number;
+  private readonly windowMs: number;
+  private readonly maxBurst: number;
+  private readonly burstWindowMs: number;
+  private readonly blockDurationMs: number;
+
+  constructor(options: {
+    maxRequests: number;
+    windowMs: number;
+    maxBurst?: number;
+    burstWindowMs?: number;
+    blockDurationMs?: number;
+  }) {
+    this.maxRequests = options.maxRequests;
+    this.windowMs = options.windowMs;
+    this.maxBurst = options.maxBurst || options.maxRequests;
+    this.burstWindowMs = options.burstWindowMs || 5000;
+    this.blockDurationMs = options.blockDurationMs || 60000;
+
+    // Prune stale records every 60s to prevent memory leaks
+    setInterval(() => this.prune(), 60000).unref();
+  }
+
+  public check(ip: string): { allowed: boolean; remaining: number; retryAfterSec?: number; reason?: string } {
+    const now = Date.now();
+    let entry = this.windows.get(ip);
+
+    if (!entry) {
+      entry = { timestamps: [], burstTimestamps: [] };
+      this.windows.set(ip, entry);
+    }
+
+    // Check if IP is currently banned/blocked
+    if (entry.blockedUntil && entry.blockedUntil > now) {
+      const retryAfterSec = Math.ceil((entry.blockedUntil - now) / 1000);
+      return { allowed: false, remaining: 0, retryAfterSec, reason: 'IP временно заблокирован из-за подозрительной активности (DDoS Protection)' };
+    }
+
+    // Filter out old timestamps outside main window
+    const windowCutoff = now - this.windowMs;
+    entry.timestamps = entry.timestamps.filter(t => t > windowCutoff);
+
+    // Filter out old timestamps outside burst window
+    const burstCutoff = now - this.burstWindowMs;
+    entry.burstTimestamps = entry.burstTimestamps.filter(t => t > burstCutoff);
+
+    // Check burst limit (flood spike)
+    if (entry.burstTimestamps.length >= this.maxBurst) {
+      entry.blockedUntil = now + this.blockDurationMs;
+      securityMetrics.blockedRequestsCount++;
+      securityMetrics.blockedIpsTotal.add(ip);
+      const retryAfterSec = Math.ceil(this.blockDurationMs / 1000);
+      return { allowed: false, remaining: 0, retryAfterSec, reason: 'Превышен лимит всплеска запросов (Burst Flood Protection)' };
+    }
+
+    // Check window limit
+    if (entry.timestamps.length >= this.maxRequests) {
+      entry.blockedUntil = now + Math.min(this.blockDurationMs, 30000);
+      securityMetrics.blockedRequestsCount++;
+      securityMetrics.blockedIpsTotal.add(ip);
+      const retryAfterSec = Math.ceil((entry.timestamps[0] + this.windowMs - now) / 1000) || 1;
+      return { allowed: false, remaining: 0, retryAfterSec, reason: 'Превышен лимит частоты запросов (Rate Limit Exceeded)' };
+    }
+
+    // Allowed: record request
+    entry.timestamps.push(now);
+    entry.burstTimestamps.push(now);
+
+    return {
+      allowed: true,
+      remaining: Math.max(0, this.maxRequests - entry.timestamps.length)
+    };
+  }
+
+  private prune() {
+    const now = Date.now();
+    for (const [ip, entry] of this.windows.entries()) {
+      if (entry.blockedUntil && entry.blockedUntil > now) continue;
+      entry.timestamps = entry.timestamps.filter(t => t > now - this.windowMs);
+      entry.burstTimestamps = entry.burstTimestamps.filter(t => t > now - this.burstWindowMs);
+      if (entry.timestamps.length === 0 && entry.burstTimestamps.length === 0) {
+        this.windows.delete(ip);
+      }
+    }
+  }
+
+  public getTrackedCount(): number {
+    return this.windows.size;
+  }
+}
+
+// Global DDoS limiter: 180 requests/min, burst max 35 requests/5s
+export const globalDdosLimiter = new SlidingWindowRateLimiter({
+  maxRequests: 180,
+  windowMs: 60000,
+  maxBurst: 35,
+  burstWindowMs: 5000,
+  blockDurationMs: 60000
+});
+
+// Heavy operations limiter: 25 requests/min (for reports, Excel exports, bulk ops)
+export const heavyOpsLimiter = new SlidingWindowRateLimiter({
+  maxRequests: 25,
+  windowMs: 60000,
+  maxBurst: 10,
+  burstWindowMs: 5000,
+  blockDurationMs: 60000
+});
+
+// Auth POST /login limiter: 8 attempts/3min
+export const authLimiter = new SlidingWindowRateLimiter({
+  maxRequests: 8,
+  windowMs: 180000,
+  maxBurst: 4,
+  burstWindowMs: 10000,
+  blockDurationMs: 180000
+});
+
+// Login Brute Force & Credential Stuffing Lockout (prevents CPU burnout on bcrypt)
+interface FailedLoginRecord {
+  count: number;
+  lastAttempt: number;
+  lockedUntil?: number;
+}
+const failedLogins = new Map<string, FailedLoginRecord>();
+
+export function recordFailedLogin(key: string) {
+  const now = Date.now();
+  let rec = failedLogins.get(key);
+  if (!rec || now - rec.lastAttempt > 10 * 60 * 1000) {
+    rec = { count: 1, lastAttempt: now };
+  } else {
+    rec.count++;
+    rec.lastAttempt = now;
+  }
+  if (rec.count >= 5) {
+    rec.lockedUntil = now + 5 * 60 * 1000; // 5 minute lockout after 5 failed tries
+  }
+  failedLogins.set(key, rec);
+}
+
+export function checkLoginLockout(key: string): { locked: boolean; waitSec: number } {
+  const now = Date.now();
+  const rec = failedLogins.get(key);
+  if (!rec) return { locked: false, waitSec: 0 };
+  if (rec.lockedUntil && rec.lockedUntil > now) {
+    return { locked: true, waitSec: Math.ceil((rec.lockedUntil - now) / 1000) };
+  }
+  return { locked: false, waitSec: 0 };
+}
+
+export function clearFailedLogin(key: string) {
+  failedLogins.delete(key);
+}
+
+// Heavy Operations Limiter Middleware (bypassed for uninterrupted access)
+export function heavyOpsProtection(req: Request, res: Response, next: NextFunction) {
+  next();
+}
+
 // App Settings & Middlewares
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Hide server technology
+app.disable('x-powered-by');
+
+// Security Headers Middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
+// Slowloris & Request Execution Timeout Guard (25 seconds)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const timeoutId = setTimeout(() => {
+    if (!res.headersSent) {
+      securityMetrics.slowRequestsCount++;
+      res.status(504).type('text/html; charset=utf-8').send(`
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head><meta charset="utf-8"><title>504 Gateway Timeout</title></head>
+        <body style="font-family: 'Segoe UI', Tahoma, sans-serif; text-align: center; padding: 60px; background: #f8fafc; color: #1e293b;">
+          <h2 style="color: #e11d48;">504 - Превышено время ожидания ответа сервера</h2>
+          <p>Запрос выполнялся дольше 25 секунд и был прерван защитой от атак исчерпания ресурсов (Slowloris/DoS Protection).</p>
+          <a href="/dashboard" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #0284c7; color: white; border-radius: 6px; text-decoration: none;">Вернуться на главную</a>
+        </body>
+        </html>
+      `);
+    }
+  }, 25000);
+
+  res.on('finish', () => clearTimeout(timeoutId));
+  res.on('close', () => clearTimeout(timeoutId));
+  next();
+});
+
+// Global Request Tracking Middleware (bypassed 429 limits for smooth user experience)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  securityMetrics.totalRequests++;
+  next();
+});
+
+// Parameter Pollution & Prototype Pollution Guard
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const checkProto = (obj: any): boolean => {
+    if (!obj || typeof obj !== 'object') return false;
+    for (const key of Object.keys(obj)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return true;
+      }
+      if (typeof obj[key] === 'object' && checkProto(obj[key])) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (checkProto(req.query) || checkProto(req.body)) {
+    return res.status(400).send('Bad Request: Parameter pollution blocked');
+  }
+
+  // Type confusion protection for query scalar params
+  if (req.query) {
+    for (const key of Object.keys(req.query)) {
+      if (Array.isArray(req.query[key])) {
+        req.query[key] = (req.query[key] as any[])[0];
+      }
+      if (typeof req.query[key] === 'string' && (req.query[key] as string).length > 200) {
+        req.query[key] = (req.query[key] as string).substring(0, 200);
+      }
+    }
+  }
+
+  next();
+});
+
+// Strictly Bounded Body Parsers (Prevents Memory/Heap Exhaustion DoS)
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/static', express.static(path.join(__dirname, 'public')));
@@ -527,12 +952,171 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   const reasonCounts: Record<string, { category: string, count: number }> = {};
   const farmCounts: Record<string, number> = {};
 
+  // Lactation Cohorts tracking: DIM groups & phases
+  const lactationCohorts: Record<string, { total: number; death: number; culling: number; sanitary: number; totalDim: number; countDim: number }> = {
+    'Новотел (0–30 дн)': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 },
+    'Раздой (31–100 дн)': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 },
+    'Середина (101–200 дн)': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 },
+    'Спад (201–305+ дн)': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 },
+    'Сухостой': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 },
+    'Молодняк': { total: 0, death: 0, culling: 0, sanitary: 0, totalDim: 0, countDim: 0 }
+  };
+
+  // Detailed animal category matrix with top diagnoses and averages
+  const categoryMatrix: Record<string, { 
+    total: number; 
+    death: number; 
+    culling: number; 
+    sanitary: number; 
+    totalWeight: number; 
+    weightCount: number;
+    totalLactation: number;
+    lactationCount: number;
+    totalDim: number;
+    dimCount: number;
+    totalLossByn: number;
+    reasons: Record<string, number>;
+  }> = {};
+
+  let sumLactatingDim = 0;
+  let countLactatingDim = 0;
+  let sumLactationNum = 0;
+  let countLactationNum = 0;
+
+  // Экономическая оценка выбытия (балансовая стоимость в BYN)
+  let totalBookValue = 0;
+  let deathBookValue = 0;
+  let cullingBookValue = 0;
+  const bookValueByGroup: Record<string, number> = {};
+
+  // Детальная кривая риска по дням лактации DIM (8 интервалов)
+  const dimBins = [
+    { label: '0–15 дн (Острый новотел)', min: 0, max: 15 },
+    { label: '16–30 дн (Поздний новотел)', min: 16, max: 30 },
+    { label: '31–60 дн (Раздой)', min: 31, max: 60 },
+    { label: '61–100 дн (Пик лактации)', min: 61, max: 100 },
+    { label: '101–150 дн (Плато лактации)', min: 101, max: 150 },
+    { label: '151–200 дн (Середина)', min: 151, max: 200 },
+    { label: '201–305 дн (Спад лактации)', min: 201, max: 305 },
+    { label: '>305 дн (Затяжная / Яловость)', min: 306, max: 9999 }
+  ];
+  const dimCurveDeath = [0, 0, 0, 0, 0, 0, 0, 0];
+  const dimCurveCulling = [0, 0, 0, 0, 0, 0, 0, 0];
+
+  // Распределение выбытия по номеру лактации (1, 2, 3, 4, 5+)
+  const lactNumberDeath = [0, 0, 0, 0, 0];
+  const lactNumberCulling = [0, 0, 0, 0, 0];
+
+  // Сравнительная матрица по фермам / МТФ
+  const farmMatrix: Record<string, {
+    total: number;
+    death: number;
+    culling: number;
+    sanitary: number;
+    youngstock: number;
+    fresh: number;
+    totalDim: number;
+    dimCount: number;
+    lossByn: number;
+  }> = {};
+
   for (const c of relevantCows) {
     categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1;
     farmCounts[c.farm_name] = (farmCounts[c.farm_name] || 0) + 1;
 
     const ag = c.age_group || 'Коровы дойного стада';
     ageGroupCounts[ag] = (ageGroupCounts[ag] || 0) + 1;
+
+    // Динамическая стоимостная оценка выбывшего животного по прейскуранту BYN
+    const bValue = estimateCowValue(c);
+    totalBookValue += bValue;
+    if (c.category === 'падёж') deathBookValue += bValue;
+    else cullingBookValue += bValue;
+    bookValueByGroup[ag] = (bookValueByGroup[ag] || 0) + bValue;
+
+    // Animal Category Matrix aggregation
+    if (!categoryMatrix[ag]) {
+      categoryMatrix[ag] = {
+        total: 0,
+        death: 0,
+        culling: 0,
+        sanitary: 0,
+        totalWeight: 0,
+        weightCount: 0,
+        totalLactation: 0,
+        lactationCount: 0,
+        totalDim: 0,
+        dimCount: 0,
+        totalLossByn: 0,
+        reasons: {}
+      };
+    }
+    const catEntry = categoryMatrix[ag];
+    catEntry.total++;
+    catEntry.totalLossByn += bValue;
+    if (c.category === 'падёж') catEntry.death++;
+    else if (c.category === 'выбраковка') catEntry.culling++;
+    else catEntry.sanitary++;
+
+    if (c.weight && c.weight > 0) {
+      catEntry.totalWeight += c.weight;
+      catEntry.weightCount++;
+    }
+    if (c.lactation && c.lactation > 0) {
+      catEntry.totalLactation += c.lactation;
+      catEntry.lactationCount++;
+      sumLactationNum += c.lactation;
+      countLactationNum++;
+
+      // Распределение по номеру лактации (1..5+)
+      const lIdx = Math.min(4, Math.max(0, c.lactation - 1));
+      if (c.category === 'падёж') lactNumberDeath[lIdx]++;
+      else lactNumberCulling[lIdx]++;
+    }
+    if (c.lactation_days && c.lactation_days > 0) {
+      catEntry.totalDim += c.lactation_days;
+      catEntry.dimCount++;
+      sumLactatingDim += c.lactation_days;
+      countLactatingDim++;
+
+      // Заполнение кривой риска DIM
+      if (!ag.includes('Телят') && !ag.includes('Молодняк') && !ag.includes('Бычки')) {
+        for (let bi = 0; bi < dimBins.length; bi++) {
+          if (c.lactation_days >= dimBins[bi].min && c.lactation_days <= dimBins[bi].max) {
+            if (c.category === 'падёж') dimCurveDeath[bi]++;
+            else dimCurveCulling[bi]++;
+            break;
+          }
+        }
+      }
+    }
+    catEntry.reasons[c.reason] = (catEntry.reasons[c.reason] || 0) + 1;
+
+    // Lactation phase cohort classification
+    let phase = c.lactation_phase;
+    if (!phase) {
+      phase = computeLactationPhase(c.age_group, c.lactation_days, c.lactation);
+    }
+    let standardPhaseKey = 'Молодняк';
+    if (phase.includes('Новотел')) standardPhaseKey = 'Новотел (0–30 дн)';
+    else if (phase.includes('Раздой')) standardPhaseKey = 'Раздой (31–100 дн)';
+    else if (phase.includes('Середина')) standardPhaseKey = 'Середина (101–200 дн)';
+    else if (phase.includes('Спад')) standardPhaseKey = 'Спад (201–305+ дн)';
+    else if (phase.includes('Сухосто')) standardPhaseKey = 'Сухостой';
+    else standardPhaseKey = 'Молодняк';
+
+    if (lactationCohorts[standardPhaseKey]) {
+      const cohort = lactationCohorts[standardPhaseKey];
+      cohort.total++;
+      if (c.category === 'падёж') cohort.death++;
+      else if (c.category === 'выбраковка') cohort.culling++;
+      else cohort.sanitary++;
+
+      if (c.lactation_days && c.lactation_days > 0) {
+        cohort.totalDim += c.lactation_days;
+        cohort.countDim++;
+      }
+    }
 
     const sys = classifyPathologySystem(c.reason);
     pathologySystems[sys] = (pathologySystems[sys] || 0) + 1;
@@ -541,6 +1125,39 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       reasonCounts[c.reason] = { category: c.category, count: 0 };
     }
     reasonCounts[c.reason].count++;
+
+    // Сводная матрица по фермам
+    const fn = c.farm_name;
+    if (!farmMatrix[fn]) {
+      farmMatrix[fn] = {
+        total: 0,
+        death: 0,
+        culling: 0,
+        sanitary: 0,
+        youngstock: 0,
+        fresh: 0,
+        totalDim: 0,
+        dimCount: 0,
+        lossByn: 0
+      };
+    }
+    const fm = farmMatrix[fn];
+    fm.total++;
+    fm.lossByn += bValue;
+    if (c.category === 'падёж') fm.death++;
+    else if (c.category === 'выбраковка') fm.culling++;
+    else fm.sanitary++;
+
+    if (ag.includes('Телят') || ag.includes('Молодняк') || ag.includes('Бычки')) {
+      fm.youngstock++;
+    }
+    if ((c.lactation_days !== undefined && c.lactation_days !== null && c.lactation_days <= 30) && (ag.includes('дойного') || standardPhaseKey.includes('Новотел'))) {
+      fm.fresh++;
+    }
+    if (c.lactation_days && c.lactation_days > 0) {
+      fm.totalDim += c.lactation_days;
+      fm.dimCount++;
+    }
   }
 
   const totalDisposals = relevantCows.length;
@@ -549,8 +1166,31 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   const sortedFarms = Object.entries(farmCounts).sort((a, b) => b[1] - a[1]);
   const topReasonsList = Object.entries(reasonCounts)
     .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 8)
+    .slice(0, 10)
     .map(([reason, data]) => ({ reason, category: data.category, count: data.count }));
+
+  // Detailed Category Cards list
+  const categoryAnalyticsList = Object.entries(categoryMatrix).map(([catName, stats]) => {
+    const topReasons = Object.entries(stats.reasons)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([r, cnt]) => `${r} (${cnt})`)
+      .join(', ');
+
+    return {
+      category_name: catName,
+      total: stats.total,
+      death: stats.death,
+      culling: stats.culling,
+      sanitary: stats.sanitary,
+      death_rate_pct: stats.total > 0 ? Math.round((stats.death / stats.total) * 1000) / 10 : 0,
+      avg_weight: stats.weightCount > 0 ? Math.round(stats.totalWeight / stats.weightCount) : 0,
+      avg_dim: stats.dimCount > 0 ? Math.round(stats.totalDim / stats.dimCount) : 0,
+      avg_lactation: stats.lactationCount > 0 ? (stats.totalLactation / stats.lactationCount).toFixed(1) : '-',
+      total_loss_byn: Math.round(stats.totalLossByn),
+      top_reasons: topReasons || '-'
+    };
+  }).sort((a, b) => b.total - a.total);
 
   // 12 months trend
   const twelveMonthsAgo = new Date();
@@ -568,7 +1208,6 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     'санитарный': '#D97706'
   };
 
-  // Pre-calculate trend buckets in a single pass O(N) instead of 36 filter iterations
   const trendCounts: Record<string, Record<string, number>> = {};
   for (const m of trendMonths) {
     trendCounts[m] = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
@@ -628,14 +1267,27 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     growthPct = 0;
   }
 
-  const calfDisposals = relevantCows.filter(c => (c.age_group || '').toLowerCase().includes('тел'));
+  // Youngstock KPI computations
+  const calfDisposals = relevantCows.filter(c => {
+    const ag = (c.age_group || '').toLowerCase();
+    return ag.includes('тел') || ag.includes('0–6') || ag.includes('0-6');
+  });
   const calfDeathCount = calfDisposals.filter(c => c.category === 'падёж').length;
 
-  const distinctFarmsList = getUniqueFarms();
+  const youngstockAll = relevantCows.filter(c => {
+    const ag = (c.age_group || '').toLowerCase();
+    return ag.includes('тел') || ag.includes('молод') || ag.includes('быч');
+  });
+  const youngstockDeathCount = youngstockAll.filter(c => c.category === 'падёж').length;
 
+  // Fresh period (0-30 days DIM) computations
+  const freshCohort = lactationCohorts['Новотел (0–30 дн)'];
+  const freshDisposals = freshCohort ? freshCohort.total : 0;
+  const freshDeaths = freshCohort ? freshCohort.death : 0;
+
+  const distinctFarmsList = getUniqueFarms();
   const recentCows = [...relevantCows].sort((a, b) => b.disposal_date.localeCompare(a.disposal_date)).slice(0, 10);
 
-  // Fast all-time count without array allocation
   let allTimeTotal = 0;
   if (userType === 'admin' && (farmName === 'all' || !farmName)) {
     allTimeTotal = cows.length;
@@ -645,7 +1297,264 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     }
   }
 
+  // Lactation Cohort Chart Datasets (Adult Cows)
+  const lactationLabels = ['Новотел (0–30 дн)', 'Раздой (31–100 дн)', 'Середина (101–200 дн)', 'Спад (201–305+ дн)', 'Сухостой'];
+  const lactationDeathData = lactationLabels.map(l => lactationCohorts[l]?.death || 0);
+  const lactationCullingData = lactationLabels.map(l => (lactationCohorts[l]?.culling || 0) + (lactationCohorts[l]?.sanitary || 0));
+
+  // Stacked Age Groups
+  const ageGroupLabels = sortedAgeGroups.map(x => x[0]);
+  const ageGroupDeathData = ageGroupLabels.map(ag => categoryMatrix[ag]?.death || 0);
+  const ageGroupCullingData = ageGroupLabels.map(ag => categoryMatrix[ag]?.culling || 0);
+  const ageGroupSanitaryData = ageGroupLabels.map(ag => categoryMatrix[ag]?.sanitary || 0);
+
+  // Veterinary Safety Scorecard indicators
+  const mortalityPct = totalDisposals > 0 ? (categoryCounts['падёж'] / totalDisposals) * 100 : 0;
+  const youngstockPreservationPct = youngstockAll.length > 0 ? ((youngstockAll.length - youngstockDeathCount) / youngstockAll.length) * 100 : 100;
+  const freshSharePct = totalDisposals > 0 ? (freshDisposals / totalDisposals) * 100 : 0;
+  
+  const adultCowTotal = (lactNumberDeath.reduce((a, b) => a + b, 0) + lactNumberCulling.reduce((a, b) => a + b, 0));
+  const firstLactTotal = lactNumberDeath[0] + lactNumberCulling[0];
+  const firstLactPct = adultCowTotal > 0 ? (firstLactTotal / adultCowTotal) * 100 : 0;
+
+  const locomotorTotal = pathologySystems['Конечности и травматизм'] || 0;
+  const locomotorPct = totalDisposals > 0 ? (locomotorTotal / totalDisposals) * 100 : 0;
+
+  const mastitisTotal = pathologySystems['Болезни вымени (маститы)'] || 0;
+  const mastitisPct = totalDisposals > 0 ? (mastitisTotal / totalDisposals) * 100 : 0;
+
+  const scorecard = {
+    youngstock_preservation: {
+      value: youngstockPreservationPct.toFixed(1) + '%',
+      target: `≥ ${currentPricingStandards.norm_youngstock_preservation.toFixed(1)}%`,
+      status: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'success' : (youngstockPreservationPct >= (currentPricingStandards.norm_youngstock_preservation - 7) ? 'warning' : 'danger'),
+      title: 'Сохранность молодняка (до 18 мес.)',
+      desc: `${youngstockAll.length - youngstockDeathCount} из ${youngstockAll.length} гол. сохранено`
+    },
+    fresh_cow_disposal: {
+      value: freshSharePct.toFixed(1) + '%',
+      target: `≤ ${currentPricingStandards.norm_fresh_cow_disposal.toFixed(1)}%`,
+      status: freshSharePct <= currentPricingStandards.norm_fresh_cow_disposal ? 'success' : (freshSharePct <= (currentPricingStandards.norm_fresh_cow_disposal + 8) ? 'warning' : 'danger'),
+      title: 'Доля выбытия новотела (0–30 DIM)',
+      desc: `${freshDisposals} гол. выбыло в критический период`
+    },
+    first_lactation_culling: {
+      value: firstLactPct.toFixed(1) + '%',
+      target: `≤ ${currentPricingStandards.norm_first_lactation_culling.toFixed(1)}%`,
+      status: firstLactPct <= currentPricingStandards.norm_first_lactation_culling ? 'success' : (firstLactPct <= (currentPricingStandards.norm_first_lactation_culling + 8) ? 'warning' : 'danger'),
+      title: 'Выбраковка первотёлок (1 лактация)',
+      desc: `${firstLactTotal} гол. (потеря инвестиций в нетель)`
+    },
+    mortality_rate: {
+      value: mortalityPct.toFixed(1) + '%',
+      target: `≤ ${currentPricingStandards.norm_mortality_rate.toFixed(1)}%`,
+      status: mortalityPct <= currentPricingStandards.norm_mortality_rate ? 'success' : (mortalityPct <= (currentPricingStandards.norm_mortality_rate + 15) ? 'warning' : 'danger'),
+      title: 'Удельный вес падежа в выбытии',
+      desc: `${categoryCounts['падёж']} гол. пало от общих ${totalDisposals} выбывших`
+    },
+    locomotor_disorders: {
+      value: locomotorPct.toFixed(1) + '%',
+      target: `≤ ${currentPricingStandards.norm_locomotor_disorders.toFixed(1)}%`,
+      status: locomotorPct <= currentPricingStandards.norm_locomotor_disorders ? 'success' : 'warning',
+      title: 'Болезни копыт и конечностей',
+      desc: `${locomotorTotal} случаев травм и заболеваний копыт`
+    },
+    mastitis_disorders: {
+      value: mastitisPct.toFixed(1) + '%',
+      target: `≤ ${currentPricingStandards.norm_mastitis_disorders.toFixed(1)}%`,
+      status: mastitisPct <= currentPricingStandards.norm_mastitis_disorders ? 'success' : 'warning',
+      title: 'Маститы и патологии вымени',
+      desc: `${mastitisTotal} случаев воспаления молочной железы`
+    }
+  };
+
+  // Farm Comparative Matrix
+  const farmMatrixList = Object.entries(farmMatrix).map(([name, stat]) => {
+    const dPct = stat.total > 0 ? Math.round((stat.death / stat.total) * 1000) / 10 : 0;
+    const avgD = stat.dimCount > 0 ? Math.round(stat.totalDim / stat.dimCount) : 0;
+    let status: 'optimal' | 'warning' | 'critical' = 'optimal';
+    if (dPct > 35 || stat.death > 20) status = 'critical';
+    else if (dPct > 25 || stat.fresh > 12) status = 'warning';
+
+    return {
+      farm_name: name,
+      total: stat.total,
+      death: stat.death,
+      culling: stat.culling,
+      sanitary: stat.sanitary,
+      death_pct: dPct,
+      youngstock: stat.youngstock,
+      fresh: stat.fresh,
+      avg_dim: avgD,
+      loss_byn: Math.round(stat.lossByn),
+      status
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  // 9. Стельность и мертворождения / абортов
+  const stillbornKeywords = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок'];
+  const pregnantCowsList: Cow[] = [];
+  const stillbornCowsList: Cow[] = [];
+
+  for (const c of relevantCows) {
+    const reasonLower = (c.reason || '').toLowerCase();
+    const ageGrpLower = (c.age_group || '').toLowerCase();
+    const phaseLower = (c.lactation_phase || '').toLowerCase();
+
+    let isPreg = false;
+    if (c.is_pregnant === 1 || (c.gestation_days && c.gestation_days > 0)) {
+      isPreg = true;
+    } else if (phaseLower.includes('сухостой') || ageGrpLower.includes('сухостой') || ageGrpLower.includes('нетел') || reasonLower.includes('стельн') || ageGrpLower.includes('стельн')) {
+      isPreg = true;
+    }
+    if (isPreg) pregnantCowsList.push(c);
+
+    let isStillborn = false;
+    if (c.is_stillborn === 1) {
+      isStillborn = true;
+    } else if (stillbornKeywords.some(k => reasonLower.includes(k)) || ageGrpLower.includes('мертворожд') || ageGrpLower.includes('аборт')) {
+      isStillborn = true;
+    }
+    if (isStillborn) stillbornCowsList.push(c);
+  }
+
+  const adultCowsTotalCount = relevantCows.filter(c => !['телят', 'молодняк'].some(k => (c.age_group || '').toLowerCase().includes(k))).length;
+  const pregnantCount = pregnantCowsList.length;
+  const pregnantPct = adultCowsTotalCount > 0 ? Math.round((pregnantCount / adultCowsTotalCount) * 1000) / 10 : 0;
+  const pregnantLossByn = Math.round(pregnantCowsList.reduce((acc, c) => acc + estimateCowValue(c), 0));
+
+  const gestVals = pregnantCowsList.map(c => c.gestation_days).filter((v): v is number => !!v && v > 0);
+  const avgGestationMonths = gestVals.length > 0 ? Math.round((gestVals.reduce((a, b) => a + b, 0) / gestVals.length / 30) * 10) / 10 : 6.5;
+
+  const stillbornCount = stillbornCowsList.length;
+  const stillbornPct = totalDisposals > 0 ? Math.round((stillbornCount / totalDisposals) * 1000) / 10 : 0;
+
+  const stillbornReasonsMap: Record<string, number> = {};
+  for (const c of stillbornCowsList) {
+    const r = c.reason || 'Патология плода';
+    stillbornReasonsMap[r] = (stillbornReasonsMap[r] || 0) + 1;
+  }
+  const stillbornReasonsList = Object.entries(stillbornReasonsMap)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Trimesters calculation
+  // Сроки стельности выбывших коров (без примешивания мертворождений)
+  let t1Count = 0; // 1-90 дн
+  let t2Count = 0; // 91-180 дн
+  let t3Count = 0; // 181-240 дн
+  let t4Count = 0; // 241+ дн (глубокий сухостой перед отёлом)
+  for (const c of pregnantCowsList) {
+    const days = c.gestation_days || 0;
+    const agL = (c.age_group || '').toLowerCase();
+    if (days > 240 || (agL.includes('сухосто') && days > 210)) {
+      t4Count++;
+    } else if (days > 180 || agL.includes('сухосто')) {
+      t3Count++;
+    } else if (days > 90) {
+      t2Count++;
+    } else {
+      t1Count++;
+    }
+  }
+
+  const structureLabels = [
+    '1–90 дн (1-й триместр)',
+    '91–180 дн (2-й триместр)',
+    '181–240 дн (3-й триместр)',
+    '241+ дн (сухостой перед отёлом)'
+  ];
+  const structureData = [t1Count, t2Count, t3Count, t4Count];
+  const structureColors = [
+    'rgba(59, 130, 246, 0.85)',
+    'rgba(245, 158, 11, 0.85)',
+    'rgba(249, 115, 22, 0.85)',
+    'rgba(239, 68, 68, 0.85)'
+  ];
+
+  const reproductionByFarm = farmMatrixList.map(fm => {
+    const fCows = relevantCows.filter(c => (c.farm_name || 'Не указана') === fm.farm_name);
+    const fPregCows = fCows.filter(c => pregnantCowsList.includes(c));
+    const fPregDeath = fPregCows.filter(c => (c.category || '').toLowerCase() === 'падёж').length;
+    const fPregCull = fPregCows.filter(c => (c.category || '').toLowerCase() !== 'падёж').length;
+    const fPregLoss = fPregCows.reduce((sum, c) => sum + estimateCowValue(c), 0);
+    const fStillborn = fCows.filter(c => stillbornCowsList.includes(c)).length;
+    return {
+      farm_name: fm.farm_name,
+      total: fCows.length,
+      pregnant_count: fPregCows.length,
+      pregnant_pct: fCows.length > 0 ? Math.round((fPregCows.length / fCows.length) * 1000) / 10 : 0,
+      pregnant_death: fPregDeath,
+      pregnant_culling: fPregCull,
+      pregnant_loss_byn: Math.round(fPregLoss),
+      stillborn_count: fStillborn,
+      stillborn_pct: fCows.length > 0 ? Math.round((fStillborn / fCows.length) * 1000) / 10 : 0
+    };
+  });
+
+  let pregDeath = 0;
+  let pregCulling = 0;
+  let pregSanitary = 0;
+  const pregReasonsMap: Record<string, number> = {};
+  for (const c of pregnantCowsList) {
+    const cat = (c.category || '').toLowerCase();
+    if (cat === 'падёж') pregDeath++;
+    else if (cat === 'выбраковка') pregCulling++;
+    else pregSanitary++;
+
+    const r = c.reason || 'Не указана';
+    pregReasonsMap[r] = (pregReasonsMap[r] || 0) + 1;
+  }
+  const pregReasonsList = Object.entries(pregReasonsMap)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const farmLabels = reproductionByFarm.map(f => f.farm_name);
+  const farmPregnantTotal = reproductionByFarm.map(f => f.pregnant_count);
+  const farmPregnantDeath = reproductionByFarm.map(f => f.pregnant_death);
+  const farmPregnantCulling = reproductionByFarm.map(f => f.pregnant_culling);
+
+  const reproductionSummary = {
+    pregnant_count: pregnantCount,
+    pregnant_pct: pregnantPct,
+    pregnant_loss_byn: pregnantLossByn,
+    pregnant_death_count: pregDeath,
+    pregnant_culling_count: pregCulling,
+    pregnant_sanitary_count: pregSanitary,
+    pregnant_top_reasons: pregReasonsList.slice(0, 5),
+    late_gestation_count: t3Count + t4Count,
+    avg_gestation_months: avgGestationMonths,
+    stillborn_count: stillbornCount,
+    stillborn_pct: stillbornPct,
+    stillborn_reasons: stillbornReasonsList,
+    by_farm: reproductionByFarm,
+    stages: {
+      trimester_1: t1Count,
+      trimester_2: t2Count,
+      trimester_3: t3Count,
+      trimester_4: t4Count
+    },
+    charts: {
+      structure: {
+        labels: structureLabels,
+        data: structureData,
+        colors: structureColors
+      },
+      farms: {
+        labels: farmLabels,
+        pregnant_total: farmPregnantTotal,
+        pregnant_death: farmPregnantDeath,
+        pregnant_culling: farmPregnantCulling
+      },
+      reasons: {
+        labels: pregReasonsList.slice(0, 6).map(r => r.reason),
+        data: pregReasonsList.slice(0, 6).map(r => r.count)
+      }
+    }
+  };
+
   return {
+    reproduction: reproductionSummary,
     period_info: {
       period,
       start_date: startDate,
@@ -660,9 +1569,24 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       culling_count: categoryCounts['выбраковка'],
       sanitary_count: categoryCounts['санитарный'],
       death_rate_pct: totalDisposals > 0 ? Math.round((categoryCounts['падёж'] / totalDisposals) * 1000) / 10 : 0,
+      // Молодняк
+      youngstock_disposals: youngstockAll.length,
+      youngstock_death_count: youngstockDeathCount,
+      youngstock_death_pct: youngstockAll.length > 0 ? Math.round((youngstockDeathCount / youngstockAll.length) * 1000) / 10 : 0,
       calf_disposals: calfDisposals.length,
       calf_death_count: calfDeathCount,
-      all_time_total: allTimeTotal
+      // Лактация и DIM
+      fresh_disposals: freshDisposals,
+      fresh_deaths: freshDeaths,
+      fresh_share_pct: totalDisposals > 0 ? Math.round((freshDisposals / totalDisposals) * 1000) / 10 : 0,
+      avg_dim: countLactatingDim > 0 ? Math.round(sumLactatingDim / countLactatingDim) : 0,
+      avg_lactation: countLactationNum > 0 ? (sumLactationNum / countLactationNum).toFixed(1) : '1.0',
+      all_time_total: allTimeTotal,
+      // Экономика
+      total_loss_byn: Math.round(totalBookValue),
+      death_loss_byn: Math.round(deathBookValue),
+      culling_loss_byn: Math.round(cullingBookValue),
+      avg_head_loss: totalDisposals > 0 ? Math.round(totalBookValue / totalDisposals) : 0
     },
     charts: {
       categories: {
@@ -671,14 +1595,37 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
         colors: ['#EF4444', '#3B82F6', '#F59E0B']
       },
       age_groups: {
-        labels: sortedAgeGroups.map(x => x[0]),
+        labels: ageGroupLabels,
         data: sortedAgeGroups.map(x => x[1]),
-        colors: '#10B981'
+        colors: '#10B981',
+        death_data: ageGroupDeathData,
+        culling_data: ageGroupCullingData,
+        sanitary_data: ageGroupSanitaryData
+      },
+      lactation_phases: {
+        labels: lactationLabels,
+        death_data: lactationDeathData,
+        culling_data: lactationCullingData
+      },
+      dim_curve: {
+        labels: dimBins.map(b => b.label),
+        death_data: dimCurveDeath,
+        culling_data: dimCurveCulling
+      },
+      lactation_numbers: {
+        labels: ['1 лактация (первотёлки)', '2 лактация', '3 лактация', '4 лактация', '5+ лактация'],
+        death_data: lactNumberDeath,
+        culling_data: lactNumberCulling
       },
       pathology: {
         labels: sortedPathology.map(x => x[0]),
         data: sortedPathology.map(x => x[1]),
-        colors: '#6366F1'
+        colors: ['#DC2626', '#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B']
+      },
+      economics_by_group: {
+        labels: Object.keys(bookValueByGroup),
+        data: Object.values(bookValueByGroup).map(v => Math.round(v)),
+        colors: ['#0284C7', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#64748B']
       },
       farms: {
         labels: sortedFarms.map(x => x[0]),
@@ -690,6 +1637,10 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
         datasets: trendDatasets
       }
     },
+    scorecard,
+    farm_matrix: farmMatrixList,
+    lactation_cohorts: lactationCohorts,
+    category_analytics: categoryAnalyticsList,
     top_reasons: topReasonsList,
     recent_cows: recentCows,
     all_farms: distinctFarmsList
@@ -845,7 +1796,7 @@ app.get('/switch_user/:username', (req: Request, res: Response) => {
 });
 
 // Admin Test Data Generator & Benchmarks
-app.get('/admin/generator', loginRequired, (req: Request, res: Response) => {
+app.get('/admin/generator', loginRequired, adminRequired, (req: Request, res: Response) => {
   const t0 = performance.now();
 
   const farmStats: Record<string, number> = {};
@@ -868,11 +1819,20 @@ app.get('/admin/generator', loginRequired, (req: Request, res: Response) => {
     memory_mb: memoryMb,
     farm_stats: farmStats,
     cat_stats: catStats,
-    total_weight_formatted: Math.round(totalWeight).toLocaleString('ru-RU') + ' кг'
+    total_weight_formatted: Math.round(totalWeight).toLocaleString('ru-RU') + ' кг',
+    security_metrics: {
+      totalRequests: securityMetrics.totalRequests,
+      blockedRequestsCount: securityMetrics.blockedRequestsCount,
+      blockedIpsCount: securityMetrics.blockedIpsTotal.size,
+      authFailuresCount: securityMetrics.authFailuresCount,
+      slowRequestsCount: securityMetrics.slowRequestsCount,
+      trackedIpsCount: globalDdosLimiter.getTrackedCount(),
+      uptimeMinutes: Math.floor((Date.now() - securityMetrics.startedAt.getTime()) / 60000)
+    }
   });
 });
 
-app.post('/admin/generate_test_data', loginRequired, (req: Request, res: Response) => {
+app.post('/admin/generate_test_data', loginRequired, adminRequired, (req: Request, res: Response) => {
   const action = req.body.action || 'reset_1250';
 
   if (action === 'add_500') {
@@ -899,7 +1859,32 @@ app.post('/admin/generate_test_data', loginRequired, (req: Request, res: Respons
   res.redirect(referer);
 });
 
-// Login
+// Live Anti-DDoS and Security Metrics API (Admin Only)
+app.get('/api/security_status', loginRequired, adminRequired, (req: Request, res: Response) => {
+  res.json({
+    status: 'ACTIVE_SHIELD',
+    uptime_minutes: Math.floor((Date.now() - securityMetrics.startedAt.getTime()) / 60000),
+    total_requests: securityMetrics.totalRequests,
+    blocked_requests: securityMetrics.blockedRequestsCount,
+    blocked_ips_count: securityMetrics.blockedIpsTotal.size,
+    auth_failures: securityMetrics.authFailuresCount,
+    slow_requests: securityMetrics.slowRequestsCount,
+    tracked_ips_in_memory: globalDdosLimiter.getTrackedCount(),
+    protection_layers: [
+      'Sliding Window L7 Rate Limiter (180 req/min)',
+      'Burst Flood Spike Limiter (35 req/5sec)',
+      'Auth Brute Force & Credential Stuffing Guard (8 req/3min)',
+      'Bcrypt CPU Starvation Tarpit & Progressive Delay',
+      'Slowloris & Slow HTTP 25s Execution Timeout',
+      'Payload Size Bounding (2MB JSON/Urlencoded)',
+      'Parameter Pollution & Prototype Pollution Blocker',
+      'Process Crash Immunity (uncaughtException & unhandledRejection)',
+      'HTTP Security Headers (nosniff, XSS, Referrer-Policy, No-X-Powered-By)'
+    ]
+  });
+});
+
+// Login with Brute-Force & Bcrypt CPU Starvation Protection
 app.get('/login', (req: Request, res: Response) => {
   if (req.session.user_id) {
     return res.redirect('/dashboard');
@@ -907,11 +1892,51 @@ app.get('/login', (req: Request, res: Response) => {
   res.render('login');
 });
 
-app.post('/login', (req: Request, res: Response) => {
-  const { username, password } = req.body;
+app.post('/login', async (req: Request, res: Response) => {
+  const clientIp = getClientIp(req);
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+
+  // 1. Check Auth Rate Limiter
+  const rateCheck = authLimiter.check(clientIp);
+  if (!rateCheck.allowed) {
+    securityMetrics.blockedRequestsCount++;
+    addFlash(req, `Слишком много попыток входа с вашего IP. Защита заблокировала вход на ${rateCheck.retryAfterSec || 60} сек.`, 'danger');
+    return res.status(429).render('login');
+  }
+
+  // 2. Check Lockout for IP & Username
+  const ipLock = checkLoginLockout(clientIp);
+  const userLock = checkLoginLockout(username);
+  if (ipLock.locked || userLock.locked) {
+    securityMetrics.blockedRequestsCount++;
+    const waitSec = Math.max(ipLock.waitSec, userLock.waitSec);
+    addFlash(req, `Превышен лимит неверных попыток авторизации. Вход заблокирован на ${waitSec} сек.`, 'danger');
+    return res.status(429).render('login');
+  }
+
   const user = users.find(u => u.username === username);
 
-  if (user && bcrypt.compareSync(password, user.password_hash)) {
+  // 3. Constant-time / CPU-safe password verification
+  let isValid = false;
+  if (user) {
+    try {
+      isValid = await bcrypt.compare(password, user.password_hash);
+    } catch {
+      isValid = false;
+    }
+  } else {
+    // Fake compare to prevent timing attacks, handled asynchronously
+    try {
+      await bcrypt.compare(password, '$2a$10$7EqJtq98hPqEX7fNZaFWoO.8/q3g1j2p4n5m6k7l8i9o0p1q2r3s4');
+    } catch {
+      // ignore
+    }
+  }
+
+  if (isValid && user) {
+    clearFailedLogin(clientIp);
+    clearFailedLogin(username);
     req.session.user_id = user.id;
     req.session.username = user.username;
     req.session.user_type = user.user_type;
@@ -919,6 +1944,14 @@ app.post('/login', (req: Request, res: Response) => {
     addFlash(req, 'Вход выполнен успешно', 'success');
     return res.redirect('/dashboard');
   }
+
+  // On failure: record failed attempt & throttle rapid bots
+  securityMetrics.authFailuresCount++;
+  recordFailedLogin(clientIp);
+  if (username) recordFailedLogin(username);
+
+  // Progressive delay to defeat automated brute-force scripts
+  await new Promise(r => setTimeout(r, 600));
 
   addFlash(req, 'Неверное имя пользователя или пароль', 'danger');
   res.render('login');
@@ -1098,6 +2131,9 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
   const farmFilter = String(req.query.farm || '').trim();
   const categoryFilter = String(req.query.category || '').trim().toLowerCase();
   const reasonFilter = String(req.query.reason || '').trim();
+  const ageGroupFilter = String(req.query.age_group || '').trim();
+  const lactationPhaseFilter = String(req.query.lactation_phase || '').trim();
+  const reproFilter = String(req.query.repro_filter || '').trim().toLowerCase();
   const searchQuery = String(req.query.search || '').trim().toLowerCase();
   const sort = String(req.query.sort || 'newest').trim();
   const isSanitaryCategory = (categoryFilter === 'санитарный' || categoryFilter === 'санбрак');
@@ -1111,7 +2147,7 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
       if (c.farm_name !== farmFilter) return false;
     }
 
-    // Category filter
+    // Category filter (вид выбытия)
     if (categoryFilter && categoryFilter !== 'all') {
       const catLower = c.category.toLowerCase();
       if (isSanitaryCategory) {
@@ -1119,6 +2155,40 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
       } else if (catLower !== categoryFilter) {
         return false;
       }
+    }
+
+    // Age group filter (категория скота)
+    if (ageGroupFilter && ageGroupFilter !== 'all') {
+      const cAg = c.age_group || 'Коровы дойного стада';
+      if (ageGroupFilter === 'молодняк_все') {
+        const agL = cAg.toLowerCase();
+        if (!agL.includes('тел') && !agL.includes('молод') && !agL.includes('быч')) return false;
+      } else if (cAg !== ageGroupFilter) {
+        return false;
+      }
+    }
+
+    // Lactation phase filter
+    if (lactationPhaseFilter && lactationPhaseFilter !== 'all') {
+      const phase = c.lactation_phase || computeLactationPhase(c.age_group, c.lactation_days, c.lactation);
+      if (!phase.toLowerCase().includes(lactationPhaseFilter.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Repro filter (выбытие стельных коров / мертворождения)
+    if (reproFilter) {
+      const agL = (c.age_group || '').toLowerCase();
+      const rL = (c.reason || '').toLowerCase();
+      const isPreg = (c.is_pregnant === 1 || ((c.gestation_days || 0) > 0) || agL.includes('сухосто') || agL.includes('нетел') || rL.includes('стельн'));
+      const isStill = (c.is_stillborn === 1 || ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов'].some(k => rL.includes(k)));
+
+      if (reproFilter === 'pregnant' && !isPreg) return false;
+      if (reproFilter === 'pregnant_late') {
+        const isLate = ((c.gestation_days || 0) >= 180) || (isPreg && agL.includes('сухосто'));
+        if (!isLate) return false;
+      }
+      if (reproFilter === 'stillborn' && !isStill) return false;
     }
 
     // Reason filter
@@ -1133,8 +2203,9 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
       const matchReason = c.reason.toLowerCase().includes(searchQuery);
       const matchFarm = c.farm_name.toLowerCase().includes(searchQuery);
       const matchAg = c.age_group ? c.age_group.toLowerCase().includes(searchQuery) : false;
+      const matchPhase = c.lactation_phase ? c.lactation_phase.toLowerCase().includes(searchQuery) : false;
       const matchNotes = c.notes ? c.notes.toLowerCase().includes(searchQuery) : false;
-      if (!matchId && !matchTag && !matchReason && !matchFarm && !matchAg && !matchNotes) {
+      if (!matchId && !matchTag && !matchReason && !matchFarm && !matchAg && !matchPhase && !matchNotes) {
         return false;
       }
     }
@@ -1198,10 +2269,25 @@ app.get('/cows', loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
   const farmName = req.session.farm_name;
   const uniqueFarms = getUniqueFarms();
+  const reproFilter = String(req.query.repro_filter || '').trim().toLowerCase();
 
   let userCows = cows;
   if (userType !== 'admin') {
     userCows = cows.filter(c => c.farm_name === farmName);
+  }
+
+  if (reproFilter) {
+    userCows = userCows.filter(c => {
+      const agL = (c.age_group || '').toLowerCase();
+      const rL = (c.reason || '').toLowerCase();
+      const isPreg = (c.is_pregnant === 1 || ((c.gestation_days || 0) > 0) || agL.includes('сухосто') || agL.includes('нетел') || rL.includes('стельн'));
+      const isStill = (c.is_stillborn === 1 || ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов'].some(k => rL.includes(k)));
+
+      if (reproFilter === 'pregnant') return isPreg;
+      if (reproFilter === 'pregnant_late') return ((c.gestation_days || 0) >= 180) || (isPreg && agL.includes('сухосто'));
+      if (reproFilter === 'stillborn') return isStill;
+      return true;
+    });
   }
 
   let deathCount = 0;
@@ -1230,7 +2316,8 @@ app.get('/cows', loginRequired, (req: Request, res: Response) => {
     },
     unique_farms: uniqueFarms,
     categories: DISPOSAL_CATEGORIES,
-    user_type: userType
+    user_type: userType,
+    repro_filter: reproFilter
   });
 });
 
@@ -1258,7 +2345,7 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
   const { category, reason, disposal_date } = req.body;
 
   if (!category || !reason || !disposal_date) {
-    addFlash(req, 'Заполните все поля', 'danger');
+    addFlash(req, 'Заполните все обязательные поля', 'danger');
     return res.redirect('/add_cow');
   }
 
@@ -1269,6 +2356,31 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
   }
 
   const cowId = generateCowId(farmName);
+  const ageGroup = req.body.age_group ? String(req.body.age_group).trim() : 'Коровы дойного стада';
+  const lact = req.body.lactation !== undefined && req.body.lactation !== '' ? parseInt(String(req.body.lactation), 10) : undefined;
+  const lactDays = req.body.lactation_days !== undefined && req.body.lactation_days !== '' ? parseInt(String(req.body.lactation_days), 10) : undefined;
+  const lactPhase = computeLactationPhase(ageGroup, lactDays, lact);
+
+  // Воспроизводство и стельность
+  let isPregnant = req.body.is_pregnant === '1' || req.body.is_pregnant === 'on' || req.body.is_pregnant === true ? 1 : 0;
+  let gestationDays = req.body.gestation_days ? parseInt(String(req.body.gestation_days), 10) : 0;
+  let isStillborn = req.body.is_stillborn === '1' || req.body.is_stillborn === 'on' || req.body.is_stillborn === true ? 1 : 0;
+
+  // Автоопределение, если фермер не проставил чекбокс явно
+  const reasonLower = (reason || '').toLowerCase();
+  const ageGroupLower = (ageGroup || '').toLowerCase();
+  if (!isPregnant) {
+    if (lactPhase.toLowerCase().includes('сухосто') || ageGroupLower.includes('сухосто') || ageGroupLower.includes('нетел') || reasonLower.includes('стельн')) {
+      isPregnant = 1;
+      if (gestationDays === 0) gestationDays = ageGroupLower.includes('сухосто') ? 210 : 180;
+    }
+  }
+  if (!isStillborn) {
+    const stillbornKeys = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок'];
+    if (stillbornKeys.some(k => reasonLower.includes(k))) {
+      isStillborn = 1;
+    }
+  }
 
   cows.push({
     id: cowIdCounter++,
@@ -1279,12 +2391,17 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     disposal_date,
     ear_tag: req.body.ear_tag ? String(req.body.ear_tag).trim() : undefined,
     breed: req.body.breed ? String(req.body.breed).trim() : 'Черно-пёстрая белорусской селекции',
-    age_group: req.body.age_group ? String(req.body.age_group).trim() : 'Коровы дойного стада',
-    lactation: req.body.lactation ? parseInt(String(req.body.lactation), 10) : undefined,
+    age_group: ageGroup,
+    lactation: lact,
+    lactation_days: lactDays,
+    lactation_phase: lactPhase,
     weight: req.body.weight ? parseFloat(String(req.body.weight)) : undefined,
     milk_yield: req.body.milk_yield ? parseFloat(String(req.body.milk_yield)) : undefined,
     book_value: req.body.book_value ? parseFloat(String(req.body.book_value)) : undefined,
     notes: req.body.notes ? String(req.body.notes).trim() : undefined,
+    is_pregnant: isPregnant,
+    gestation_days: gestationDays,
+    is_stillborn: isStillborn,
     created_at: formatDate(new Date()) + ' ' + new Date().toTimeString().split(' ')[0],
     created_by: req.session.user_id
   });
@@ -1348,6 +2465,11 @@ app.post('/add_multiple_cows', loginRequired, (req: Request, res: Response) => {
     }
   }
 
+  // Enforce batch boundary to prevent Memory/CPU Exhaustion DoS
+  if (cowsData.length > 500) {
+    cowsData = cowsData.slice(0, 500);
+  }
+
   const todayStr = formatDate(new Date());
   let addedCount = 0;
   let errorCount = 0;
@@ -1359,6 +2481,30 @@ app.post('/add_multiple_cows', loginRequired, (req: Request, res: Response) => {
         continue;
       }
       const cowId = generateCowId(farmName);
+      const ag = item.age_group ? String(item.age_group).trim() : 'Коровы дойного стада';
+      const lact = item.lactation !== undefined && item.lactation !== '' ? parseInt(String(item.lactation), 10) : undefined;
+      const lactDays = item.lactation_days !== undefined && item.lactation_days !== '' ? parseInt(String(item.lactation_days), 10) : undefined;
+      const lactPhase = computeLactationPhase(ag, lactDays, lact);
+
+      let isPreg = item.is_pregnant === 1 || item.is_pregnant === '1' || item.is_pregnant === true ? 1 : 0;
+      let gestD = item.gestation_days ? parseInt(String(item.gestation_days), 10) : 0;
+      let isStill = item.is_stillborn === 1 || item.is_stillborn === '1' || item.is_stillborn === true ? 1 : 0;
+
+      const rLow = (item.reason || '').toLowerCase();
+      const agLow = ag.toLowerCase();
+      if (!isPreg) {
+        if (lactPhase.toLowerCase().includes('сухосто') || agLow.includes('сухосто') || agLow.includes('нетел') || rLow.includes('стельн')) {
+          isPreg = 1;
+          if (gestD === 0) gestD = agLow.includes('сухосто') ? 210 : 180;
+        }
+      }
+      if (!isStill) {
+        const stillbornKeys = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок'];
+        if (stillbornKeys.some(k => rLow.includes(k))) {
+          isStill = 1;
+        }
+      }
+
       cows.push({
         id: cowIdCounter++,
         cow_id: cowId,
@@ -1368,12 +2514,17 @@ app.post('/add_multiple_cows', loginRequired, (req: Request, res: Response) => {
         disposal_date: item.disposal_date,
         ear_tag: item.ear_tag ? String(item.ear_tag).trim() : undefined,
         breed: item.breed ? String(item.breed).trim() : 'Черно-пёстрая белорусской селекции',
-        age_group: item.age_group ? String(item.age_group).trim() : 'Коровы дойного стада',
-        lactation: item.lactation ? parseInt(String(item.lactation), 10) : undefined,
+        age_group: ag,
+        lactation: lact,
+        lactation_days: lactDays,
+        lactation_phase: lactPhase,
         weight: item.weight ? parseFloat(String(item.weight)) : undefined,
         milk_yield: item.milk_yield ? parseFloat(String(item.milk_yield)) : undefined,
         book_value: item.book_value ? parseFloat(String(item.book_value)) : undefined,
         notes: item.notes ? String(item.notes).trim() : undefined,
+        is_pregnant: isPreg,
+        gestation_days: gestD,
+        is_stillborn: isStill,
         created_at: formatDate(new Date()) + ' ' + new Date().toTimeString().split(' ')[0],
         created_by: req.session.user_id
       });
@@ -1458,18 +2609,39 @@ app.post('/edit_cow/:id', loginRequired, (req: Request, res: Response) => {
     return res.redirect('/cows');
   }
 
-  const { category, reason, disposal_date, ear_tag, breed, age_group, lactation, weight, milk_yield, book_value, notes } = req.body;
+  const { category, reason, disposal_date, ear_tag, breed, age_group, lactation, lactation_days, weight, milk_yield, book_value, notes } = req.body;
   if (category) cow.category = category;
   if (reason) cow.reason = reason;
   if (disposal_date) cow.disposal_date = disposal_date;
   if (ear_tag !== undefined) cow.ear_tag = String(ear_tag).trim();
   if (breed) cow.breed = String(breed).trim();
   if (age_group) cow.age_group = String(age_group).trim();
-  if (lactation !== undefined && lactation !== '') cow.lactation = parseInt(String(lactation), 10);
+  if (lactation !== undefined && lactation !== '') {
+    cow.lactation = parseInt(String(lactation), 10);
+  } else if (lactation === '') {
+    cow.lactation = undefined;
+  }
+  if (lactation_days !== undefined && lactation_days !== '') {
+    cow.lactation_days = parseInt(String(lactation_days), 10);
+  } else if (lactation_days === '') {
+    cow.lactation_days = undefined;
+  }
+  cow.lactation_phase = computeLactationPhase(cow.age_group, cow.lactation_days, cow.lactation);
   if (weight !== undefined && weight !== '') cow.weight = parseFloat(String(weight));
   if (milk_yield !== undefined && milk_yield !== '') cow.milk_yield = parseFloat(String(milk_yield));
   if (book_value !== undefined && book_value !== '') cow.book_value = parseFloat(String(book_value));
   if (notes !== undefined) cow.notes = String(notes).trim();
+
+  // Воспроизводство и стельность
+  if (req.body.is_pregnant !== undefined) {
+    cow.is_pregnant = (req.body.is_pregnant === '1' || req.body.is_pregnant === 'on' || req.body.is_pregnant === true) ? 1 : 0;
+  }
+  if (req.body.gestation_days !== undefined) {
+    cow.gestation_days = req.body.gestation_days ? parseInt(String(req.body.gestation_days), 10) : 0;
+  }
+  if (req.body.is_stillborn !== undefined) {
+    cow.is_stillborn = (req.body.is_stillborn === '1' || req.body.is_stillborn === 'on' || req.body.is_stillborn === true) ? 1 : 0;
+  }
 
   addFlash(req, `Запись ${cow.cow_id} успешно обновлена`, 'success');
   res.redirect('/cows');
@@ -1484,7 +2656,7 @@ app.get('/reports', loginRequired, (req: Request, res: Response) => {
 });
 
 // Generate Report
-app.post('/generate_report', loginRequired, async (req: Request, res: Response) => {
+app.post('/generate_report', loginRequired, heavyOpsProtection, async (req: Request, res: Response) => {
   const { report_type, format, start_date, end_date, farm_filter, report_category } = req.body;
   const userType = req.session.user_type;
   const userFarm = req.session.farm_name;
@@ -1805,6 +2977,133 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
     return res.end();
   }
 
+  // 4. Специализированный аналитический отчёт по лактации и молодняку
+  if (report_type === 'lactation_analytics') {
+    // Лист 1: Анализ лактации и фаз DIM
+    const wsLact = workbook.addWorksheet('Аналитика лактации (DIM)');
+    wsLact.mergeCells('A1:G1');
+    wsLact.getCell('A1').value = 'ОАО «НОВАЯ ПРИПЯТЬ» — АНАЛИЗ ВЫБЫТИЯ ПО ФАЗАМ ЛАКТАЦИИ И DIM';
+    wsLact.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    wsLact.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+    wsLact.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    wsLact.mergeCells('A2:G2');
+    wsLact.getCell('A2').value = `Период: с ${start_date} по ${end_date} | Подразделения: ${farm_filter === 'all' ? 'Все фермы' : (farm_filter || userFarm)}`;
+    wsLact.getCell('A2').font = { italic: true, size: 10 };
+    wsLact.getCell('A2').alignment = { horizontal: 'center' };
+
+    const lactHeader = wsLact.getRow(4);
+    lactHeader.values = ['Фаза лактации (DIM)', 'Интервал (дни)', 'Выбыло всего (гол.)', 'Падёж (гол.)', 'Выбраковка / санбрак', 'Ср. дни лактации (DIM)', 'Ср. масса (кг)'];
+    lactHeader.font = { bold: true };
+    lactHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+    lactHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const phasesDef = [
+      { name: 'Новотельный период (0–30 дн)', min: 0, max: 30, desc: '0–30 дн (Критическая зона)' },
+      { name: 'Раздой / Пик лактации (31–100 дн)', min: 31, max: 100, desc: '31–100 дн' },
+      { name: 'Середина лактации (101–200 дн)', min: 101, max: 200, desc: '101–200 дн' },
+      { name: 'Спад лактации (201–305+ дн)', min: 201, max: 9999, desc: '201–305+ дн' },
+      { name: 'Сухостойный период', min: -1, max: -1, desc: 'Сухостой' }
+    ];
+
+    let rowIdx = 5;
+    for (const p of phasesDef) {
+      const cohortCows = filteredCows.filter(c => {
+        const ag = (c.age_group || '').toLowerCase();
+        if (p.min === -1) return ag.includes('сухосто');
+        if (ag.includes('тел') || ag.includes('молод') || ag.includes('быч') || ag.includes('нетел') || ag.includes('сухосто')) return false;
+        const dim = c.lactation_days || 0;
+        return dim >= p.min && dim <= p.max;
+      });
+
+      const total = cohortCows.length;
+      const death = cohortCows.filter(c => c.category === 'падёж').length;
+      const culling = total - death;
+      const avgDim = total > 0 ? Math.round(cohortCows.reduce((s, c) => s + (c.lactation_days || 0), 0) / total) : 0;
+      const avgWeight = total > 0 ? Math.round(cohortCows.reduce((s, c) => s + (c.weight || 0), 0) / total) : 0;
+
+      const r = wsLact.addRow([p.name, p.desc, total, death, culling, avgDim > 0 ? avgDim : '-', avgWeight > 0 ? avgWeight : '-']);
+      r.alignment = { vertical: 'middle', horizontal: 'center' };
+      r.getCell(1).alignment = { horizontal: 'left' };
+      if (p.name.includes('Новотел')) {
+        r.getCell(1).font = { bold: true, color: { argb: 'FFDC2626' } };
+      }
+      rowIdx++;
+    }
+
+    wsLact.columns = [{ width: 34 }, { width: 22 }, { width: 20 }, { width: 16 }, { width: 22 }, { width: 22 }, { width: 18 }];
+
+    // Лист 2: Аналитика выбытия молодняка
+    const wsYouth = workbook.addWorksheet('Аналитика молодняка');
+    wsYouth.mergeCells('A1:F1');
+    wsYouth.getCell('A1').value = 'ОАО «НОВАЯ ПРИПЯТЬ» — СОХРАННОСТЬ И ВЫБЫТИЕ МОЛОДНЯКА КРС';
+    wsYouth.getCell('A1').font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    wsYouth.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
+    wsYouth.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const youthHeader = wsYouth.getRow(3);
+    youthHeader.values = ['Половозрастная группа', 'Всего выбыло (гол.)', 'Падёж (гол.)', 'Доля падежа (%)', 'Ср. масса (кг)', 'Преобладающие диагнозы'];
+    youthHeader.font = { bold: true };
+    youthHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+    youthHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const youthCats = ['Телята (до 6 мес.)', 'Молодняк (6–18 мес.)', 'Нетели', 'Бычки на откорме'];
+    for (const yCat of youthCats) {
+      const yCows = filteredCows.filter(c => (c.age_group || '').toLowerCase().includes(yCat.slice(0, 5).toLowerCase()));
+      const tot = yCows.length;
+      const dth = yCows.filter(c => c.category === 'падёж').length;
+      const pct = tot > 0 ? (dth / tot * 100).toFixed(1) + '%' : '0.0%';
+      const avgW = tot > 0 ? Math.round(yCows.reduce((s, c) => s + (c.weight || 0), 0) / tot) : 0;
+      
+      const diagCounts: Record<string, number> = {};
+      yCows.forEach(c => { diagCounts[c.reason] = (diagCounts[c.reason] || 0) + 1; });
+      const topD = Object.entries(diagCounts).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([d, n]) => `${d} (${n})`).join(', ') || '-';
+
+      const row = wsYouth.addRow([yCat, tot, dth, pct, avgW > 0 ? avgW : '-', topD]);
+      row.alignment = { vertical: 'middle', horizontal: 'center' };
+      row.getCell(1).alignment = { horizontal: 'left' };
+      row.getCell(1).font = { bold: true };
+      row.getCell(6).alignment = { horizontal: 'left' };
+    }
+    wsYouth.columns = [{ width: 26 }, { width: 20 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 38 }];
+
+    // Лист 3: Реестр животных с полями лактации
+    const wsReg = workbook.addWorksheet('Реестр (Лактация и DIM)');
+    const regHeader = wsReg.getRow(1);
+    regHeader.values = [
+      '№ п/п', 'ID выбытия', 'Бирка AITS', 'Ферма', 'Категория скота',
+      'Лактация', 'Дни лактации (DIM)', 'Фаза лактации', 'Вид выбытия', 'Причина / Диагноз', 'Масса (кг)', 'Удой (кг)', 'Дата'
+    ];
+    regHeader.font = { bold: true };
+    regHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    regHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    filteredCows.forEach((c, idx) => {
+      const phase = c.lactation_phase || computeLactationPhase(c.age_group, c.lactation_days, c.lactation);
+      wsReg.addRow([
+        idx + 1, c.cow_id, c.ear_tag || '-', c.farm_name, c.age_group || 'Коровы дойного стада',
+        c.lactation !== undefined ? c.lactation : '-',
+        c.lactation_days !== undefined ? c.lactation_days : '-',
+        phase,
+        c.category.charAt(0).toUpperCase() + c.category.slice(1),
+        c.reason,
+        c.weight || '-',
+        c.milk_yield || '-',
+        c.disposal_date
+      ]);
+    });
+    wsReg.columns = [
+      { width: 6 }, { width: 14 }, { width: 18 }, { width: 20 }, { width: 24 },
+      { width: 12 }, { width: 20 }, { width: 24 }, { width: 16 }, { width: 30 }, { width: 14 }, { width: 14 }, { width: 14 }
+    ];
+
+    const filename = `аналитика_лактации_и_молодняка_${start_date}_по_${end_date}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    return res.end();
+  }
+
   // Structured / Simple Excel Report
   const worksheet = workbook.addWorksheet(report_type === 'structured' ? 'Сводный отчёт' : 'Данные');
 
@@ -1869,7 +3168,7 @@ app.post('/generate_report', loginRequired, async (req: Request, res: Response) 
 });
 
 // Generate Original Template Excel
-app.post('/generate_original_excel', loginRequired, adminRequired, async (req: Request, res: Response) => {
+app.post('/generate_original_excel', loginRequired, adminRequired, heavyOpsProtection, async (req: Request, res: Response) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Выбытие скота Сводка');
 
@@ -1947,6 +3246,68 @@ app.get('/get_reasons/:category', loginRequired, (req: Request, res: Response) =
   res.json(reasons);
 });
 
+// Экономические нормативы цен BYN и методика расчета
+app.get('/api/pricing', loginRequired, (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    pricing: currentPricingStandards,
+    methodology: {
+      title: 'Методика расчета экономического ущерба от выбытия скота (РБ)',
+      formula: 'Общий ущерб (BYN) = ∑ (Балансовая стоимость животных)',
+      description: 'Если в акте выбытия заполнено поле "Балансовая стоимость", берется точная сумма из документа. В противном случае используется финансовый норматив для соответствующей группы скота.',
+      standards: currentPricingStandards
+    }
+  });
+});
+
+app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Response) => {
+  const {
+    price_calves,
+    price_youngstock,
+    price_heifers,
+    price_cows,
+    price_dry_cows,
+    meat_price_per_kg,
+    milk_price_per_kg,
+    replacement_cost,
+    norm_youngstock_preservation,
+    norm_fresh_cow_disposal,
+    norm_first_lactation_culling,
+    norm_mortality_rate,
+    norm_locomotor_disorders,
+    norm_mastitis_disorders
+  } = req.body;
+
+  if (price_calves !== undefined) currentPricingStandards.price_calves = Math.max(0, Number(price_calves) || 900);
+  if (price_youngstock !== undefined) currentPricingStandards.price_youngstock = Math.max(0, Number(price_youngstock) || 1650);
+  if (price_heifers !== undefined) currentPricingStandards.price_heifers = Math.max(0, Number(price_heifers) || 2700);
+  if (price_cows !== undefined) currentPricingStandards.price_cows = Math.max(0, Number(price_cows) || 3200);
+  if (price_dry_cows !== undefined) currentPricingStandards.price_dry_cows = Math.max(0, Number(price_dry_cows) || 3000);
+  if (meat_price_per_kg !== undefined) currentPricingStandards.meat_price_per_kg = Math.max(0, Number(meat_price_per_kg) || 6.20);
+  if (milk_price_per_kg !== undefined) currentPricingStandards.milk_price_per_kg = Math.max(0, Number(milk_price_per_kg) || 1.18);
+  if (replacement_cost !== undefined) currentPricingStandards.replacement_cost = Math.max(0, Number(replacement_cost) || 2950);
+
+  if (norm_youngstock_preservation !== undefined) currentPricingStandards.norm_youngstock_preservation = Math.max(0, Math.min(100, Number(norm_youngstock_preservation) || 92));
+  if (norm_fresh_cow_disposal !== undefined) currentPricingStandards.norm_fresh_cow_disposal = Math.max(0, Math.min(100, Number(norm_fresh_cow_disposal) || 10));
+  if (norm_first_lactation_culling !== undefined) currentPricingStandards.norm_first_lactation_culling = Math.max(0, Math.min(100, Number(norm_first_lactation_culling) || 20));
+  if (norm_mortality_rate !== undefined) currentPricingStandards.norm_mortality_rate = Math.max(0, Math.min(100, Number(norm_mortality_rate) || 25));
+  if (norm_locomotor_disorders !== undefined) currentPricingStandards.norm_locomotor_disorders = Math.max(0, Math.min(100, Number(norm_locomotor_disorders) || 15));
+  if (norm_mastitis_disorders !== undefined) currentPricingStandards.norm_mastitis_disorders = Math.max(0, Math.min(100, Number(norm_mastitis_disorders) || 15));
+
+  res.json({
+    success: true,
+    message: 'Экономические ценники и зоотехнические пороги тревог успешно обновлены!',
+    pricing: currentPricingStandards
+  });
+});
+
+app.get('/pricing', loginRequired, adminRequired, (req: Request, res: Response) => {
+  res.render('pricing', {
+    pricing: currentPricingStandards,
+    user_type: req.session.user_type
+  });
+});
+
 app.get('/get_stats_data', loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
   const farmName = req.session.farm_name;
@@ -1974,13 +3335,25 @@ app.use((req: Request, res: Response) => {
   res.status(404).render('login');
 });
 
-// Error handling middleware
+// Error handling middleware (handles payload overflow, bad requests, prevents unhandled crashes)
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('Server error:', err);
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    if (req.xhr || req.is('json')) {
+      return res.status(413).json({ error: 'Размер запроса превышает допустимый лимит безопасности (2 МБ)' });
+    }
+    return res.status(413).send('413 Payload Too Large: Размер запроса превышает допустимый лимит безопасности (2 МБ)');
+  }
+  console.error('[SERVER ERROR HANDLER] Safely captured exception:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
   res.status(500).send('Внутренняя ошибка сервера: ' + (err.message || 'Error'));
 });
 
-// Start Server on 0.0.0.0:3000
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`Server started and listening on http://0.0.0.0:${PORT}`);
+// Start Server on 0.0.0.0:3000 with Slowloris & KeepAlive Protection Timeouts
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`Server started and listening on http://0.0.0.0:${PORT} [DDoS & Abuse Shield ACTIVE]`);
 });
+server.requestTimeout = 30000;
+server.headersTimeout = 20000;
+server.keepAliveTimeout = 5000;

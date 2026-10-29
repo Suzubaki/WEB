@@ -72,8 +72,14 @@
                         <a class="nav-link" href="/cows"><i class="bi bi-list-check"></i> Журнал коров</a>
                     </li>
                     <% if (session.user_type !== 'admin') { %>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/add_cows_dynamic"><i class="bi bi-plus-circle"></i> Добавить</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="addCowDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-plus-circle"></i> Добавить
+                        </a>
+                        <ul class="dropdown-menu shadow" aria-labelledby="addCowDropdown">
+                            <li><a class="dropdown-item py-2 fw-semibold" href="/add_cows_dynamic"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Быстрый ввод списком</a></li>
+                            <li><a class="dropdown-item py-2" href="/add_cow"><i class="bi bi-file-earmark-plus text-primary me-2"></i>Одиночная карточка</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/import_cows"><i class="bi bi-upload"></i> Импорт</a>
@@ -82,9 +88,14 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/reports"><i class="bi bi-file-earmark-text"></i> Акты & AITS</a>
                     </li>
+                    <% if (session.user_type === 'admin') { %>
                     <li class="nav-item">
-                        <a class="nav-link text-info fw-semibold" href="/admin/generator" title="Генератор и бенчмаркинг тестовых данных">
-                            <i class="bi bi-cpu-fill"></i> База: <strong><%= typeof cows_count !== 'undefined' ? cows_count : '' %></strong> гол.
+                        <a class="nav-link text-warning" href="/pricing"><i class="bi bi-calculator"></i> Нормативы BYN</a>
+                    </li>
+                    <% } %>
+                    <li class="nav-item">
+                        <a class="nav-link text-info fw-semibold" href="/admin/generator" title="Генератор тестовых данных и панель DDoS-защиты">
+                            <i class="bi bi-shield-check text-success"></i> База: <strong><%= typeof cows_count !== 'undefined' ? cows_count : '' %></strong> гол.
                         </a>
                     </li>
                     <% } %>

@@ -96,9 +96,13 @@ class Cow(db.Model):
     weight = db.Column(db.Float, nullable=True)                           # Живая масса (кг)
     notes = db.Column(db.Text, nullable=True)                             # Особые отметки / примечания
     age_group = db.Column(db.String(80), nullable=True)                   # Половозрастная группа (ПВГ)
+    lactation_days = db.Column(db.Integer, nullable=True)                 # Дни лактации (DIM - Days in Milk)
+    lactation_phase = db.Column(db.String(80), nullable=True)             # Фаза лактации (Новотел, Раздой, Середина, Спад, Сухостой, Молодняк)
     breed = db.Column(db.String(80), nullable=True)                       # Порода
     milk_yield = db.Column(db.Float, nullable=True)                       # Надой за лактацию (кг)
     book_value = db.Column(db.Float, nullable=True)                       # Балансовая стоимость (BYN)
+    is_pregnant = db.Column(db.Integer, default=0, nullable=True)         # Стельность (1: да, 0: нет)
+    gestation_days = db.Column(db.Integer, default=0, nullable=True)      # Срок стельности (дней/месяцев)
     
     # Системный аудит
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -107,8 +111,9 @@ class Cow(db.Model):
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 
     def __init__(self, id=None, cow_id=None, farm_name=None, category=None, reason=None, disposal_date=None,
-                 ear_tag=None, lactation=None, weight=None, notes=None, age_group=None, breed=None,
-                 milk_yield=None, book_value=None, created_at=None, created_by=None,
+                 ear_tag=None, lactation=None, weight=None, notes=None, age_group=None,
+                 lactation_days=None, lactation_phase=None, breed=None,
+                 milk_yield=None, book_value=None, is_pregnant=0, gestation_days=0, created_at=None, created_by=None,
                  updated_at=None, updated_by=None, **kwargs):
         if id is not None:
             self.id = id
@@ -122,6 +127,8 @@ class Cow(db.Model):
         self.weight = weight
         self.notes = notes
         self.age_group = age_group
+        self.lactation_days = lactation_days
+        self.lactation_phase = lactation_phase
         self.breed = breed
         self.milk_yield = milk_yield
         self.book_value = book_value
@@ -131,7 +138,7 @@ class Cow(db.Model):
         self.updated_by = updated_by
 
     def __repr__(self):
-        return f"<Cow id={self.id} num='{self.cow_id}' tag='{self.ear_tag}' farm='{self.farm_name}' cat='{self.category}'>"
+        return f"<Cow id={self.id} num='{self.cow_id}' tag='{self.ear_tag}' farm='{self.farm_name}' cat='{self.category}' dim={self.lactation_days}>"
 
     def to_dict(self):
         """Сериализация модели в словарь для шаблонов и JSON API"""
@@ -147,6 +154,8 @@ class Cow(db.Model):
             'weight': self.weight,
             'notes': self.notes,
             'age_group': self.age_group,
+            'lactation_days': self.lactation_days,
+            'lactation_phase': self.lactation_phase,
             'breed': self.breed,
             'milk_yield': self.milk_yield,
             'book_value': self.book_value,

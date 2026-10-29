@@ -284,6 +284,375 @@
     </div>
 </div>
 
+<!-- ЭКОНОМИЧЕСКИЙ БЛОК: Балансовый ущерб предприятия (BYN) -->
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-cash-coin text-danger"></i> Экономическая оценка ущерба от выбытия скота (BYN)
+        </h5>
+        <small class="text-muted">Расчет на основе балансовой стоимости выбывших голов и нормативов Минсельхозпрода РБ</small>
+    </div>
+    <div>
+        <a href="/pricing" class="btn btn-sm btn-outline-primary fw-semibold shadow-sm">
+            <i class="bi bi-sliders"></i> Методика & Нормативы цен BYN
+        </a>
+    </div>
+</div>
+<div class="row g-3 mb-4">
+    <!-- 1. Общий ущерб -->
+    <div class="col-md-3">
+        <div class="kpi-card h-100 border-danger-subtle bg-white">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-danger">Общий балансовый ущерб</div>
+                    <div class="kpi-value text-danger"><%= (d.kpi.total_loss_byn || 0).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">BYN</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-danger-subtle text-danger">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Суммарная балансовая стоимость выбывшего поголовья
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Прямой ущерб от падежа -->
+    <div class="col-md-3">
+        <div class="kpi-card h-100 border-danger bg-white">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-danger">Ущерб от падежа скота</div>
+                    <div class="kpi-value text-danger"><%= (d.kpi.death_loss_byn || 0).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">BYN</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-danger text-white">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Безвозвратные прямые потери предприятия
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Потери от выбраковки -->
+    <div class="col-md-3">
+        <div class="kpi-card h-100 border-primary-subtle bg-white">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-primary">Баланс выбраковки</div>
+                    <div class="kpi-value text-primary"><%= (d.kpi.culling_loss_byn || 0).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">BYN</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-primary-subtle text-primary">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Снято с продуктивного баланса стада
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Средний ущерб на 1 выбывшую голову -->
+    <div class="col-md-3">
+        <div class="kpi-card h-100 border-warning-subtle bg-white">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="kpi-title text-warning">Средний ущерб на 1 гол.</div>
+                    <div class="kpi-value text-dark"><%= (d.kpi.avg_head_loss || 0).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">BYN/гол.</span></div>
+                </div>
+                <div class="kpi-icon-badge bg-warning-subtle text-warning">
+                    <i class="bi bi-calculator-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 small text-muted">
+                Удельная тяжесть потерь на единицу стада
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- БЛОК ГЛУБОКОЙ ЗООТЕХНИЧЕСКОЙ АНАЛИТИКИ: ЛАКТАЦИЯ (DIM) И МОЛОДНЯК -->
+<div class="card border-0 shadow-sm mb-4 bg-light">
+    <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+                <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-cpu-fill text-primary"></i> Углубленная аналитика лактации и сохранности молодняка
+                </h5>
+                <small class="text-muted">Мониторинг критических фаз лактации (DIM) и возрастных групп (ОАО «Новая Припять»)</small>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/reports" class="btn btn-sm btn-outline-primary fw-semibold">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Экспорт аналитики (Excel)
+                </a>
+            </div>
+        </div>
+
+        <!-- 4 Зоотехнические KPI карточки -->
+        <div class="row g-3 mb-3">
+            <!-- 1. Выбытие молодняка -->
+            <div class="col-md-3">
+                <div class="kpi-card h-100 border-success-subtle bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-success">Молодняк (до 18 мес.)</div>
+                            <div class="kpi-value text-success"><%= d.kpi.youngstock_disposals %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-success-subtle text-success">
+                            <i class="bi bi-flower1"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Падёж: <strong class="text-danger"><%= d.kpi.youngstock_death_count %> гол.</strong> (доля: <%= d.kpi.youngstock_death_pct %>%)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Критический период: Новотел (0-30 дн) -->
+            <div class="col-md-3">
+                <div class="kpi-card h-100 border-danger-subtle bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-danger">Новотел (0–30 дн DIM)</div>
+                            <div class="kpi-value text-danger"><%= d.kpi.fresh_disposals %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-danger-subtle text-danger">
+                            <i class="bi bi-exclamation-octagon-fill"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Критическая зона: <strong class="text-danger"><%= d.kpi.fresh_deaths %> пало</strong> (<%= d.kpi.fresh_share_pct %>% выбытия)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Средний DIM выбывших коров -->
+            <div class="col-md-3">
+                <div class="kpi-card h-100 border-primary-subtle bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-primary">Ср. дни лактации (DIM)</div>
+                            <div class="kpi-value text-primary"><%= d.kpi.avg_dim %> <span class="fs-6 fw-normal text-muted">дн.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-primary-subtle text-primary">
+                            <i class="bi bi-droplet-half"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Ср. номер лактации: <strong><%= d.kpi.avg_lactation %></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Телята до 6 мес -->
+            <div class="col-md-3">
+                <div class="kpi-card h-100 border-info-subtle bg-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-info">Телята (до 6 мес.)</div>
+                            <div class="kpi-value text-info"><%= d.kpi.calf_disposals %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-info-subtle text-info">
+                            <i class="bi bi-gem"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Падёж телят: <strong class="text-danger"><%= d.kpi.calf_death_count %> гол.</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ВЕТЕРИНАРНЫЙ СКОРКАРД: 6 ключевых индикаторов эффективности (Бенчмарки Минсельхозпрода РБ) -->
+        <% if (d.scorecard && d.scorecard.length > 0) { %>
+        <div class="card border bg-white shadow-none mt-2">
+            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-dark small d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2 text-primary"></i> Ветеринарно-зоотехнический скоркард (Бенчмарки и нормативы безопасности)
+                </span>
+                <span class="badge bg-light text-muted border">Оценка рисков стада</span>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <% d.scorecard.forEach(function(sc) { %>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="p-2 rounded border bg-light h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span class="small fw-bold text-secondary text-truncate" title="<%= sc.title %>">
+                                    <i class="bi <%= sc.icon %> me-1"></i> <%= sc.title %>
+                                </span>
+                                <span class="badge bg-<%= sc.status %>"><%= sc.statusText %></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <div class="fs-5 fw-bold text-dark"><%= sc.current %></div>
+                                <div class="small text-muted">Норма: <%= sc.target %></div>
+                            </div>
+                            <div class="progress mt-1" style="height: 5px;">
+                                <div class="progress-bar bg-<%= sc.status %>" role="progressbar" style="width: <%= Math.min(parseFloat(sc.current) || 50, 100) %>%;"></div>
+                            </div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;"><%= sc.note %></div>
+                        </div>
+                    </div>
+                    <% }); %>
+                </div>
+            </div>
+        </div>
+        <% } %>
+    </div>
+</div>
+
+<!-- БЛОК АНАЛИТИКИ: ВЫБЫТИЕ СТЕЛЬНЫХ КОРОВ И ВНУТРИУТРОБНЫЕ ПОТЕРИ -->
+<% if (d.reproduction) { %>
+<div class="card border-0 shadow-sm mb-4 bg-white border-start border-4 border-danger">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-danger fs-4"></i> Выбытие стельных коров и внутриутробные потери
+            </h5>
+            <small class="text-muted">Мониторинг списания, падежа и выбраковки стельного поголовья. Потеря стельной коровы — двойной ущерб хозяйству (корова + приплод + будущая лактация).</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/cows?repro_filter=pregnant" class="btn btn-sm btn-outline-danger fw-semibold">
+                <i class="bi bi-list-check me-1"></i> Журнал выбывших стельных (<%= d.reproduction.pregnant_count %>)
+            </a>
+            <a href="/cows?repro_filter=stillborn" class="btn btn-sm btn-outline-secondary fw-semibold">
+                <i class="bi bi-x-circle me-1"></i> Мертворождения / Аборты (<%= d.reproduction.stillborn_count %>)
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <!-- 4 KPI карточки по выбытию стельных коров -->
+        <div class="row g-3 mb-3">
+            <!-- 1. Выбыло стельных коров -->
+            <div class="col-md-3">
+                <div class="p-3 rounded border bg-light h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-danger fw-bold text-uppercase"><i class="bi bi-heartbreak-fill me-1"></i> Выбыло стельных коров</span>
+                        <span class="badge bg-danger"><%= d.reproduction.pregnant_pct %>% стада</span>
+                    </div>
+                    <div class="fs-4 fw-bold text-dark"><%= d.reproduction.pregnant_count %> <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                    <div class="small text-muted mt-1">
+                        Падёж: <strong class="text-danger"><%= d.reproduction.pregnant_death_count || 0 %></strong> • Брак/Убой: <strong><%= (d.reproduction.pregnant_culling_count || 0) + (d.reproduction.pregnant_sanitary_count || 0) %></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Сроки стельности при выбытии -->
+            <div class="col-md-3">
+                <div class="p-3 rounded border bg-light h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted fw-bold text-uppercase">Срок на дату выбытия</span>
+                        <span class="badge bg-warning text-dark">Ср. <%= d.reproduction.avg_gestation_months %> мес.</span>
+                    </div>
+                    <div class="fs-4 fw-bold text-dark">
+                        <%= d.reproduction.late_gestation_count || (d.reproduction.stages && d.reproduction.stages.trimester_3) || 0 %> <span class="fs-6 fw-normal text-muted">глубокостельных</span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        Срок 181+ дней / сухостой (наивысший риск)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Экономический ущерб -->
+            <div class="col-md-3">
+                <div class="p-3 rounded border bg-light h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted fw-bold text-uppercase">Ущерб от выбытия стельных</span>
+                        <i class="bi bi-currency-exchange text-danger"></i>
+                    </div>
+                    <div class="fs-4 fw-bold text-danger"><%= (d.reproduction.pregnant_loss_byn || 0).toLocaleString('ru-RU') %> <span class="fs-6 fw-normal text-muted">BYN</span></div>
+                    <div class="small text-muted mt-1">
+                        Баланс коровы + утраченный приплод
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Топ-причина выбытия стельных коров -->
+            <div class="col-md-3">
+                <div class="p-3 rounded border bg-light h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted fw-bold text-uppercase">Топ-причина выбытия стельных</span>
+                        <i class="bi bi-activity text-warning"></i>
+                    </div>
+                    <div class="fw-bold text-dark text-truncate" title="<%= d.reproduction.pregnant_top_reasons && d.reproduction.pregnant_top_reasons.length > 0 ? d.reproduction.pregnant_top_reasons[0].reason : 'Нет выбывших' %>">
+                        <%= d.reproduction.pregnant_top_reasons && d.reproduction.pregnant_top_reasons.length > 0 ? d.reproduction.pregnant_top_reasons[0].reason : 'Нет выбывших' %>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        Случаев: <strong><%= d.reproduction.pregnant_top_reasons && d.reproduction.pregnant_top_reasons.length > 0 ? d.reproduction.pregnant_top_reasons[0].count : 0 %></strong> гол.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Графики: Сроки стельности выбывших коров и Сравнение ферм (Падёж vs Брак) -->
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+                <div class="card border bg-white h-100 shadow-none">
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-dark"><i class="bi bi-pie-chart text-danger me-1"></i> Сроки стельности выбывших коров</span>
+                        <span class="badge bg-light text-muted border">Распределение по триместрам</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box" style="height: 250px;">
+                            <canvas id="reproductionStructureChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card border bg-white h-100 shadow-none">
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-dark"><i class="bi bi-bar-chart-line text-danger me-1"></i> Выбытие стельных коров по МТФ: Падёж vs Выбраковка</span>
+                        <span class="badge bg-light text-muted border">Сравнение подразделений</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-box" style="height: 250px;">
+                            <canvas id="reproductionFarmsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Таблица выбытия стельных коров по МТФ -->
+        <% if (d.reproduction.by_farm && d.reproduction.by_farm.length > 0) { %>
+        <div class="table-responsive rounded border">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Ферма / МТФ</th>
+                        <th class="text-center">Всего выбытий</th>
+                        <th class="text-center">Выбыло стельных коров</th>
+                        <th class="text-center">Доля в выбытии (%)</th>
+                        <th class="text-center text-danger">Падёж стельных</th>
+                        <th class="text-center text-primary">Брак / Сан. убой</th>
+                        <th class="text-end">Ущерб по ферме (BYN)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% d.reproduction.by_farm.forEach(function(f) { %>
+                    <tr>
+                        <td class="fw-bold text-dark"><i class="bi bi-geo-alt text-primary me-1"></i> <%= f.farm_name %></td>
+                        <td class="text-center fw-semibold"><%= f.total %> гол.</td>
+                        <td class="text-center">
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold"><%= f.pregnant_count %> гол.</span>
+                        </td>
+                        <td class="text-center fw-bold"><%= f.pregnant_pct %>%</td>
+                        <td class="text-center text-danger fw-semibold"><%= f.pregnant_death %> гол.</td>
+                        <td class="text-center text-primary fw-semibold"><%= f.pregnant_culling %> гол.</td>
+                        <td class="text-end fw-bold text-dark"><%= (f.pregnant_loss_byn || 0).toLocaleString('ru-RU') %> BYN</td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+        <% } %>
+    </div>
+</div>
+<% } %>
+
 <!-- Ряд 1 графиков: Динамика 12 месяцев + Структура категорий -->
 <div class="row g-3 mb-4">
     <!-- Помесячная динамика 12 месяцев -->
@@ -330,35 +699,203 @@
     </div>
 </div>
 
-<!-- Ряд 2 графиков: Половозрастные группы (ПВГ) + Патологический профиль -->
+<!-- Ряд 2 графиков: Фазы лактации (Когорты DIM) + Детальная кривая риска DIM -->
 <div class="row g-3 mb-4">
-    <!-- Половозрастные группы -->
+    <!-- Выбытие по фазам лактации (DIM) -->
     <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
+        <div class="card shadow-sm h-100 border-primary-subtle">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-diagram-3-fill text-success me-2"></i> Выбытие по половозрастным группам (ПВГ)</h6>
-                <span class="badge bg-light text-success border">Телята (0-6 мес.): <%= d.kpi.calf_disposals %> гол.</span>
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-water me-2"></i> Выбытие по стадиям лактации (Фазы DIM)
+                </h6>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                    Новотел 0-30 дн: <%= d.kpi.fresh_disposals %> гол.
+                </span>
             </div>
             <div class="card-body">
                 <div class="chart-box">
-                    <canvas id="ageGroupChart"></canvas>
+                    <canvas id="lactationPhaseChart"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-4 text-center mt-2 small text-muted">
+                    <span><i class="bi bi-square-fill text-danger"></i> Падёж скота</span>
+                    <span><i class="bi bi-square-fill text-primary"></i> Выбраковка и санбрак</span>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Детальная кривая риска по дням лактации (DIM Risk Curve) -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100 border-danger-subtle">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-danger">
+                    <i class="bi bi-activity me-2"></i> Кривая риска выбытия по дням в лактации (DIM)
+                </h6>
+                <span class="badge bg-light text-muted border">8 интервалов лактации</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="dimCurveChart"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-4 text-center mt-2 small text-muted">
+                    <span><i class="bi bi-square-fill text-danger"></i> Падёж</span>
+                    <span><i class="bi bi-square-fill text-primary"></i> Выбраковка</span>
+                    <span class="text-secondary"><i class="bi bi-info-circle"></i> Пик потерь: 0–30 DIM</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ряд 3 графиков: Половозрастные группы скота (ПВГ) + Паритет лактаций (Первотёлки vs Полновозрастные) -->
+<div class="row g-3 mb-4">
+    <!-- Половозрастные группы (ПВГ) со стеком -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-diagram-3-fill text-success me-2"></i> Выбытие по половозрастным группам (ПВГ)</h6>
+                <span class="badge bg-light text-success border">Молодняк: <%= d.kpi.youngstock_disposals %> гол.</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="ageGroupChart"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-3 text-center mt-2 small text-muted">
+                    <span><i class="bi bi-square-fill text-danger"></i> Падёж</span>
+                    <span><i class="bi bi-square-fill text-primary"></i> Выбраковка</span>
+                    <span><i class="bi bi-square-fill text-warning"></i> Санбрак</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Выбытие по номерам лактаций -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-bar-chart-steps text-info me-2"></i> Выбытие коров по номерам лактаций</h6>
+                <span class="badge bg-light text-dark border">Ср. лактация: <%= d.kpi.avg_lactation %></span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="lactationNumberChart"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-4 text-center mt-2 small text-muted">
+                    <span><i class="bi bi-square-fill text-danger"></i> Падёж</span>
+                    <span><i class="bi bi-square-fill text-primary"></i> Выбраковка</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ряд 4 графиков: Патологический профиль по системам органов + Экономический ущерб по категориям скота -->
+<div class="row g-3 mb-4">
     <!-- Патологический профиль (По системам органов) -->
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-activity text-primary me-2"></i> Патологический профиль (по системам органов)</h6>
-                <span class="badge bg-light text-muted">Ветстандарт РБ</span>
+                <h6 class="mb-0 fw-bold"><i class="bi bi-heart-pulse-fill text-danger me-2"></i> Профиль заболеваемости (По системам органов)</h6>
+                <span class="badge bg-light text-muted border">8 анатомических групп</span>
             </div>
             <div class="card-body">
                 <div class="chart-box">
                     <canvas id="pathologyChart"></canvas>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Экономический балансовый ущерб по категориям в BYN -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100 border-warning-subtle">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-currency-exchange text-warning me-2"></i> Структура ущерба по группам скота (BYN)</h6>
+                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Всего: <%= (d.kpi.total_loss_byn || 0).toLocaleString('ru-RU') %> BYN</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-box">
+                    <canvas id="economicsChart"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-4 text-center mt-2 small text-muted">
+                    <span><i class="bi bi-square-fill text-danger"></i> Падёж</span>
+                    <span><i class="bi bi-square-fill text-primary"></i> Выбраковка</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Аналитическая матрица: Категория скота × Риски выбытия, продуктивность и финансовые потери -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="mb-0 fw-bold">
+            <i class="bi bi-table text-primary me-2"></i> Аналитический профиль по категориям скота, лактации и ущербу
+        </h6>
+        <span class="badge bg-light text-muted border">Автоматический расчёт когорт и баланса</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Категория скота (ПВГ)</th>
+                        <th class="text-center">Всего выбыло</th>
+                        <th class="text-center">Падёж (гол. / %)</th>
+                        <th class="text-center">Выбраковка</th>
+                        <th class="text-center">Ср. дни лакт. (DIM)</th>
+                        <th class="text-center">Ср. масса</th>
+                        <th class="text-end">Балансовый ущерб</th>
+                        <th>Преобладающие патологии / диагнозы</th>
+                        <th class="text-end">Журнал</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (d.category_analytics && d.category_analytics.length > 0) { %>
+                        <% d.category_analytics.forEach(function(item) { %>
+                        <tr>
+                            <td class="fw-bold">
+                                <% if (item.category_name.includes('Телят') || item.category_name.includes('Молодняк')) { %>
+                                    <span class="badge bg-success-subtle text-success me-1"><i class="bi bi-flower1"></i></span>
+                                <% } else if (item.category_name.includes('Нетели')) { %>
+                                    <span class="badge bg-info-subtle text-info me-1"><i class="bi bi-gem"></i></span>
+                                <% } else if (item.category_name.includes('сухосто')) { %>
+                                    <span class="badge bg-secondary-subtle text-secondary me-1"><i class="bi bi-moon"></i></span>
+                                <% } else { %>
+                                    <span class="badge bg-primary-subtle text-primary me-1"><i class="bi bi-droplet"></i></span>
+                                <% } %>
+                                <%= item.category_name %>
+                            </td>
+                            <td class="text-center fw-bold"><%= item.total %> гол.</td>
+                            <td class="text-center">
+                                <span class="badge bg-danger"><%= item.death %> гол.</span>
+                                <small class="text-muted ms-1">(<%= item.death_rate_pct %>%)</small>
+                            </td>
+                            <td class="text-center"><%= item.culling + item.sanitary %> гол.</td>
+                            <td class="text-center">
+                                <% if (item.avg_dim > 0) { %>
+                                    <span class="badge bg-light text-dark border"><%= item.avg_dim %> дн.</span>
+                                <% } else { %>
+                                    <span class="text-muted">-</span>
+                                <% } %>
+                            </td>
+                            <td class="text-center"><%= item.avg_weight > 0 ? item.avg_weight + ' кг' : '-' %></td>
+                            <td class="text-end fw-bold text-danger">
+                                <%= (item.loss_byn || 0).toLocaleString('ru-RU') %> BYN
+                            </td>
+                            <td class="small text-secondary"><%= item.top_reasons %></td>
+                            <td class="text-end">
+                                <a href="/cows?age_group=<%= encodeURIComponent(item.category_name) %>" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Открыть в журнале">
+                                    <i class="bi bi-funnel"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <% }); %>
+                    <% } else { %>
+                        <tr><td colspan="9" class="text-center py-3 text-muted">Нет данных</td></tr>
+                    <% } %>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -429,6 +966,81 @@
     <% } %>
 </div>
 
+<!-- Сравнительная матрица биобезопасности и экономического ущерба по МТФ/фермам -->
+<% if (d.farm_matrix && d.farm_matrix.length > 0) { %>
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="mb-0 fw-bold">
+            <i class="bi bi-shield-shaded text-danger me-2"></i> Сводная сравнительная матрица биобезопасности и потерь по фермам / МТФ
+        </h6>
+        <span class="badge bg-light text-muted border">ОАО «Новая Припять»</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Ферма / МТФ</th>
+                        <th class="text-center">Всего выбыло</th>
+                        <th class="text-center">Падёж (гол. / %)</th>
+                        <th class="text-center">Выбраковка</th>
+                        <th class="text-center">Молодняк (гол.)</th>
+                        <th class="text-center">Новотел 0-30 DIM</th>
+                        <th class="text-center">Ср. DIM</th>
+                        <th class="text-end">Ущерб (BYN)</th>
+                        <th class="text-center">Статус биобезопасности</th>
+                        <th class="text-end">Журнал</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% d.farm_matrix.forEach(function(fm) { %>
+                    <tr>
+                        <td class="fw-bold"><i class="bi bi-geo-alt-fill text-primary me-1"></i> <%= fm.farm %></td>
+                        <td class="text-center fw-bold"><%= fm.total %> гол.</td>
+                        <td class="text-center">
+                            <span class="badge bg-danger"><%= fm.death %> гол.</span>
+                            <small class="text-muted ms-1">(<%= fm.death_pct %>%)</small>
+                        </td>
+                        <td class="text-center"><%= fm.culling + fm.sanitary %> гол.</td>
+                        <td class="text-center">
+                            <% if (fm.youngstock > 0) { %>
+                                <span class="badge bg-success-subtle text-success"><%= fm.youngstock %></span>
+                            <% } else { %>
+                                <span class="text-muted">0</span>
+                            <% } %>
+                        </td>
+                        <td class="text-center">
+                            <% if (fm.fresh_0_30 > 0) { %>
+                                <span class="badge bg-danger-subtle text-danger"><%= fm.fresh_0_30 %> гол.</span>
+                            <% } else { %>
+                                <span class="text-muted">0</span>
+                            <% } %>
+                        </td>
+                        <td class="text-center"><%= fm.avg_dim > 0 ? fm.avg_dim + ' дн.' : '-' %></td>
+                        <td class="text-end fw-bold text-danger"><%= (fm.total_loss_byn || 0).toLocaleString('ru-RU') %> BYN</td>
+                        <td class="text-center">
+                            <% if (fm.status === 'optimal') { %>
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> <%= fm.status_label %></span>
+                            <% } else if (fm.status === 'warning') { %>
+                                <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle"></i> <%= fm.status_label %></span>
+                            <% } else { %>
+                                <span class="badge bg-danger"><i class="bi bi-x-octagon"></i> <%= fm.status_label %></span>
+                            <% } %>
+                        </td>
+                        <td class="text-end">
+                            <a href="/cows?farm=<%= encodeURIComponent(fm.farm) %>" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Открыть журнал фермы">
+                                <i class="bi bi-funnel"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<% } %>
+
 <!-- Оперативный мониторинг: Последние выбытия за выбранный период -->
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -446,6 +1058,7 @@
                         <th>Бирка AITS</th>
                         <th>Ферма</th>
                         <th>ПВГ</th>
+                        <th>Лактация & DIM</th>
                         <th>Категория</th>
                         <th>Диагноз / Причина</th>
                         <th>Дата</th>
@@ -459,7 +1072,17 @@
                             <td><span class="badge bg-secondary font-monospace"><%= c.cow_id %></span></td>
                             <td><strong><%= c.ear_tag || '-' %></strong></td>
                             <td><%= c.farm_name %></td>
-                            <td><span class="badge bg-light text-dark border"><%= c.age_group || 'Дойное' %></span></td>
+                            <td><span class="badge bg-light text-dark border"><%= c.age_group || 'Дойное стадо' %></span></td>
+                            <td>
+                                <% if (c.lactation_phase) { %>
+                                    <span class="badge bg-light text-primary border"><%= c.lactation_phase %></span>
+                                <% } %>
+                                <% if (c.lactation_days && c.lactation_days > 0) { %>
+                                    <small class="text-muted d-block"><%= c.lactation_days %> дн. (№<%= c.lactation_number || 1 %>)</small>
+                                <% } else if (!c.lactation_phase) { %>
+                                    <span class="text-muted">-</span>
+                                <% } %>
+                            </td>
                             <td>
                                 <% if (c.category === 'падёж') { %>
                                     <span class="badge bg-danger">Падёж</span>
@@ -479,7 +1102,7 @@
                         </tr>
                         <% }); %>
                     <% } else { %>
-                        <tr><td colspan="8" class="text-center py-4 text-muted">Записей нет</td></tr>
+                        <tr><td colspan="9" class="text-center py-4 text-muted">Записей нет</td></tr>
                     <% } %>
                 </tbody>
             </table>
@@ -527,6 +1150,94 @@
             });
         }
 
+        // График: Сроки стельности выбывших коров (Doughnut)
+        const reproStructCtx = document.getElementById('reproductionStructureChart');
+        if (reproStructCtx) {
+            const rLabels = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.structure && d.reproduction.charts.structure.labels) || []) %>;
+            const rData = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.structure && d.reproduction.charts.structure.data) || []) %>;
+            const rColors = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.structure && d.reproduction.charts.structure.colors) || []) %>;
+            const rTotal = rData.reduce((a, b) => a + b, 0);
+
+            new Chart(reproStructCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: rTotal > 0 ? rLabels : ['Нет выбывших стельных коров'],
+                    datasets: [{
+                        data: rTotal > 0 ? rData : [1],
+                        backgroundColor: rTotal > 0 ? rColors : ['#E2E8F0'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (rTotal === 0) return ' Случаев не зарегистрировано';
+                                    const val = context.raw || 0;
+                                    const pct = rTotal > 0 ? ((val / rTotal) * 100).toFixed(1) : 0;
+                                    return ` ${context.label}: ${val} гол. (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        // График: Выбытие стельных коров по МТФ: Падёж vs Выбраковка/Убой (Bar)
+        const reproFarmCtx = document.getElementById('reproductionFarmsChart');
+        if (reproFarmCtx) {
+            const rfLabels = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.farms && d.reproduction.charts.farms.labels) || []) %>;
+            const rfDeath = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.farms && d.reproduction.charts.farms.pregnant_death) || []) %>;
+            const rfCulling = <%- JSON.stringify((d.reproduction && d.reproduction.charts && d.reproduction.charts.farms && d.reproduction.charts.farms.pregnant_culling) || []) %>;
+
+            new Chart(reproFarmCtx, {
+                type: 'bar',
+                data: {
+                    labels: rfLabels,
+                    datasets: [
+                        {
+                            label: 'Падёж стельных (гол)',
+                            data: rfDeath,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Выбраковка и сан. убой стельных (гол)',
+                            data: rfCulling,
+                            backgroundColor: '#2563EB',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                footer: function(tooltipItems) {
+                                    let sum = 0;
+                                    tooltipItems.forEach(function(item) { sum += (item.raw || 0); });
+                                    return 'Всего выбыло стельных: ' + sum + ' гол.';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } }
+                    }
+                }
+            });
+        }
+
         // 2. Доли категорий (Doughnut)
         const catCtx = document.getElementById('categoryDoughnut');
         if (catCtx) {
@@ -567,35 +1278,192 @@
             });
         }
 
-        // 3. Половозрастные группы (ПВГ)
-        const ageCtx = document.getElementById('ageGroupChart');
-        if (ageCtx) {
-            const ageLabels = <%- JSON.stringify(d.charts.age_groups.labels || []) %>;
-            const ageData = <%- JSON.stringify(d.charts.age_groups.data || []) %>;
-            new Chart(ageCtx, {
+        // 3. Выбытие по стадиям и дням лактации (Когорты DIM)
+        const lactPhaseCtx = document.getElementById('lactationPhaseChart');
+        if (lactPhaseCtx) {
+            const lactLabels = <%- JSON.stringify(d.charts.lactation_phases.labels || []) %>;
+            const lactDeathData = <%- JSON.stringify(d.charts.lactation_phases.death_data || []) %>;
+            const lactCullingData = <%- JSON.stringify(d.charts.lactation_phases.culling_data || []) %>;
+
+            new Chart(lactPhaseCtx, {
                 type: 'bar',
                 data: {
-                    labels: ageLabels.length > 0 ? ageLabels : ['Нет данных'],
-                    datasets: [{
-                        label: 'Выбыло (гол.)',
-                        data: ageData.length > 0 ? ageData : [0],
-                        backgroundColor: '#10B981',
-                        borderRadius: 6
-                    }]
+                    labels: lactLabels,
+                    datasets: [
+                        {
+                            label: 'Падёж',
+                            data: lactDeathData,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Выбраковка / санбрак',
+                            data: lactCullingData,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 4
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function(items) {
+                                    const idx = items[0].dataIndex;
+                                    const totalInPhase = (lactDeathData[idx] || 0) + (lactCullingData[idx] || 0);
+                                    return ' Всего в когорте: ' + totalInPhase + ' гол.';
+                                }
+                            }
+                        }
+                    },
                     scales: {
-                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } },
-                        x: { grid: { display: false }, ticks: { maxRotation: 25, minRotation: 0 } }
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } }
                     }
                 }
             });
         }
 
-        // 4. Патологический профиль (По системам органов)
+        // 4. Детальная кривая риска по дням лактации (DIM Risk Curve)
+        const dimCurveCtx = document.getElementById('dimCurveChart');
+        if (dimCurveCtx) {
+            const dimCurveLabels = <%- JSON.stringify(d.charts.dim_curve.labels || []) %>;
+            const dimCurveDeath = <%- JSON.stringify(d.charts.dim_curve.death_data || []) %>;
+            const dimCurveCulling = <%- JSON.stringify(d.charts.dim_curve.culling_data || []) %>;
+
+            new Chart(dimCurveCtx, {
+                type: 'bar',
+                data: {
+                    labels: dimCurveLabels,
+                    datasets: [
+                        {
+                            label: 'Падёж',
+                            data: dimCurveDeath,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Выбраковка',
+                            data: dimCurveCulling,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function(items) {
+                                    const idx = items[0].dataIndex;
+                                    const total = (dimCurveDeath[idx] || 0) + (dimCurveCulling[idx] || 0);
+                                    return ' Всего выбыло в когорте: ' + total + ' гол.';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        // 5. Половозрастные группы скота (ПВГ со стеком)
+        const ageCtx = document.getElementById('ageGroupChart');
+        if (ageCtx) {
+            const ageLabels = <%- JSON.stringify(d.charts.age_groups.labels || []) %>;
+            const ageDeathData = <%- JSON.stringify(d.charts.age_groups.death_data || []) %>;
+            const ageCullingData = <%- JSON.stringify(d.charts.age_groups.culling_data || []) %>;
+            const ageSanitaryData = <%- JSON.stringify(d.charts.age_groups.sanitary_data || []) %>;
+
+            new Chart(ageCtx, {
+                type: 'bar',
+                data: {
+                    labels: ageLabels.length > 0 ? ageLabels : ['Нет данных'],
+                    datasets: [
+                        {
+                            label: 'Падёж',
+                            data: ageDeathData,
+                            backgroundColor: '#DC2626',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Выбраковка',
+                            data: ageCullingData,
+                            backgroundColor: '#2563EB',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Санбрак',
+                            data: ageSanitaryData,
+                            backgroundColor: '#D97706',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 20, minRotation: 0 } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        // 6. Выбытие по номерам лактаций (Паритет: первотёлки vs полновозрастные)
+        const lactNumCtx = document.getElementById('lactationNumberChart');
+        if (lactNumCtx) {
+            const lactNumLabels = <%- JSON.stringify(d.charts.lactation_numbers.labels || []) %>;
+            const lactNumDeath = <%- JSON.stringify(d.charts.lactation_numbers.death_data || []) %>;
+            const lactNumCulling = <%- JSON.stringify(d.charts.lactation_numbers.culling_data || []) %>;
+
+            new Chart(lactNumCtx, {
+                type: 'bar',
+                data: {
+                    labels: lactNumLabels,
+                    datasets: [
+                        {
+                            label: 'Падёж',
+                            data: lactNumDeath,
+                            backgroundColor: '#EF4444',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Выбраковка',
+                            data: lactNumCulling,
+                            backgroundColor: '#0284C7',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        // 7. Патологический профиль (По системам органов)
         const pathCtx = document.getElementById('pathologyChart');
         if (pathCtx) {
             const pathLabels = <%- JSON.stringify(d.charts.pathology.labels || []) %>;
@@ -624,7 +1492,64 @@
             });
         }
 
-        // 5. Фермы (для администратора)
+        // 8. Экономический балансовый ущерб по категориям скота (BYN)
+        const econCtx = document.getElementById('economicsChart');
+        if (econCtx) {
+            const econLabels = <%- JSON.stringify(d.charts.economics_by_group.labels || []) %>;
+            const econDeathData = <%- JSON.stringify(d.charts.economics_by_group.death_data || []) %>;
+            const econCullingData = <%- JSON.stringify(d.charts.economics_by_group.culling_data || []) %>;
+
+            new Chart(econCtx, {
+                type: 'bar',
+                data: {
+                    labels: econLabels.length > 0 ? econLabels : ['Нет данных'],
+                    datasets: [
+                        {
+                            label: 'Ущерб от падежа (BYN)',
+                            data: econDeathData,
+                            backgroundColor: '#DC2626',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Ущерб от выбраковки (BYN)',
+                            data: econCullingData,
+                            backgroundColor: '#2563EB',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.raw || 0;
+                                    return ` ${context.dataset.label}: ${val.toLocaleString('ru-RU')} BYN`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 20, minRotation: 0 } },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('ru-RU') + ' BYN';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 9. Фермы (для администратора)
         <% if (user_type === 'admin') { %>
         const farmCtx = document.getElementById('farmBarChart');
         if (farmCtx) {

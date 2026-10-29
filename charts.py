@@ -119,30 +119,197 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     # 2. Выборка строк за выбранный период
     cursor.execute(f'''
         SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-               lactation, weight, age_group, milk_yield, book_value
+               lactation, lactation_days, lactation_phase, weight, age_group, milk_yield, book_value,
+               is_pregnant, gestation_days, is_stillborn
         FROM cows
         {where_clause}
         ORDER BY disposal_date DESC, id DESC
     ''', params)
     period_cows = [dict(r) for r in cursor.fetchall()]
     
-    # 3. Агрегация по категориям за период
+    # 3. Агрегация по категориям за период и экономический баланс
     category_counts = {'падёж': 0, 'выбраковка': 0, 'санитарный': 0}
+    total_loss_byn = 0.0
+    death_loss_byn = 0.0
+    culling_loss_byn = 0.0
+    
+    # Динамическая стоимостная оценка скота по группам (BYN за голову из БД/настроек)
+    try:
+        from database import get_setting
+        dynamic_prices = {
+            'телята': float(get_setting('price_calves', 900.0)),
+            'молодняк': float(get_setting('price_youngstock', 1650.0)),
+            'нетели': float(get_setting('price_heifers', 2700.0)),
+            'дойное': float(get_setting('price_cows', 3200.0)),
+            'сухостой': float(get_setting('price_dry_cows', 3000.0))
+        }
+    except Exception:
+        dynamic_prices = {
+            'телята': 900.0,
+            'молодняк': 1650.0,
+            'нетели': 2700.0,
+            'дойное': 3200.0,
+            'сухостой': 3000.0
+        }
+
+    def estimate_cow_val(c):
+        bv = c.get('book_value')
+        if bv is not None and bv > 0:
+            return float(bv)
+        ag = (c.get('age_group') or '').lower()
+        for k, v in dynamic_prices.items():
+            if k in ag:
+                return v
+        return dynamic_prices.get('дойное', 3200.0)
+
     for c in period_cows:
         cat = c['category']
         category_counts[cat] = category_counts.get(cat, 0) + 1
+        val = estimate_cow_val(c)
+        total_loss_byn += val
+        if cat == 'падёж':
+            death_loss_byn += val
+        elif cat == 'выбраковка':
+            culling_loss_byn += val
         
     total_disposals = len(period_cows)
+    avg_head_loss = round(total_loss_byn / max(total_disposals, 1))
     
-    # 4. Распределение по Половозрастным группам (ПВГ)
-    age_group_counts = {}
+    # 4. Распределение по Половозрастным группам (ПВГ) со стеком
+    age_group_data = {}
+    standard_groups = [
+        'Телята (до 6 мес.)',
+        'Ремонтный молодняк (6-18 мес.)',
+        'Нетели (случной возраст)',
+        'Коровы дойного стада',
+        'Сухостойные коровы'
+    ]
+    for g in standard_groups:
+        age_group_data[g] = {'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0, 'dims': [], 'weights': [], 'reasons': {}}
+
     for c in period_cows:
-        ag = c['age_group'] or 'Коровы дойного стада'
-        age_group_counts[ag] = age_group_counts.get(ag, 0) + 1
-        
-    # Сортировка групп
-    sorted_age_groups = sorted(age_group_counts.items(), key=lambda x: x[1], reverse=True)
-    
+        ag = c.get('age_group') or 'Коровы дойного стада'
+        if ag not in age_group_data:
+            age_group_data[ag] = {'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0, 'dims': [], 'weights': [], 'reasons': {}}
+        cat = c['category']
+        val = estimate_cow_val(c)
+        age_group_data[ag]['total'] += 1
+        age_group_data[ag][cat] = age_group_data[ag].get(cat, 0) + 1
+        age_group_data[ag]['loss'] += val
+        if c.get('lactation_days') and c['lactation_days'] > 0:
+            age_group_data[ag]['dims'].append(c['lactation_days'])
+        if c.get('weight') and c['weight'] > 0:
+            age_group_data[ag]['weights'].append(c['weight'])
+        r = c.get('reason') or 'Не указана'
+        age_group_data[ag]['reasons'][r] = age_group_data[ag]['reasons'].get(r, 0) + 1
+
+    sorted_groups = sorted(age_group_data.keys(), key=lambda x: age_group_data[x]['total'], reverse=True)
+    age_labels = sorted_groups
+    age_death = [age_group_data[g]['падёж'] for g in sorted_groups]
+    age_culling = [age_group_data[g]['выбраковка'] for g in sorted_groups]
+    age_sanitary = [age_group_data[g]['санитарный'] for g in sorted_groups]
+
+    category_analytics = []
+    for g in sorted_groups:
+        d_grp = age_group_data[g]
+        tot = d_grp['total']
+        if tot == 0:
+            continue
+        top_r = sorted(d_grp['reasons'].items(), key=lambda x: x[1], reverse=True)[:2]
+        top_r_str = ', '.join([f"{k} ({v})" for k, v in top_r]) if top_r else 'Нет записей'
+        category_analytics.append({
+            'category_name': g,
+            'total': tot,
+            'death': d_grp['падёж'],
+            'culling': d_grp['выбраковка'],
+            'sanitary': d_grp['санитарный'],
+            'death_rate_pct': round((d_grp['падёж'] / tot) * 100, 1),
+            'avg_dim': round(sum(d_grp['dims']) / len(d_grp['dims'])) if d_grp['dims'] else 0,
+            'avg_weight': round(sum(d_grp['weights']) / len(d_grp['weights'])) if d_grp['weights'] else 0,
+            'loss_byn': round(d_grp['loss']),
+            'top_reasons': top_r_str
+        })
+
+    # 5. Аналитика лактации: DIM Bins (8 интервалов) & Parity
+    dim_bins_labels = ['0-15 дн', '16-30 дн', '31-60 дн', '61-100 дн', '101-150 дн', '151-200 дн', '201-305 дн', '>305 дн']
+    dim_curve_death = [0] * 8
+    dim_curve_culling = [0] * 8
+
+    lact_nums_labels = ['1-я (первотёлки)', '2-я лактация', '3-я лактация', '4-я лактация', '5+ лактация']
+    lact_num_death = [0] * 5
+    lact_num_culling = [0] * 5
+
+    lact_phase_labels = ['Ранний новотел (0-15)', 'Поздний новотел (16-30)', 'Раздой и пик (31-100)', 'Середина (101-200)', 'Спад (201-305)', 'Сухостой']
+    lact_phase_death = [0] * 6
+    lact_phase_culling = [0] * 6
+
+    total_dim = 0
+    cows_with_dim = 0
+    total_lact = 0
+    cows_with_lact = 0
+    fresh_disposals = 0
+    fresh_deaths = 0
+
+    for c in period_cows:
+        dim = c.get('lactation_days') or 0
+        lact = c.get('lactation') or 1
+        cat = c.get('category')
+        is_death = (cat == 'падёж')
+
+        if dim > 0:
+            total_dim += dim
+            cows_with_dim += 1
+            if dim <= 30:
+                fresh_disposals += 1
+                if is_death:
+                    fresh_deaths += 1
+
+            # 8 DIM интервалов
+            b_idx = 7
+            if dim <= 15: b_idx = 0
+            elif dim <= 30: b_idx = 1
+            elif dim <= 60: b_idx = 2
+            elif dim <= 100: b_idx = 3
+            elif dim <= 150: b_idx = 4
+            elif dim <= 200: b_idx = 5
+            elif dim <= 305: b_idx = 6
+
+            if is_death:
+                dim_curve_death[b_idx] += 1
+            else:
+                dim_curve_culling[b_idx] += 1
+
+            # 6 Фаз лактации
+            p_idx = 5
+            if dim <= 15: p_idx = 0
+            elif dim <= 30: p_idx = 1
+            elif dim <= 100: p_idx = 2
+            elif dim <= 200: p_idx = 3
+            elif dim <= 305: p_idx = 4
+
+            if is_death:
+                lact_phase_death[p_idx] += 1
+            else:
+                lact_phase_culling[p_idx] += 1
+
+        if lact > 0:
+            total_lact += lact
+            cows_with_lact += 1
+            l_idx = min(lact - 1, 4)
+            if is_death:
+                lact_num_death[l_idx] += 1
+            else:
+                lact_num_culling[l_idx] += 1
+
+    avg_dim = round(total_dim / cows_with_dim) if cows_with_dim > 0 else 0
+    avg_lact = round(total_lact / cows_with_lact, 1) if cows_with_lact > 0 else 0
+
+    # Молодняк и телята
+    youngstock_cows = [c for c in period_cows if any(k in (c.get('age_group') or '').lower() for k in ['телят', 'молодняк'])]
+    youngstock_deaths = sum(1 for c in youngstock_cows if c['category'] == 'падёж')
+    youngstock_pct = round((youngstock_deaths / max(len(youngstock_cows), 1)) * 100, 1) if youngstock_cows else 0.0
+    preservation = round(100.0 - youngstock_pct, 1)
+
     # 6. Патологический профиль (по системам органов)
     pathology_systems = {}
     for c in period_cows:
@@ -160,12 +327,124 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         for k, v in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True)[:8]
     ]
     
-    # 8. Распределение по фермам / МТФ
-    farm_counts = {}
+    # 8. Распределение и Сравнительная матрица по фермам / МТФ
+    farm_data = {}
     for c in period_cows:
-        f = c['farm_name']
-        farm_counts[f] = farm_counts.get(f, 0) + 1
-    sorted_farms = sorted(farm_counts.items(), key=lambda x: x[1], reverse=True)
+        f = c['farm_name'] or 'Не указана'
+        if f not in farm_data:
+            farm_data[f] = {'total': 0, 'death': 0, 'culling': 0, 'sanitary': 0, 'young': 0, 'fresh': 0, 'dims': [], 'loss': 0.0}
+        cat = c['category']
+        val = estimate_cow_val(c)
+        farm_data[f]['total'] += 1
+        farm_data[f]['loss'] += val
+        if cat == 'падёж': farm_data[f]['death'] += 1
+        elif cat == 'выбраковка': farm_data[f]['culling'] += 1
+        else: farm_data[f]['sanitary'] += 1
+        if any(k in (c.get('age_group') or '').lower() for k in ['телят', 'молодняк']):
+            farm_data[f]['young'] += 1
+        d_val = c.get('lactation_days') or 0
+        if d_val > 0:
+            farm_data[f]['dims'].append(d_val)
+            if d_val <= 30:
+                farm_data[f]['fresh'] += 1
+
+    sorted_farms = sorted([(f, d['total']) for f, d in farm_data.items()], key=lambda x: x[1], reverse=True)
+    farm_matrix = []
+    for f, d in sorted(farm_data.items(), key=lambda x: x[1]['total'], reverse=True):
+        d_pct = round((d['death'] / max(d['total'], 1)) * 100, 1)
+        stat = 'optimal'
+        stat_lbl = 'Норма'
+        if d_pct > 30 or d['fresh'] >= 5:
+            stat = 'critical'
+            stat_lbl = 'Критический риск'
+        elif d_pct > 15 or d['fresh'] >= 2:
+            stat = 'warning'
+            stat_lbl = 'Внимание'
+        farm_matrix.append({
+            'farm': f,
+            'total': d['total'],
+            'death': d['death'],
+            'culling': d['culling'],
+            'sanitary': d['sanitary'],
+            'death_pct': d_pct,
+            'youngstock': d['young'],
+            'fresh_0_30': d['fresh'],
+            'avg_dim': round(sum(d['dims']) / len(d['dims'])) if d['dims'] else 0,
+            'total_loss_byn': round(d['loss']),
+            'status': stat,
+            'status_label': stat_lbl
+        })
+
+    # Ветеринарный скоркард (6 индикаторов)
+    death_overall_rate = round((category_counts.get('падёж', 0) / max(total_disposals, 1)) * 100, 1)
+    fresh_rate = round((fresh_disposals / max(total_disposals, 1)) * 100, 1)
+    first_lact_rate = round((lact_num_culling[0] / max(sum(lact_num_culling), 1)) * 100, 1) if sum(lact_num_culling) > 0 else 0.0
+    locomotor_rate = round((pathology_systems.get('Конечности и травматизм', 0) / max(total_disposals, 1)) * 100, 1)
+    mastitis_rate = round((pathology_systems.get('Болезни вымени (маститы)', 0) / max(total_disposals, 1)) * 100, 1)
+    # Динамические зоотехнические нормативы и пороги тревог из БД
+    norm_preservation = float(get_setting('norm_youngstock_preservation', 92.0))
+    norm_fresh = float(get_setting('norm_fresh_cow_disposal', 10.0))
+    norm_first_lact = float(get_setting('norm_first_lactation_culling', 20.0))
+    norm_mortality = float(get_setting('norm_mortality_rate', 25.0))
+    norm_locomotor = float(get_setting('norm_locomotor_disorders', 15.0))
+    norm_mastitis = float(get_setting('norm_mastitis_disorders', 15.0))
+
+    scorecard = [
+        {
+            'title': 'Сохранность молодняка',
+            'target': f"≥ {norm_preservation:.1f}%",
+            'current': f"{preservation}%",
+            'status': 'success' if preservation >= norm_preservation else ('warning' if preservation >= (norm_preservation - 7.0) else 'danger'),
+            'statusText': 'Норма' if preservation >= norm_preservation else ('Внимание' if preservation >= (norm_preservation - 7.0) else 'Риск'),
+            'note': f"Пало молодняка: {youngstock_deaths} из {len(youngstock_cows)} гол.",
+            'icon': 'bi-flower1'
+        },
+        {
+            'title': 'Выбытие новотельных (0-30 DIM)',
+            'target': f"≤ {norm_fresh:.1f}%",
+            'current': f"{fresh_rate}%",
+            'status': 'success' if fresh_rate <= norm_fresh else ('warning' if fresh_rate <= (norm_fresh + 8.0) else 'danger'),
+            'statusText': 'Норма' if fresh_rate <= norm_fresh else ('Внимание' if fresh_rate <= (norm_fresh + 8.0) else 'Риск'),
+            'note': f"Новотел: {fresh_disposals} гол. ({fresh_deaths} пало)",
+            'icon': 'bi-exclamation-octagon-fill'
+        },
+        {
+            'title': 'Выбраковка первотёлок',
+            'target': f"≤ {norm_first_lact:.1f}%",
+            'current': f"{first_lact_rate}%",
+            'status': 'success' if first_lact_rate <= norm_first_lact else ('warning' if first_lact_rate <= (norm_first_lact + 8.0) else 'danger'),
+            'statusText': 'Норма' if first_lact_rate <= norm_first_lact else 'Высокая',
+            'note': 'Доля 1-й лактации в выбраковке',
+            'icon': 'bi-gem'
+        },
+        {
+            'title': 'Общая летальность (Падёж)',
+            'target': f"≤ {norm_mortality:.1f}%",
+            'current': f"{death_overall_rate}%",
+            'status': 'success' if death_overall_rate <= norm_mortality else ('warning' if death_overall_rate <= (norm_mortality + 15.0) else 'danger'),
+            'statusText': 'Норма' if death_overall_rate <= norm_mortality else ('Повышен' if death_overall_rate <= (norm_mortality + 15.0) else 'Критич.'),
+            'note': f"Пало {category_counts.get('падёж', 0)} из {total_disposals} гол.",
+            'icon': 'bi-heart-pulse-fill'
+        },
+        {
+            'title': 'Болезни конечностей',
+            'target': f"≤ {norm_locomotor:.1f}%",
+            'current': f"{locomotor_rate}%",
+            'status': 'success' if locomotor_rate <= norm_locomotor else 'warning',
+            'statusText': 'В норме' if locomotor_rate <= norm_locomotor else 'Контроль',
+            'note': 'Ортопедическая патология',
+            'icon': 'bi-bandaid-fill'
+        },
+        {
+            'title': 'Маститы и патологии вымени',
+            'target': f"≤ {norm_mastitis:.1f}%",
+            'current': f"{mastitis_rate}%",
+            'status': 'success' if mastitis_rate <= norm_mastitis else 'warning',
+            'statusText': 'В норме' if mastitis_rate <= norm_mastitis else 'Контроль',
+            'note': 'Инфекции молочной железы',
+            'icon': 'bi-droplet-fill'
+        }
+    ]
     
     # 9. Динамика по месяцам за последние 12 месяцев
     twelve_months_ago = (now - timedelta(days=365)).strftime('%Y-%m-%d')
@@ -274,7 +553,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     else:
         cursor.execute(f'''
             SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-                   lactation, weight, age_group, milk_yield, book_value
+                   lactation, weight, age_group, milk_yield, book_value,
+                   is_pregnant, gestation_days, is_stillborn
             FROM cows
             {all_time_where}
             ORDER BY disposal_date DESC, id DESC
@@ -282,9 +562,154 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         ''', all_time_params)
         recent_cows = [dict(r) for r in cursor.fetchall()]
     
-    conn.close()
+    # 9. Аналитика стельности и мертворождений / абортов
+    pregnant_cows = []
+    stillborn_cows = []
+    stillborn_keywords = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок']
     
+    for c in period_cows:
+        reason_lower = (c.get('reason') or '').lower()
+        age_grp_lower = (c.get('age_group') or '').lower()
+        phase_lower = (c.get('lactation_phase') or '').lower()
+        
+        is_preg = False
+        if c.get('is_pregnant') == 1 or (c.get('gestation_days') and c['gestation_days'] > 0):
+            is_preg = True
+        elif 'сухостой' in phase_lower or 'сухостой' in age_grp_lower or 'нетел' in age_grp_lower or 'стельн' in reason_lower or 'стельн' in age_grp_lower:
+            is_preg = True
+            
+        if is_preg:
+            pregnant_cows.append(c)
+            
+        is_stillborn = False
+        if c.get('is_stillborn') == 1:
+            is_stillborn = True
+        elif any(k in reason_lower for k in stillborn_keywords) or 'мертворожд' in age_grp_lower or 'аборт' in age_grp_lower:
+            is_stillborn = True
+            
+        if is_stillborn:
+            stillborn_cows.append(c)
+            
+    pregnant_count = len(pregnant_cows)
+    adult_cows_total = sum(1 for c in period_cows if not any(k in (c.get('age_group') or '').lower() for k in ['телят', 'молодняк']))
+    pregnant_pct = round((pregnant_count / max(adult_cows_total, 1)) * 100, 1)
+    pregnant_loss_byn = round(sum(estimate_cow_val(c) for c in pregnant_cows))
+    
+    gestation_vals = [c.get('gestation_days') for c in pregnant_cows if c.get('gestation_days') and c['gestation_days'] > 0]
+    avg_gestation_months = round(sum(gestation_vals) / len(gestation_vals) / 30.0, 1) if gestation_vals else 6.5
+    
+    stillborn_count = len(stillborn_cows)
+    stillborn_pct = round((stillborn_count / max(total_disposals, 1)) * 100, 1)
+    
+    stillborn_reasons = {}
+    for c in stillborn_cows:
+        r = c.get('reason') or 'Патология плода'
+        stillborn_reasons[r] = stillborn_reasons.get(r, 0) + 1
+    stillborn_reasons_list = [{'reason': k, 'count': v} for k, v in sorted(stillborn_reasons.items(), key=lambda x: x[1], reverse=True)]
+    
+    reproduction_by_farm = []
+    for f in sorted_farms:
+        farm_name = f[0]
+        f_cows = [c for c in period_cows if (c.get('farm_name') or 'Не указана') == farm_name]
+        f_preg_cows = [c for c in f_cows if c in pregnant_cows]
+        f_preg_death = sum(1 for c in f_preg_cows if (c.get('category') or '').lower() == 'падёж')
+        f_preg_cull = sum(1 for c in f_preg_cows if (c.get('category') or '').lower() != 'падёж')
+        f_preg_loss = round(sum(estimate_cow_val(c) for c in f_preg_cows))
+        f_stillborn = sum(1 for c in f_cows if c in stillborn_cows)
+        reproduction_by_farm.append({
+            'farm_name': farm_name,
+            'total': len(f_cows),
+            'pregnant_count': len(f_preg_cows),
+            'pregnant_pct': round((len(f_preg_cows) / max(len(f_cows), 1)) * 100, 1),
+            'pregnant_death': f_preg_death,
+            'pregnant_culling': f_preg_cull,
+            'pregnant_loss_byn': f_preg_loss,
+            'stillborn_count': f_stillborn,
+            'stillborn_pct': round((f_stillborn / max(len(f_cows), 1)) * 100, 1)
+        })
+        
+    # Сроки стельности выбывших коров (без примешивания мертворождений)
+    t1_count = 0  # 1–90 дн
+    t2_count = 0  # 91–180 дн
+    t3_count = 0  # 181–240 дн
+    t4_count = 0  # 241+ дн (глубокий сухостой перед отелом)
+    for c in pregnant_cows:
+        days = c.get('gestation_days') or 0
+        ag_l = (c.get('age_group') or '').lower()
+        if days > 240 or ('сухосто' in ag_l and days > 210):
+            t4_count += 1
+        elif days > 180 or 'сухосто' in ag_l:
+            t3_count += 1
+        elif days > 90:
+            t2_count += 1
+        else:
+            t1_count += 1
+
+    structure_labels = [
+        '1–90 дн (1-й триместр)',
+        '91–180 дн (2-й триместр)',
+        '181–240 дн (3-й триместр)',
+        '241+ дн (сухостой перед отёлом)'
+    ]
+    structure_data = [t1_count, t2_count, t3_count, t4_count]
+    structure_colors = ['#3B82F6', '#F59E0B', '#F97316', '#EF4444']
+
+    preg_death = sum(1 for c in pregnant_cows if (c.get('category') or '').lower() == 'падёж')
+    preg_culling = sum(1 for c in pregnant_cows if (c.get('category') or '').lower() == 'выбраковка')
+    preg_sanitary = sum(1 for c in pregnant_cows if 'сан' in (c.get('category') or '').lower())
+
+    preg_reasons = {}
+    for c in pregnant_cows:
+        r = c.get('reason') or 'Не указана'
+        preg_reasons[r] = preg_reasons.get(r, 0) + 1
+    preg_reasons_list = [{'reason': k, 'count': v} for k, v in sorted(preg_reasons.items(), key=lambda x: x[1], reverse=True)]
+
+    farm_labels = [f['farm_name'] for f in reproduction_by_farm]
+    farm_pregnant_total = [f['pregnant_count'] for f in reproduction_by_farm]
+    farm_pregnant_death = [f['pregnant_death'] for f in reproduction_by_farm]
+    farm_pregnant_culling = [f['pregnant_culling'] for f in reproduction_by_farm]
+
+    reproduction_summary = {
+        'pregnant_count': pregnant_count,
+        'pregnant_pct': pregnant_pct,
+        'pregnant_loss_byn': pregnant_loss_byn,
+        'pregnant_death_count': preg_death,
+        'pregnant_culling_count': preg_culling,
+        'pregnant_sanitary_count': preg_sanitary,
+        'pregnant_top_reasons': preg_reasons_list[:5],
+        'late_gestation_count': t3_count + t4_count,
+        'avg_gestation_months': avg_gestation_months,
+        'stillborn_count': stillborn_count,
+        'stillborn_pct': stillborn_pct,
+        'stillborn_reasons': stillborn_reasons_list,
+        'by_farm': reproduction_by_farm,
+        'stages': {
+            'trimester_1': t1_count,
+            'trimester_2': t2_count,
+            'trimester_3': t3_count,
+            'trimester_4': t4_count
+        },
+        'charts': {
+            'structure': {
+                'labels': structure_labels,
+                'data': structure_data,
+                'colors': structure_colors
+            },
+            'farms': {
+                'labels': farm_labels,
+                'pregnant_total': farm_pregnant_total,
+                'pregnant_death': farm_pregnant_death,
+                'pregnant_culling': farm_pregnant_culling
+            },
+            'reasons': {
+                'labels': [r['reason'] for r in preg_reasons_list[:6]],
+                'data': [r['count'] for r in preg_reasons_list[:6]]
+            }
+        }
+    }
+
     return {
+        'reproduction': reproduction_summary,
         'period_info': {
             'period': period,
             'start_date': start_date,
@@ -299,10 +724,25 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'culling_count': category_counts.get('выбраковка', 0),
             'sanitary_count': category_counts.get('санитарный', 0),
             'death_rate_pct': round((category_counts.get('падёж', 0) / max(total_disposals, 1)) * 100, 1),
+            'youngstock_disposals': len(youngstock_cows),
+            'youngstock_death_count': youngstock_deaths,
+            'youngstock_death_pct': youngstock_pct,
             'calf_disposals': len(calf_disposals),
             'calf_death_count': calf_death_count,
+            'fresh_disposals': fresh_disposals,
+            'fresh_deaths': fresh_deaths,
+            'fresh_share_pct': round((fresh_disposals / max(total_disposals, 1)) * 100, 1),
+            'avg_dim': avg_dim,
+            'avg_lactation': avg_lact,
+            'total_loss_byn': round(total_loss_byn),
+            'death_loss_byn': round(death_loss_byn),
+            'culling_loss_byn': round(culling_loss_byn),
+            'avg_head_loss': avg_head_loss,
             'all_time_total': all_time_total
         },
+        'scorecard': scorecard,
+        'farm_matrix': farm_matrix,
+        'category_analytics': category_analytics,
         'charts': {
             'categories': {
                 'labels': ['Падёж', 'Выбраковка', 'Санитарный брак'],
@@ -310,9 +750,33 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
                 'colors': ['#EF4444', '#3B82F6', '#F59E0B']
             },
             'age_groups': {
-                'labels': [x[0] for x in sorted_age_groups],
-                'data': [x[1] for x in sorted_age_groups],
-                'colors': '#10B981'
+                'labels': age_labels,
+                'data': [age_group_data[g]['total'] for g in age_labels],
+                'death_data': age_death,
+                'culling_data': age_culling,
+                'sanitary_data': age_sanitary
+            },
+            'dim_curve': {
+                'labels': dim_bins_labels,
+                'death_data': dim_curve_death,
+                'culling_data': dim_curve_culling,
+                'total_data': [d + c for d, c in zip(dim_curve_death, dim_curve_culling)]
+            },
+            'lactation_numbers': {
+                'labels': lact_nums_labels,
+                'death_data': lact_num_death,
+                'culling_data': lact_num_culling
+            },
+            'lactation_phases': {
+                'labels': lact_phase_labels,
+                'death_data': lact_phase_death,
+                'culling_data': lact_phase_culling
+            },
+            'economics_by_group': {
+                'labels': age_labels,
+                'data': [round(age_group_data[g]['loss']) for g in age_labels],
+                'death_data': [round(age_group_data[g]['падёж'] * estimate_cow_val({'age_group': g})) for g in age_labels],
+                'culling_data': [round((age_group_data[g]['выбраковка'] + age_group_data[g]['санитарный']) * estimate_cow_val({'age_group': g})) for g in age_labels]
             },
             'pathology': {
                 'labels': [x[0] for x in sorted_pathology],

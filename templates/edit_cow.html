@@ -58,8 +58,22 @@
                         </div>
 
                         <div class="col-md-3">
-                            <label for="lactation" class="form-label fw-semibold">Лактация / Возраст</label>
+                            <label for="lactation" class="form-label fw-semibold">Номер лактации</label>
                             <input type="number" class="form-control" id="lactation" name="lactation" min="0" max="20" value="{{ cow.lactation or '' }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="lactation_days" class="form-label fw-semibold text-primary">
+                                <i class="bi bi-clock-history"></i> Дни лактации (DIM)
+                            </label>
+                            <input type="number" class="form-control" id="lactation_days" name="lactation_days" min="0" max="999" value="{{ cow.lactation_days if cow.lactation_days is not none else '' }}" placeholder="Дней после отёла">
+                            <div class="form-text" id="lactationPhaseBadge">
+                                {% if cow.lactation_phase %}
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">{{ cow.lactation_phase }}</span>
+                                {% else %}
+                                    <span class="badge bg-light text-muted border">Автоопределение</span>
+                                {% endif %}
+                            </div>
                         </div>
                         
                         <div class="col-md-3">
@@ -76,8 +90,38 @@
                             <label for="book_value" class="form-label fw-semibold">Балансовая стоим. (BYN)</label>
                             <input type="number" step="0.01" class="form-control" id="book_value" name="book_value" min="0" value="{{ cow.book_value or '' }}" placeholder="руб.">
                         </div>
+
+                        <!-- Воспроизводство и статус выбытия стельных -->
+                        <div class="col-12 p-3 rounded bg-light border border-danger-subtle mt-2">
+                            <h6 class="fw-bold text-danger mb-1 d-flex align-items-center gap-2">
+                                <i class="bi bi-heartbreak-fill"></i> Статус на момент выбытия: стельность и потери плода
+                            </h6>
+                            <small class="text-muted d-block mb-2">Отметьте, если выбывшая (павшая, сданная или выбракованная) корова была стельной на дату выбытия.</small>
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_pregnant" name="is_pregnant" value="1" {% if cow.is_pregnant == 1 %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold text-dark" for="is_pregnant">
+                                            <i class="bi bi-suit-heart-fill text-danger me-1"></i> Корова на момент выбытия была стельной
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="gestation_days" class="form-label fw-semibold mb-1 small">Срок стельности (дней)</label>
+                                    <input type="number" class="form-control form-control-sm" id="gestation_days" name="gestation_days" min="0" max="300" value="{{ cow.gestation_days or '' }}" placeholder="Напр. 180 дн.">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_stillborn" name="is_stillborn" value="1" {% if cow.is_stillborn == 1 %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold text-danger" for="is_stillborn">
+                                            <i class="bi bi-x-circle-fill me-1"></i> Мертворождённый телёнок / Аборт
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         
-                        <div class="col-md-8">
+                        <div class="col-md-12">
                             <label for="notes" class="form-label fw-semibold">Заключение ветеринарного врача / Примечание</label>
                             <input type="text" class="form-control" id="notes" name="notes" value="{{ cow.notes or '' }}" placeholder="Диагноз, примечание, заключение комиссии...">
                         </div>
@@ -101,6 +145,43 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    function updateLactationPhase() {
+        var grp = ($('#age_group').val() || '').toLowerCase();
+        var dimVal = $('#lactation_days').val();
+        var $badge = $('#lactationPhaseBadge');
+        
+        if (grp.indexOf('телят') !== -1 || grp.indexOf('молодняк') !== -1 || grp.indexOf('бычки') !== -1) {
+            $badge.html('<span class="badge bg-success-subtle text-success border border-success-subtle">Молодняк (нелакирующее)</span>');
+            return;
+        } else if (grp.indexOf('нетел') !== -1) {
+            $badge.html('<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Нетели</span>');
+            return;
+        } else if (grp.indexOf('сухосто') !== -1) {
+            $badge.html('<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Сухостойный период</span>');
+            return;
+        }
+
+        if (!dimVal || dimVal === '') {
+            return;
+        }
+
+        var dim = parseInt(dimVal, 10);
+        if (isNaN(dim) || dim < 0) {
+            $badge.html('<span class="badge bg-danger-subtle text-danger border">Некорректно</span>');
+        } else if (dim <= 30) {
+            $badge.html('<span class="badge bg-danger text-white"><i class="bi bi-lightning-charge-fill"></i> Новотел (0–30 дн)</span>');
+        } else if (dim <= 100) {
+            $badge.html('<span class="badge bg-warning text-dark"><i class="bi bi-graph-up"></i> Раздой (31–100 дн)</span>');
+        } else if (dim <= 200) {
+            $badge.html('<span class="badge bg-info text-dark">Середина (101–200 дн)</span>');
+        } else {
+            $badge.html('<span class="badge bg-secondary text-white">Спад (201–305+ дн)</span>');
+        }
+    }
+
+    $('#age_group').change(updateLactationPhase);
+    $('#lactation_days').on('input', updateLactationPhase);
+
     function loadReasons(category, selectedReason) {
         if (!category) return;
         $.getJSON('{{ url_for("get_reasons", category="") }}' + category, function(data) {

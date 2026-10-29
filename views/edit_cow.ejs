@@ -49,36 +49,90 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="age_group" class="form-label fw-semibold">Половозрастная группа (ПВГ)</label>
-                            <select class="form-select" id="age_group" name="age_group">
-                                <option value="Коровы дойного стада" <%= cow.age_group === 'Коровы дойного стада' ? 'selected' : '' %>>Коровы дойного стада</option>
-                                <option value="Коровы сухостойные" <%= cow.age_group === 'Коровы сухостойные' ? 'selected' : '' %>>Коровы сухостойные</option>
-                                <option value="Нетели" <%= cow.age_group === 'Нетели' ? 'selected' : '' %>>Нетели</option>
-                                <option value="Тёлки старше 1 года" <%= cow.age_group === 'Тёлки старше 1 года' ? 'selected' : '' %>>Тёлки старше 1 года</option>
-                                <option value="Телята (0–6 мес.)" <%= cow.age_group === 'Телята (0–6 мес.)' ? 'selected' : '' %>>Телята (0–6 мес.)</option>
-                                <option value="Молодняк (6–12 мес.)" <%= cow.age_group === 'Молодняк (6–12 мес.)' ? 'selected' : '' %>>Молодняк (6–12 мес.)</option>
-                                <option value="Бычки на откорме" <%= cow.age_group === 'Бычки на откорме' ? 'selected' : '' %>>Бычки на откорме</option>
+                            <label for="age_group" class="form-label fw-semibold text-primary">
+                                <i class="bi bi-tag-fill"></i> Категория скота (ПВГ) *
+                            </label>
+                            <select class="form-select border-primary" id="age_group" name="age_group">
+                                <optgroup label="Взрослое маточное поголовье">
+                                    <option value="Коровы дойного стада" <%= cow.age_group === 'Коровы дойного стада' ? 'selected' : '' %>>Коровы дойного стада</option>
+                                    <option value="Коровы сухостойные" <%= cow.age_group === 'Коровы сухостойные' ? 'selected' : '' %>>Коровы сухостойные</option>
+                                    <option value="Нетели" <%= cow.age_group === 'Нетели' ? 'selected' : '' %>>Нетели (первотелки до отёла)</option>
+                                </optgroup>
+                                <optgroup label="Молодняк КРС">
+                                    <option value="Телята (до 6 мес.)" <%= (cow.age_group || '').includes('Телят') ? 'selected' : '' %>>Телята (до 6 мес., молочный период)</option>
+                                    <option value="Молодняк (6–18 мес.)" <%= ((cow.age_group || '').includes('Молодняк') || (cow.age_group || '').includes('Тёлки')) ? 'selected' : '' %>>Ремонтный молодняк (тёлки 6–18 мес.)</option>
+                                    <option value="Бычки на откорме" <%= cow.age_group === 'Бычки на откорме' ? 'selected' : '' %>>Бычки на откорме</option>
+                                </optgroup>
                             </select>
                         </div>
 
-                        <div class="col-md-2">
-                            <label for="lactation" class="form-label fw-semibold">Лактация</label>
-                            <input type="number" class="form-control" id="lactation" name="lactation" min="0" max="20" value="<%= cow.lactation || '' %>">
-                        </div>
-                        
-                        <div class="col-md-2">
-                            <label for="weight" class="form-label fw-semibold">Живая масса (кг)</label>
-                            <input type="number" step="0.1" class="form-control" id="weight" name="weight" min="0" value="<%= cow.weight || '' %>">
+                        <!-- Блок Лактации и DIM (Дни лактации) -->
+                        <div class="col-12">
+                            <div class="p-3 rounded-3 border bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                    <h6 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                                        <i class="bi bi-droplet-half text-primary"></i> Показатели лактации и физиологии
+                                    </h6>
+                                    <span id="lactation_phase_badge" class="badge bg-secondary px-3 py-2 fs-6">
+                                        <%= cow.lactation_phase || 'Фаза не определена' %>
+                                    </span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-3">
+                                        <label for="lactation" class="form-label small fw-semibold">Номер лактации</label>
+                                        <input type="number" class="form-control" id="lactation" name="lactation" min="0" max="20" value="<%= cow.lactation !== undefined ? cow.lactation : '' %>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="lactation_days" class="form-label small fw-semibold text-primary">Дни лактации (DIM)</label>
+                                        <input type="number" class="form-control border-primary" id="lactation_days" name="lactation_days" min="0" max="800" value="<%= cow.lactation_days !== undefined ? cow.lactation_days : '' %>">
+                                        <div class="form-text small">Дней в доении до выбытия</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="milk_yield" class="form-label small fw-semibold">Удой за лактацию (кг)</label>
+                                        <input type="number" step="1" class="form-control" id="milk_yield" name="milk_yield" min="0" value="<%= cow.milk_yield || '' %>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="weight" class="form-label small fw-semibold">Живая масса (кг)</label>
+                                        <input type="number" step="0.1" class="form-control" id="weight" name="weight" min="0" value="<%= cow.weight || '' %>">
+                                    </div>
+                                </div>
+                                <div id="lactation_alert" class="mt-2 small text-muted"></div>
+                            </div>
                         </div>
 
-                        <div class="col-md-2">
-                            <label for="milk_yield" class="form-label fw-semibold">Удой (кг)</label>
-                            <input type="number" step="1" class="form-control" id="milk_yield" name="milk_yield" min="0" value="<%= cow.milk_yield || '' %>">
-                        </div>
-
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label for="book_value" class="form-label fw-semibold">Баланс. ст. (BYN)</label>
                             <input type="number" step="0.01" class="form-control" id="book_value" name="book_value" min="0" value="<%= cow.book_value || '' %>">
+                        </div>
+
+                        <!-- Воспроизводство и статус выбытия стельных -->
+                        <div class="col-12 p-3 rounded bg-light border border-danger-subtle mt-2">
+                            <h6 class="fw-bold text-danger mb-1 d-flex align-items-center gap-2">
+                                <i class="bi bi-heartbreak-fill"></i> Статус на момент выбытия: стельность и потери плода
+                            </h6>
+                            <small class="text-muted d-block mb-2">Отметьте, если выбывшая (павшая, сданная или выбракованная) корова была стельной на дату выбытия.</small>
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_pregnant" name="is_pregnant" value="1" <%= cow.is_pregnant === 1 ? 'checked' : '' %>>
+                                        <label class="form-check-label fw-bold text-dark" for="is_pregnant">
+                                            <i class="bi bi-suit-heart-fill text-danger me-1"></i> Корова на момент выбытия была стельной
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="gestation_days" class="form-label fw-semibold mb-1 small">Срок стельности (дней)</label>
+                                    <input type="number" class="form-control form-control-sm" id="gestation_days" name="gestation_days" min="0" max="300" value="<%= cow.gestation_days || '' %>" placeholder="Напр. 180 дн.">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_stillborn" name="is_stillborn" value="1" <%= cow.is_stillborn === 1 ? 'checked' : '' %>>
+                                        <label class="form-check-label fw-semibold text-danger" for="is_stillborn">
+                                            <i class="bi bi-x-circle-fill me-1"></i> Мертворождённый телёнок / Аборт
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="col-md-12">
@@ -106,6 +160,83 @@
     var catSelect = document.getElementById('category');
     var reasonSelect = document.getElementById('reason');
     var currentReason = <%- JSON.stringify(cow.reason || '') %>;
+    var ageGroupSelect = document.getElementById('age_group');
+    var dimInput = document.getElementById('lactation_days');
+    var lactInput = document.getElementById('lactation');
+    var badge = document.getElementById('lactation_phase_badge');
+    var lactAlert = document.getElementById('lactation_alert');
+
+    function updateLactationUI() {
+        var ag = ageGroupSelect ? ageGroupSelect.value : '';
+        var isYoung = ag.includes('Телят') || ag.includes('Молодняк') || ag.includes('Бычк');
+        var isHeifer = ag.includes('Нетели');
+        var isDry = ag.includes('сухосто');
+
+        if (isYoung) {
+            badge.className = 'badge bg-success px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-flower1"></i> Молодняк (не лактирует)';
+            dimInput.value = '0';
+            dimInput.disabled = true;
+            lactInput.value = '0';
+            lactInput.disabled = true;
+            lactAlert.innerHTML = '<span class="text-success"><i class="bi bi-info-circle"></i> Для молодняка дни лактации не рассчитываются.</span>';
+            return;
+        }
+
+        if (isHeifer) {
+            badge.className = 'badge bg-info text-dark px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-gem"></i> Нетели (до отёла)';
+            dimInput.value = '0';
+            dimInput.disabled = true;
+            lactInput.value = '0';
+            lactInput.disabled = true;
+            lactAlert.innerHTML = '<span class="text-info"><i class="bi bi-info-circle"></i> Нетели готовятся к первому отёлу.</span>';
+            return;
+        }
+
+        if (isDry) {
+            badge.className = 'badge bg-secondary px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-moon-stars"></i> Сухостойный период';
+            dimInput.value = '0';
+            dimInput.disabled = true;
+            lactInput.disabled = false;
+            lactAlert.innerHTML = '<span class="text-secondary"><i class="bi bi-info-circle"></i> Период сухостоя перед отёлом.</span>';
+            return;
+        }
+
+        dimInput.disabled = false;
+        lactInput.disabled = false;
+        var dimVal = parseInt(dimInput.value, 10);
+
+        if (isNaN(dimVal) || dimInput.value === '') {
+            badge.className = 'badge bg-light text-dark border px-3 py-2 fs-6';
+            badge.textContent = 'Укажите дни лактации (DIM)';
+            lactAlert.textContent = '';
+            return;
+        }
+
+        if (dimVal <= 30) {
+            badge.className = 'badge bg-danger px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Новотел (0–30 дн) • Высокий риск!';
+            lactAlert.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-shield-exclamation"></i> Критическая зона риска послеродовых осложнений.</span>';
+        } else if (dimVal <= 100) {
+            badge.className = 'badge bg-primary px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-graph-up-arrow"></i> Раздой / Пик (31–100 дн)';
+            lactAlert.innerHTML = '<span class="text-primary"><i class="bi bi-info-circle"></i> Пик молочной продуктивности.</span>';
+        } else if (dimVal <= 200) {
+            badge.className = 'badge bg-info text-dark px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> Середина лактации (101–200 дн)';
+            lactAlert.innerHTML = '<span class="text-muted">Стабильная лактация.</span>';
+        } else {
+            badge.className = 'badge bg-secondary px-3 py-2 fs-6';
+            badge.innerHTML = '<i class="bi bi-clock-history"></i> Спад лактации (201–305+ дн)';
+            lactAlert.innerHTML = '<span class="text-muted">Завершающая стадия лактации.</span>';
+        }
+    }
+
+    if (ageGroupSelect) ageGroupSelect.addEventListener('change', updateLactationUI);
+    if (dimInput) dimInput.addEventListener('input', updateLactationUI);
+    updateLactationUI();
 
     function loadReasons(cat, sel) {
         if (!cat) return;

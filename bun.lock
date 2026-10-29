@@ -12,6 +12,7 @@
         "exceljs": "^4.4.0",
         "express": "^5.2.1",
         "express-session": "^1.19.0",
+        "setimmediate": "^1.0.5",
       },
       "devDependencies": {
         "@types/bcryptjs": "^3.0.0",

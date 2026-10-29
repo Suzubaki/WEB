@@ -1,6 +1,7 @@
 # app.py - Главная точка входа и фабрика приложения Flask
 import os
-from flask import Flask, session, send_file, Response, url_for
+import time
+from flask import Flask, session, send_file, Response, url_for, request, jsonify
 
 from config import Config
 from database import init_db
@@ -115,6 +116,70 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(api_bp)
 
+# -------------------- ЗАЩИТА ОТ DDOS И ПЕРЕГРУЗКИ СЕРВЕРА --------------------
+_ip_requests = {}
+_auth_requests = {}
+_heavy_requests = {}
+_blocked_ips = {}
+
+def get_client_ip():
+    cf = request.headers.get('CF-Connecting-IP')
+    if cf and cf.strip():
+        return cf.strip()
+    fwd = request.headers.get('X-Forwarded-For')
+    if fwd and fwd.strip():
+        return fwd.split(',')[0].strip()
+    return request.remote_addr or '127.0.0.1'
+
+def check_rate_limit(tracker, ip, max_reqs, window_sec, burst_limit=None, burst_window=5, block_sec=60):
+    now = time.time()
+    if ip in _blocked_ips:
+        unblock_time = _blocked_ips[ip]
+        if unblock_time > now:
+            return False, int(unblock_time - now)
+        else:
+            del _blocked_ips[ip]
+
+    timestamps = [t for t in tracker.get(ip, []) if now - t < window_sec]
+    tracker[ip] = timestamps
+
+    if burst_limit:
+        burst_ts = [t for t in timestamps if now - t < burst_window]
+        if len(burst_ts) >= burst_limit:
+            _blocked_ips[ip] = now + block_sec
+            return False, block_sec
+
+    if len(timestamps) >= max_reqs:
+        _blocked_ips[ip] = now + block_sec
+        return False, block_sec
+
+    tracker[ip].append(now)
+    return True, 0
+
+@app.before_request
+def anti_ddos_guard():
+    # Отключена блокировка 429 по требованию пользователя для бесперебойной работы сайта
+    return None
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    if 'Server' in response.headers:
+        del response.headers['Server']
+    return response
+
+@app.errorhandler(429)
+def ratelimit_error(e):
+    return Response("429 Too Many Requests: Превышен лимит запросов. Пожалуйста, подождите перед повторной попыткой.", status=429, mimetype="text/plain; charset=utf-8")
+
+@app.errorhandler(413)
+def payload_too_large(e):
+    return Response("413 Request Entity Too Large: Размер отправленного запроса превышает допустимый лимит безопасности.", status=413, mimetype="text/plain; charset=utf-8")
+
 # Синхронизация данных пользователя в сессии перед каждым запросом
 @app.before_request
 def sync_current_user_session():
@@ -125,10 +190,20 @@ def sync_current_user_session():
             session['username'] = user.username
             session['user_type'] = user.user_type
 
-# Обратная совместимость вызовов url_for в существующих шаблонах
+# Обратная совместимость и безопасность вызовов url_for в шаблонах
 @app.context_processor
 def override_url_for():
-    def custom_url_for(endpoint, **values):
+    def has_endpoint(endpoint_name):
+        """Безопасная проверка существования зарегистрированного маршрута в Flask без TypeError"""
+        if not endpoint_name:
+            return False
+        try:
+            return (endpoint_name in app.view_functions) or (endpoint_name in app.url_map._rules_by_endpoint)
+        except Exception:
+            return False
+
+    def safe_url_for(endpoint_name, default='#', **values):
+        """Безопасное вычисление URL с поддержкой алиасов и резервным вариантом"""
         aliases = {
             'index': 'main.index',
             'dashboard': 'main.dashboard',
@@ -163,18 +238,28 @@ def override_url_for():
             'download_db_backup': 'admin.download_backup',
             'restore_db_backup': 'admin.restore_backup',
             'seed_test_data': 'admin.seed_test_data',
+            'pricing': 'admin.pricing',
             'get_farms': 'api.get_farms',
             'get_reasons': 'api.get_reasons'
         }
-        resolved = aliases.get(endpoint, endpoint)
+        resolved = aliases.get(endpoint_name, endpoint_name)
         try:
             return url_for(resolved, **values)
         except Exception:
-            return url_for(endpoint, **values)
-    return dict(url_for=custom_url_for)
+            try:
+                return url_for(endpoint_name, **values)
+            except Exception:
+                return default
+
+    def custom_url_for(endpoint, **values):
+        return safe_url_for(endpoint, default='#', **values)
+
+    custom_url_for.__doc__ = "custom_url_for helper function"
+    return dict(url_for=custom_url_for, has_endpoint=has_endpoint, safe_url_for=safe_url_for)
 
 if __name__ == '__main__':
     init_db()
     from create_users import create_default_users
     create_default_users()
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    is_debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
+    app.run(host='0.0.0.0', port=3000, debug=is_debug)
