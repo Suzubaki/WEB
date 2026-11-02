@@ -59,7 +59,7 @@ const DISPOSAL_CATEGORIES: Record<string, string[]> = {
   ]
 };
 
-// Dynamic Financial Pricing Standards (BYN) & Zootechnical Norm Thresholds
+// Dynamic Financial Pricing Standards (BYN) & Zootechnical Norm/Warning/Critical Thresholds
 export interface FinancialPricingStandards {
   price_calves: number;      // BYN/гол (Телята 0–6 мес)
   price_youngstock: number;  // BYN/гол (Ремонтный молодняк 6–18 мес)
@@ -69,12 +69,41 @@ export interface FinancialPricingStandards {
   meat_price_per_kg: number; // BYN/кг живой массы
   milk_price_per_kg: number; // BYN/кг базисного молока
   replacement_cost: number;  // BYN/гол стоимость нетели на замену
-  norm_youngstock_preservation: number; // Целевая сохранность молодняка (%)
-  norm_fresh_cow_disposal: number;      // Порог выбытия новотела (%)
-  norm_first_lactation_culling: number; // Порог выбраковки первотёлок (%)
-  norm_mortality_rate: number;          // Порог доли падежа (%)
-  norm_locomotor_disorders: number;     // Порог болезней копыт (%)
-  norm_mastitis_disorders: number;      // Порог болезней вымени (%)
+
+  // 1. Сохранность телят (0-6 мес)
+  norm_calf_preservation: number; // Целевая норма (%)
+  warn_calf_preservation: number; // Порог предупреждения (%)
+  crit_calf_preservation: number; // Критический порог (%)
+
+  // 2. Сохранность молодняка (6-18 мес)
+  norm_youngstock_preservation: number; // Целевая норма (%)
+  warn_youngstock_preservation: number; // Порог предупреждения (%)
+  crit_youngstock_preservation: number; // Критический порог (%)
+
+  // 3. Выбытие новотельных (0-30 DIM)
+  norm_fresh_cow_disposal: number; // Целевая норма (%)
+  warn_fresh_cow_disposal: number; // Порог предупреждения (%)
+  crit_fresh_cow_disposal: number; // Критический порог (%)
+
+  // 4. Выбраковка первотёлок
+  norm_first_lactation_culling: number; // Целевая норма (%)
+  warn_first_lactation_culling: number; // Порог предупреждения (%)
+  crit_first_lactation_culling: number; // Критический порог (%)
+
+  // 5. Общая летальность (Падёж)
+  norm_mortality_rate: number; // Целевая норма (%)
+  warn_mortality_rate: number; // Порог предупреждения (%)
+  crit_mortality_rate: number; // Критический порог (%)
+
+  // 6. Болезни конечностей (копыт)
+  norm_locomotor_disorders: number; // Целевая норма (%)
+  warn_locomotor_disorders: number; // Порог предупреждения (%)
+  crit_locomotor_disorders: number; // Критический порог (%)
+
+  // 7. Маститы и заболевания вымени
+  norm_mastitis_disorders: number; // Целевая норма (%)
+  warn_mastitis_disorders: number; // Порог предупреждения (%)
+  crit_mastitis_disorders: number; // Критический порог (%)
 }
 
 export let currentPricingStandards: FinancialPricingStandards = {
@@ -86,23 +115,79 @@ export let currentPricingStandards: FinancialPricingStandards = {
   meat_price_per_kg: 6.20,
   milk_price_per_kg: 1.18,
   replacement_cost: 2950,
+
+  norm_calf_preservation: 95.0,
+  warn_calf_preservation: 92.0,
+  crit_calf_preservation: 88.0,
+
   norm_youngstock_preservation: 92.0,
+  warn_youngstock_preservation: 88.0,
+  crit_youngstock_preservation: 82.0,
+
   norm_fresh_cow_disposal: 10.0,
+  warn_fresh_cow_disposal: 14.0,
+  crit_fresh_cow_disposal: 18.0,
+
   norm_first_lactation_culling: 20.0,
+  warn_first_lactation_culling: 25.0,
+  crit_first_lactation_culling: 30.0,
+
   norm_mortality_rate: 25.0,
+  warn_mortality_rate: 35.0,
+  crit_mortality_rate: 45.0,
+
   norm_locomotor_disorders: 15.0,
-  norm_mastitis_disorders: 15.0
+  warn_locomotor_disorders: 20.0,
+  crit_locomotor_disorders: 25.0,
+
+  norm_mastitis_disorders: 15.0,
+  warn_mastitis_disorders: 20.0,
+  crit_mastitis_disorders: 25.0
 };
 
-export function estimateCowValue(c: { book_value?: number; age_group?: string }): number {
+export function normalizeAgeGroup(ag?: string, lact?: number): string {
+  if (!ag) {
+    if (lact === 1) return 'Коровы 1-й лактации (первотёлки)';
+    return 'Коровы 2+ лактаций (полновозрастные)';
+  }
+  const lower = ag.toLowerCase();
+  if (lower.includes('мертворож') || lower.includes('аборт') || lower.includes('плод')) {
+    return 'Мертворождённые / Аборты';
+  }
+  if (lower.includes('новотел') || lower.includes('0-30') || lower.includes('0–30')) {
+    return 'Новотельные коровы (0–30 дн DIM)';
+  }
+  if (lower.includes('тел') || lower.includes('до 6') || lower.includes('0–6') || lower.includes('0-6')) {
+    return 'Телята (до 6 мес.)';
+  }
+  if (lower.includes('молод') || lower.includes('6–18') || lower.includes('6-18') || lower.includes('6–12') || lower.includes('от 6 до 18') || lower.includes('6-12')) {
+    return 'Молодняк (от 6 до 18 мес.)';
+  }
+  if (lower.includes('нетел') || lower.includes('старше 18') || lower.includes('> 18') || lower.includes('старше 1 года')) {
+    return 'Нетели и тёлки (> 18 мес.)';
+  }
+  if (lower.includes('сухосто')) {
+    return 'Коровы сухостойные';
+  }
+  if (lower.includes('быч')) {
+    return 'Бычки на откорме';
+  }
+  if (lower.includes('первотёл') || lower.includes('1-й лакт') || lower.includes('1 лакт') || lact === 1) {
+    return 'Коровы 1-й лактации (первотёлки)';
+  }
+  return 'Коровы 2+ лактаций (полновозрастные)';
+}
+
+export function estimateCowValue(c: { book_value?: number; age_group?: string; lactation?: number }): number {
   if (c.book_value && c.book_value > 0) {
     return c.book_value;
   }
-  const ag = (c.age_group || '').toLowerCase();
-  if (ag.includes('телят')) return currentPricingStandards.price_calves;
-  if (ag.includes('молодняк') || ag.includes('быч')) return currentPricingStandards.price_youngstock;
-  if (ag.includes('нетел')) return currentPricingStandards.price_heifers;
-  if (ag.includes('сухосто')) return currentPricingStandards.price_dry_cows;
+  const normAg = normalizeAgeGroup(c.age_group, c.lactation);
+  if (normAg === 'Телята (до 6 мес.)') return currentPricingStandards.price_calves;
+  if (normAg === 'Молодняк (от 6 до 18 мес.)') return currentPricingStandards.price_youngstock;
+  if (normAg === 'Нетели и тёлки (> 18 мес.)') return currentPricingStandards.price_heifers;
+  if (normAg === 'Коровы сухостойные') return currentPricingStandards.price_dry_cows;
+  if (normAg === 'Бычки на откорме') return currentPricingStandards.price_youngstock;
   return currentPricingStandards.price_cows;
 }
 
@@ -126,10 +211,10 @@ export interface Cow {
   disposal_date: string;
   lactation?: number;
   lactation_days?: number; // Дни лактации (DIM - Days in Milk)
-  lactation_phase?: string; // Новотел (0-30 дн), Раздой (31-100 дн), Середина (101-200 дн), Спад (201-305+ дн), Сухостой, Молодняк
+  lactation_phase?: string; // Новотел (0-30 дн), Раздой (31-100 дн), Середина (101-200 дн), Спад (201-305+ дн), Сухостой, Телята, Молодняк
   weight?: number;
   notes?: string;
-  age_group?: string; // Половозрастная группа: Коровы дойного стада, Телята (0–6 мес.), Молодняк (6–18 мес.), Нетели, Коровы сухостойные, Бычки на откорме
+  age_group?: string; // Половозрастная группа: Телята (до 6 мес.), Молодняк (от 6 до 18 мес.), Нетели и тёлки (> 18 мес.), Коровы 1-й лактации (первотёлки), Коровы 2+ лактаций (полновозрастные), Коровы сухостойные, Бычки на откорме
   breed?: string;
   milk_yield?: number;
   book_value?: number;
@@ -219,20 +304,26 @@ function getSeedDate(monthOffset: number, dayOfMonth: number): string {
 export const cows: Cow[] = [];
 
 export function computeLactationPhase(ageGroup?: string, lactationDays?: number | null, lactation?: number | null): string {
-  const ag = (ageGroup || '').toLowerCase();
-  if (ag.includes('тел') || ag.includes('0–6') || ag.includes('0-6')) {
-    return 'Молодняк (до 6 мес.)';
+  const normAg = normalizeAgeGroup(ageGroup, lactation ?? undefined);
+  if (normAg === 'Мертворождённые / Аборты') {
+    return 'Мертворождённые / Аборты';
   }
-  if (ag.includes('молод') || ag.includes('6–18') || ag.includes('6-18') || ag.includes('тёлк')) {
-    return 'Молодняк (6–18 мес.)';
+  if (normAg === 'Новотельные коровы (0–30 дн DIM)') {
+    return 'Новотел (0–30 дн)';
   }
-  if (ag.includes('нетел')) {
-    return 'Нетели';
+  if (normAg === 'Телята (до 6 мес.)') {
+    return 'Телята (до 6 мес.)';
   }
-  if (ag.includes('быч')) {
+  if (normAg === 'Молодняк (от 6 до 18 мес.)') {
+    return 'Молодняк (от 6 до 18 мес.)';
+  }
+  if (normAg === 'Нетели и тёлки (> 18 мес.)') {
+    return 'Нетели (> 18 мес.)';
+  }
+  if (normAg === 'Бычки на откорме') {
     return 'Бычки на откорме';
   }
-  if (ag.includes('сухосто')) {
+  if (normAg === 'Коровы сухостойные') {
     return 'Сухостой';
   }
   if (lactationDays === undefined || lactationDays === null || isNaN(lactationDays)) {
@@ -343,41 +434,41 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
     }
 
     // Age groups & physiological parameters
-    let ag = 'Коровы дойного стада';
+    let ag = 'Коровы 2+ лактаций (полновозрастные)';
     let lact = 1 + Math.floor(Math.random() * 5);
     let lactDays = 120;
     let weight = 480 + Math.floor(Math.random() * 180);
     let milkYield = 5500 + Math.floor(Math.random() * 3800);
     let bookVal = 1800 + Math.floor(Math.random() * 1400);
 
-    if (reason === 'Диспепсия телят' || reason === 'Эшерихиоз (колибактериоз)' || (cat === 'падёж' && Math.random() < 0.25)) {
+    if (reason === 'Диспепсия телят' || reason === 'Эшерихиоз (колибактериоз)' || (cat === 'падёж' && Math.random() < 0.22)) {
       ag = 'Телята (до 6 мес.)';
       lact = 0;
       lactDays = 0;
       weight = 32 + Math.floor(Math.random() * 55);
       milkYield = 0;
       bookVal = 260 + Math.floor(Math.random() * 280);
+    } else if (Math.random() < 0.12) {
+      ag = 'Молодняк (от 6 до 18 мес.)';
+      lact = 0;
+      lactDays = 0;
+      weight = 180 + Math.floor(Math.random() * 170);
+      milkYield = 0;
+      bookVal = 850 + Math.floor(Math.random() * 700);
     } else if (reason.includes('роды') || reason.includes('матки') || Math.random() < 0.08) {
-      ag = 'Нетели';
+      ag = 'Нетели и тёлки (> 18 мес.)';
       lact = 0;
       lactDays = 0;
       weight = 430 + Math.floor(Math.random() * 100);
       milkYield = 0;
       bookVal = 2600 + Math.floor(Math.random() * 700);
-    } else if (Math.random() < 0.12) {
+    } else if (Math.random() < 0.10) {
       ag = 'Коровы сухостойные';
       lact = 2 + Math.floor(Math.random() * 4);
       lactDays = 0;
       weight = 520 + Math.floor(Math.random() * 140);
       milkYield = 5800 + Math.floor(Math.random() * 2400);
       bookVal = 2100 + Math.floor(Math.random() * 900);
-    } else if (Math.random() < 0.10) {
-      ag = 'Молодняк (6–18 мес.)';
-      lact = 0;
-      lactDays = 0;
-      weight = 180 + Math.floor(Math.random() * 170);
-      milkYield = 0;
-      bookVal = 850 + Math.floor(Math.random() * 700);
     } else if (Math.random() < 0.05) {
       ag = 'Бычки на откорме';
       lact = 0;
@@ -386,7 +477,13 @@ export function populateRealisticCows(targetCount: number = 1250, clearExisting:
       milkYield = 0;
       bookVal = 1200 + Math.floor(Math.random() * 600);
     } else {
-      // Коровы дойного стада: реалистичные дни лактации (DIM) по патологиям
+      // Дойное стадо: разделение на 1-ю лактацию (первотёлки) и 2+ лактаций
+      if (lact === 1) {
+        ag = 'Коровы 1-й лактации (первотёлки)';
+      } else {
+        ag = 'Коровы 2+ лактаций (полновозрастные)';
+      }
+      // Реалистичные дни лактации (DIM) по патологиям
       if (reason.includes('парез') || reason.includes('артерии') || reason.includes('роды') || reason.includes('Кетоз (острая')) {
         // Новотельный период (1–30 дней)
         lactDays = 2 + Math.floor(Math.random() * 27);
@@ -902,7 +999,17 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   let endDate = '2099-12-31';
   let periodTitle = '';
 
-  if (period === 'this_month') {
+  if (period === 'last_7') {
+    const start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    startDate = formatDate(start);
+    endDate = formatDate(now);
+    periodTitle = 'Последние 7 дней';
+  } else if (period === 'last_30') {
+    const start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+    startDate = formatDate(start);
+    endDate = formatDate(now);
+    periodTitle = 'Последние 30 дней';
+  } else if (period === 'this_month') {
     const d = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     startDate = formatDate(d);
@@ -945,6 +1052,9 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     const dateMatch = c.disposal_date >= startDate && c.disposal_date <= endDate;
     return farmMatch && dateMatch;
   });
+
+  // Strict isolation: live animal disposals vs intrauterine fetal losses (stillbirths/abortions)
+  const liveCows = relevantCows.filter(c => !c.is_stillborn && c.category !== 'мертворождение' && normalizeAgeGroup(c.age_group) !== 'Мертворождённые / Аборты');
 
   const categoryCounts: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
   const ageGroupCounts: Record<string, number> = {};
@@ -1013,18 +1123,20 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     death: number;
     culling: number;
     sanitary: number;
-    youngstock: number;
+    calves: number;     // Телята (до 6 мес.)
+    youngstock: number; // Молодняк (от 6 до 18 мес.)
+    heifers: number;    // Нетели и тёлки (> 18 мес.)
     fresh: number;
     totalDim: number;
     dimCount: number;
     lossByn: number;
   }> = {};
 
-  for (const c of relevantCows) {
+  for (const c of liveCows) {
     categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1;
     farmCounts[c.farm_name] = (farmCounts[c.farm_name] || 0) + 1;
 
-    const ag = c.age_group || 'Коровы дойного стада';
+    const ag = normalizeAgeGroup(c.age_group, c.lactation);
     ageGroupCounts[ag] = (ageGroupCounts[ag] || 0) + 1;
 
     // Динамическая стоимостная оценка выбывшего животного по прейскуранту BYN
@@ -1134,7 +1246,9 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
         death: 0,
         culling: 0,
         sanitary: 0,
+        calves: 0,
         youngstock: 0,
+        heifers: 0,
         fresh: 0,
         totalDim: 0,
         dimCount: 0,
@@ -1148,10 +1262,15 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     else if (c.category === 'выбраковка') fm.culling++;
     else fm.sanitary++;
 
-    if (ag.includes('Телят') || ag.includes('Молодняк') || ag.includes('Бычки')) {
+    if (ag === 'Телята (до 6 мес.)') {
+      fm.calves++;
+    } else if (ag === 'Молодняк (от 6 до 18 мес.)') {
       fm.youngstock++;
+    } else if (ag === 'Нетели и тёлки (> 18 мес.)') {
+      fm.heifers++;
     }
-    if ((c.lactation_days !== undefined && c.lactation_days !== null && c.lactation_days <= 30) && (ag.includes('дойного') || standardPhaseKey.includes('Новотел'))) {
+
+    if ((c.lactation_days !== undefined && c.lactation_days !== null && c.lactation_days <= 30 && c.lactation_days > 0) || standardPhaseKey.includes('Новотел')) {
       fm.fresh++;
     }
     if (c.lactation_days && c.lactation_days > 0) {
@@ -1160,7 +1279,7 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     }
   }
 
-  const totalDisposals = relevantCows.length;
+  const totalDisposals = liveCows.length;
   const sortedAgeGroups = Object.entries(ageGroupCounts).sort((a, b) => b[1] - a[1]);
   const sortedPathology = Object.entries(pathologySystems).sort((a, b) => b[1] - a[1]);
   const sortedFarms = Object.entries(farmCounts).sort((a, b) => b[1] - a[1]);
@@ -1217,6 +1336,7 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
 
   for (let i = 0; i < cows.length; i++) {
     const c = cows[i];
+    if (c.is_stillborn || c.category === 'мертворождение' || normalizeAgeGroup(c.age_group) === 'Мертворождённые / Аборты') continue;
     const farmMatch = (userType === 'admin' && (farmName === 'all' || !farmName)) ? true : c.farm_name === farmName;
     if (!farmMatch) continue;
     const m = c.disposal_date.substring(0, 7);
@@ -1252,6 +1372,7 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
 
     for (let i = 0; i < cows.length; i++) {
       const c = cows[i];
+      if (c.is_stillborn || c.category === 'мертворождение' || normalizeAgeGroup(c.age_group) === 'Мертворождённые / Аборты') continue;
       const farmMatch = (userType === 'admin' && (farmName === 'all' || !farmName)) ? true : c.farm_name === farmName;
       if (farmMatch && c.disposal_date >= prevStartStr && c.disposal_date <= prevEndStr) {
         prevPeriodCount++;
@@ -1267,18 +1388,36 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
     growthPct = 0;
   }
 
-  // Youngstock KPI computations
-  const calfDisposals = relevantCows.filter(c => {
-    const ag = (c.age_group || '').toLowerCase();
-    return ag.includes('тел') || ag.includes('0–6') || ag.includes('0-6');
-  });
+  // Separated Age Group KPI computations (live animal disposals)
+  // 1. Телята (до 6 мес.) — молочный и профилакторный период
+  const calfDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Телята (до 6 мес.)');
   const calfDeathCount = calfDisposals.filter(c => c.category === 'падёж').length;
+  const calfPreservationPct = calfDisposals.length > 0 ? Math.round(((calfDisposals.length - calfDeathCount) / calfDisposals.length) * 1000) / 10 : 100;
 
-  const youngstockAll = relevantCows.filter(c => {
-    const ag = (c.age_group || '').toLowerCase();
-    return ag.includes('тел') || ag.includes('молод') || ag.includes('быч');
-  });
-  const youngstockDeathCount = youngstockAll.filter(c => c.category === 'падёж').length;
+  // 2. Молодняк (от 6 до 18 мес.) — строго 6-18 месяцев
+  const youngstockDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Молодняк (от 6 до 18 мес.)');
+  const youngstockDeathCount = youngstockDisposals.filter(c => c.category === 'падёж').length;
+  const youngstockPreservationPct = youngstockDisposals.length > 0 ? Math.round(((youngstockDisposals.length - youngstockDeathCount) / youngstockDisposals.length) * 1000) / 10 : 100;
+
+  // 3. Нетели и тёлки (> 18 мес.) — старший молодняк и нетели
+  const heiferDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Нетели и тёлки (> 18 мес.)');
+  const heiferDeathCount = heiferDisposals.filter(c => c.category === 'падёж').length;
+
+  // 4. Бычки на откорме
+  const bullDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Бычки на откорме');
+  const bullDeathCount = bullDisposals.filter(c => c.category === 'падёж').length;
+
+  // 5. Коровы 1-й лактации (первотёлки)
+  const firstLactDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Коровы 1-й лактации (первотёлки)');
+  const firstLactDeaths = firstLactDisposals.filter(c => c.category === 'падёж').length;
+
+  // 6. Коровы 2+ лактаций (полновозрастные)
+  const multiparousDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Коровы 2+ лактаций (полновозрастные)');
+  const multiparousDeaths = multiparousDisposals.filter(c => c.category === 'падёж').length;
+
+  // 7. Коровы сухостойные
+  const dryDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Коровы сухостойные');
+  const dryDeaths = dryDisposals.filter(c => c.category === 'падёж').length;
 
   // Fresh period (0-30 days DIM) computations
   const freshCohort = lactationCohorts['Новотел (0–30 дн)'];
@@ -1302,15 +1441,24 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   const lactationDeathData = lactationLabels.map(l => lactationCohorts[l]?.death || 0);
   const lactationCullingData = lactationLabels.map(l => (lactationCohorts[l]?.culling || 0) + (lactationCohorts[l]?.sanitary || 0));
 
-  // Stacked Age Groups
-  const ageGroupLabels = sortedAgeGroups.map(x => x[0]);
+  // Stacked Age Groups in natural chronological order
+  const standardAgeGroupOrder = [
+    'Телята (до 6 мес.)',
+    'Молодняк (от 6 до 18 мес.)',
+    'Нетели и тёлки (> 18 мес.)',
+    'Коровы 1-й лактации (первотёлки)',
+    'Коровы 2+ лактаций (полновозрастные)',
+    'Коровы сухостойные',
+    'Бычки на откорме'
+  ];
+  const ageGroupLabels = standardAgeGroupOrder.filter(ag => (categoryMatrix[ag]?.total || 0) > 0 || (ageGroupCounts[ag] || 0) > 0);
+  if (ageGroupLabels.length === 0) ageGroupLabels.push(...standardAgeGroupOrder);
   const ageGroupDeathData = ageGroupLabels.map(ag => categoryMatrix[ag]?.death || 0);
   const ageGroupCullingData = ageGroupLabels.map(ag => categoryMatrix[ag]?.culling || 0);
   const ageGroupSanitaryData = ageGroupLabels.map(ag => categoryMatrix[ag]?.sanitary || 0);
 
   // Veterinary Safety Scorecard indicators
   const mortalityPct = totalDisposals > 0 ? (categoryCounts['падёж'] / totalDisposals) * 100 : 0;
-  const youngstockPreservationPct = youngstockAll.length > 0 ? ((youngstockAll.length - youngstockDeathCount) / youngstockAll.length) * 100 : 100;
   const freshSharePct = totalDisposals > 0 ? (freshDisposals / totalDisposals) * 100 : 0;
   
   const adultCowTotal = (lactNumberDeath.reduce((a, b) => a + b, 0) + lactNumberCulling.reduce((a, b) => a + b, 0));
@@ -1323,50 +1471,87 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   const mastitisTotal = pathologySystems['Болезни вымени (маститы)'] || 0;
   const mastitisPct = totalDisposals > 0 ? (mastitisTotal / totalDisposals) * 100 : 0;
 
-  const scorecard = {
-    youngstock_preservation: {
-      value: youngstockPreservationPct.toFixed(1) + '%',
+  // Progress calculations
+  const progCalfPreservation = Math.max(5, Math.min(100, Math.round(calfPreservationPct)));
+  const progYoungstockPreservation = Math.max(5, Math.min(100, Math.round(youngstockPreservationPct)));
+  const progFresh = Math.max(5, Math.min(100, Math.round((freshSharePct / Math.max(currentPricingStandards.norm_fresh_cow_disposal, 0.1)) * 100)));
+  const progFirstLact = Math.max(5, Math.min(100, Math.round((firstLactPct / Math.max(currentPricingStandards.norm_first_lactation_culling, 0.1)) * 100)));
+  const progMortality = Math.max(5, Math.min(100, Math.round((mortalityPct / Math.max(currentPricingStandards.norm_mortality_rate, 0.1)) * 100)));
+  const progLocomotor = Math.max(5, Math.min(100, Math.round((locomotorPct / Math.max(currentPricingStandards.norm_locomotor_disorders, 0.1)) * 100)));
+  const progMastitis = Math.max(5, Math.min(100, Math.round((mastitisPct / Math.max(currentPricingStandards.norm_mastitis_disorders, 0.1)) * 100)));
+
+  const scorecard = [
+    {
+      title: 'Сохранность телят (до 6 мес.)',
+      target: `≥ ${currentPricingStandards.norm_calf_preservation.toFixed(1)}%`,
+      current: `${calfPreservationPct.toFixed(1)}%`,
+      progress_pct: progCalfPreservation,
+      status: calfPreservationPct >= currentPricingStandards.norm_calf_preservation ? 'success' : (calfPreservationPct >= currentPricingStandards.warn_calf_preservation ? 'warning' : 'danger'),
+      statusText: calfPreservationPct >= currentPricingStandards.norm_calf_preservation ? 'Норма' : (calfPreservationPct >= currentPricingStandards.warn_calf_preservation ? 'Внимание' : 'Риск'),
+      note: `Пало телят: ${calfDeathCount} из ${calfDisposals.length} гол.`,
+      icon: 'bi-balloon-fill'
+    },
+    {
+      title: 'Сохранность молодняка (6–18 мес.)',
       target: `≥ ${currentPricingStandards.norm_youngstock_preservation.toFixed(1)}%`,
-      status: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'success' : (youngstockPreservationPct >= (currentPricingStandards.norm_youngstock_preservation - 7) ? 'warning' : 'danger'),
-      title: 'Сохранность молодняка (до 18 мес.)',
-      desc: `${youngstockAll.length - youngstockDeathCount} из ${youngstockAll.length} гол. сохранено`
+      current: `${youngstockPreservationPct.toFixed(1)}%`,
+      progress_pct: progYoungstockPreservation,
+      status: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'success' : (youngstockPreservationPct >= currentPricingStandards.warn_youngstock_preservation ? 'warning' : 'danger'),
+      statusText: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'Норма' : (youngstockPreservationPct >= currentPricingStandards.warn_youngstock_preservation ? 'Внимание' : 'Риск'),
+      note: `Пало молодняка: ${youngstockDeathCount} из ${youngstockDisposals.length} гол.`,
+      icon: 'bi-flower1'
     },
-    fresh_cow_disposal: {
-      value: freshSharePct.toFixed(1) + '%',
+    {
+      title: 'Выбытие новотельных (0-30 DIM)',
       target: `≤ ${currentPricingStandards.norm_fresh_cow_disposal.toFixed(1)}%`,
-      status: freshSharePct <= currentPricingStandards.norm_fresh_cow_disposal ? 'success' : (freshSharePct <= (currentPricingStandards.norm_fresh_cow_disposal + 8) ? 'warning' : 'danger'),
-      title: 'Доля выбытия новотела (0–30 DIM)',
-      desc: `${freshDisposals} гол. выбыло в критический период`
+      current: `${freshSharePct.toFixed(1)}%`,
+      progress_pct: progFresh,
+      status: freshSharePct <= currentPricingStandards.norm_fresh_cow_disposal ? 'success' : (freshSharePct <= currentPricingStandards.warn_fresh_cow_disposal ? 'warning' : 'danger'),
+      statusText: freshSharePct <= currentPricingStandards.norm_fresh_cow_disposal ? 'Норма' : (freshSharePct <= currentPricingStandards.warn_fresh_cow_disposal ? 'Внимание' : 'Риск'),
+      note: `Новотел: ${freshDisposals} гол. (${freshDeaths} пало)`,
+      icon: 'bi-exclamation-octagon-fill'
     },
-    first_lactation_culling: {
-      value: firstLactPct.toFixed(1) + '%',
+    {
+      title: 'Выбраковка первотёлок',
       target: `≤ ${currentPricingStandards.norm_first_lactation_culling.toFixed(1)}%`,
-      status: firstLactPct <= currentPricingStandards.norm_first_lactation_culling ? 'success' : (firstLactPct <= (currentPricingStandards.norm_first_lactation_culling + 8) ? 'warning' : 'danger'),
-      title: 'Выбраковка первотёлок (1 лактация)',
-      desc: `${firstLactTotal} гол. (потеря инвестиций в нетель)`
+      current: `${firstLactPct.toFixed(1)}%`,
+      progress_pct: progFirstLact,
+      status: firstLactPct <= currentPricingStandards.norm_first_lactation_culling ? 'success' : (firstLactPct <= currentPricingStandards.warn_first_lactation_culling ? 'warning' : 'danger'),
+      statusText: firstLactPct <= currentPricingStandards.norm_first_lactation_culling ? 'Норма' : (firstLactPct <= currentPricingStandards.warn_first_lactation_culling ? 'Внимание' : 'Высокая'),
+      note: 'Доля 1-й лактации в выбраковке',
+      icon: 'bi-gem'
     },
-    mortality_rate: {
-      value: mortalityPct.toFixed(1) + '%',
+    {
+      title: 'Общая летальность (Падёж)',
       target: `≤ ${currentPricingStandards.norm_mortality_rate.toFixed(1)}%`,
-      status: mortalityPct <= currentPricingStandards.norm_mortality_rate ? 'success' : (mortalityPct <= (currentPricingStandards.norm_mortality_rate + 15) ? 'warning' : 'danger'),
-      title: 'Удельный вес падежа в выбытии',
-      desc: `${categoryCounts['падёж']} гол. пало от общих ${totalDisposals} выбывших`
+      current: `${mortalityPct.toFixed(1)}%`,
+      progress_pct: progMortality,
+      status: mortalityPct <= currentPricingStandards.norm_mortality_rate ? 'success' : (mortalityPct <= currentPricingStandards.warn_mortality_rate ? 'warning' : 'danger'),
+      statusText: mortalityPct <= currentPricingStandards.norm_mortality_rate ? 'Норма' : (mortalityPct <= currentPricingStandards.warn_mortality_rate ? 'Повышен' : 'Критич.'),
+      note: `Пало ${categoryCounts['падёж']} из ${totalDisposals} гол.`,
+      icon: 'bi-heart-pulse-fill'
     },
-    locomotor_disorders: {
-      value: locomotorPct.toFixed(1) + '%',
+    {
+      title: 'Болезни конечностей',
       target: `≤ ${currentPricingStandards.norm_locomotor_disorders.toFixed(1)}%`,
-      status: locomotorPct <= currentPricingStandards.norm_locomotor_disorders ? 'success' : 'warning',
-      title: 'Болезни копыт и конечностей',
-      desc: `${locomotorTotal} случаев травм и заболеваний копыт`
+      current: `${locomotorPct.toFixed(1)}%`,
+      progress_pct: progLocomotor,
+      status: locomotorPct <= currentPricingStandards.norm_locomotor_disorders ? 'success' : (locomotorPct <= currentPricingStandards.warn_locomotor_disorders ? 'warning' : 'danger'),
+      statusText: locomotorPct <= currentPricingStandards.norm_locomotor_disorders ? 'Норма' : (locomotorPct <= currentPricingStandards.warn_locomotor_disorders ? 'Внимание' : 'Риск'),
+      note: 'Ортопедическая патология',
+      icon: 'bi-bandaid-fill'
     },
-    mastitis_disorders: {
-      value: mastitisPct.toFixed(1) + '%',
-      target: `≤ ${currentPricingStandards.norm_mastitis_disorders.toFixed(1)}%`,
-      status: mastitisPct <= currentPricingStandards.norm_mastitis_disorders ? 'success' : 'warning',
+    {
       title: 'Маститы и патологии вымени',
-      desc: `${mastitisTotal} случаев воспаления молочной железы`
+      target: `≤ ${currentPricingStandards.norm_mastitis_disorders.toFixed(1)}%`,
+      current: `${mastitisPct.toFixed(1)}%`,
+      progress_pct: progMastitis,
+      status: mastitisPct <= currentPricingStandards.norm_mastitis_disorders ? 'success' : (mastitisPct <= currentPricingStandards.warn_mastitis_disorders ? 'warning' : 'danger'),
+      statusText: mastitisPct <= currentPricingStandards.norm_mastitis_disorders ? 'Норма' : (mastitisPct <= currentPricingStandards.warn_mastitis_disorders ? 'Внимание' : 'Риск'),
+      note: 'Инфекции молочной железы',
+      icon: 'bi-droplet-fill'
     }
-  };
+  ];
 
   // Farm Comparative Matrix
   const farmMatrixList = Object.entries(farmMatrix).map(([name, stat]) => {
@@ -1378,12 +1563,15 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
 
     return {
       farm_name: name,
+      farm: name,
       total: stat.total,
       death: stat.death,
       culling: stat.culling,
       sanitary: stat.sanitary,
       death_pct: dPct,
+      calves: stat.calves,
       youngstock: stat.youngstock,
+      heifers: stat.heifers,
       fresh: stat.fresh,
       avg_dim: avgD,
       loss_byn: Math.round(stat.lossByn),
@@ -1569,12 +1757,30 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       culling_count: categoryCounts['выбраковка'],
       sanitary_count: categoryCounts['санитарный'],
       death_rate_pct: totalDisposals > 0 ? Math.round((categoryCounts['падёж'] / totalDisposals) * 1000) / 10 : 0,
-      // Молодняк
-      youngstock_disposals: youngstockAll.length,
-      youngstock_death_count: youngstockDeathCount,
-      youngstock_death_pct: youngstockAll.length > 0 ? Math.round((youngstockDeathCount / youngstockAll.length) * 1000) / 10 : 0,
+      // 1. Телята (до 6 мес.)
       calf_disposals: calfDisposals.length,
       calf_death_count: calfDeathCount,
+      calf_preservation_pct: calfPreservationPct,
+      // 2. Молодняк (от 6 до 18 мес.)
+      youngstock_disposals: youngstockDisposals.length,
+      youngstock_death_count: youngstockDeathCount,
+      youngstock_death_pct: youngstockDisposals.length > 0 ? Math.round((youngstockDeathCount / youngstockDisposals.length) * 1000) / 10 : 0,
+      youngstock_preservation_pct: youngstockPreservationPct,
+      // 3. Нетели и тёлки (> 18 мес.)
+      heifer_disposals: heiferDisposals.length,
+      heifer_death_count: heiferDeathCount,
+      // 4. Бычки на откорме
+      bull_disposals: bullDisposals.length,
+      bull_death_count: bullDeathCount,
+      // 5. Первотёлки (1 лактация)
+      first_lact_disposals: firstLactDisposals.length,
+      first_lact_deaths: firstLactDeaths,
+      // 6. Полновозрастные (2+ лактаций)
+      multiparous_disposals: multiparousDisposals.length,
+      multiparous_deaths: multiparousDeaths,
+      // 7. Сухостой
+      dry_disposals: dryDisposals.length,
+      dry_deaths: dryDeaths,
       // Лактация и DIM
       fresh_disposals: freshDisposals,
       fresh_deaths: freshDeaths,
@@ -1596,7 +1802,7 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       },
       age_groups: {
         labels: ageGroupLabels,
-        data: sortedAgeGroups.map(x => x[1]),
+        data: ageGroupLabels.map(ag => (categoryMatrix[ag]?.total || 0)),
         colors: '#10B981',
         death_data: ageGroupDeathData,
         culling_data: ageGroupCullingData,
@@ -2128,6 +2334,7 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
   const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
   const limitQuery = String(req.query.limit || '50');
   const limit = limitQuery === 'all' ? 1000 : Math.min(1000, Math.max(10, parseInt(limitQuery, 10) || 50));
+  const recordType = String(req.query.record_type || 'live').trim().toLowerCase();
   const farmFilter = String(req.query.farm || '').trim();
   const categoryFilter = String(req.query.category || '').trim().toLowerCase();
   const reasonFilter = String(req.query.reason || '').trim();
@@ -2136,15 +2343,33 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
   const reproFilter = String(req.query.repro_filter || '').trim().toLowerCase();
   const searchQuery = String(req.query.search || '').trim().toLowerCase();
   const sort = String(req.query.sort || 'newest').trim();
+  const startDate = String(req.query.start_date || '').trim();
+  const endDate = String(req.query.end_date || '').trim();
   const isSanitaryCategory = (categoryFilter === 'санитарный' || categoryFilter === 'санбрак');
 
   // Filter in memory (runs in ~0.2ms for 9,000 records)
   const filtered = cows.filter(c => {
+    // Record type partition (live cattle disposals vs fetal losses/abortions)
+    const isStill = (c.is_stillborn === 1 || c.category === 'мертворождение' || normalizeAgeGroup(c.age_group) === 'Мертворождённые / Аборты');
+    if (reproFilter === 'stillborn' || recordType === 'stillborn') {
+      if (!isStill) return false;
+    } else if (recordType === 'all') {
+      // allow all records
+    } else {
+      // default 'live': show live cattle disposals only, strictly excluding abortions/stillborns
+      if (isStill) return false;
+    }
+
     // Farm filter
     if (userType !== 'admin') {
       if (c.farm_name !== sessionFarm) return false;
     } else if (farmFilter && farmFilter !== 'all') {
       if (c.farm_name !== farmFilter) return false;
+    }
+
+    // Date range filter
+    if (startDate && endDate) {
+      if (c.disposal_date < startDate || c.disposal_date > endDate) return false;
     }
 
     // Category filter (вид выбытия)
@@ -2159,12 +2384,14 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
 
     // Age group filter (категория скота)
     if (ageGroupFilter && ageGroupFilter !== 'all') {
-      const cAg = c.age_group || 'Коровы дойного стада';
+      const norm = normalizeAgeGroup(c.age_group, c.lactation);
       if (ageGroupFilter === 'молодняк_все') {
-        const agL = cAg.toLowerCase();
+        const agL = norm.toLowerCase();
         if (!agL.includes('тел') && !agL.includes('молод') && !agL.includes('быч')) return false;
-      } else if (cAg !== ageGroupFilter) {
-        return false;
+      } else if (norm !== ageGroupFilter) {
+        const fL = ageGroupFilter.toLowerCase();
+        const nL = norm.toLowerCase();
+        if (!nL.includes(fL) && !fL.includes(nL)) return false;
       }
     }
 
@@ -2177,18 +2404,16 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
     }
 
     // Repro filter (выбытие стельных коров / мертворождения)
-    if (reproFilter) {
+    if (reproFilter && reproFilter !== 'stillborn') {
       const agL = (c.age_group || '').toLowerCase();
       const rL = (c.reason || '').toLowerCase();
       const isPreg = (c.is_pregnant === 1 || ((c.gestation_days || 0) > 0) || agL.includes('сухосто') || agL.includes('нетел') || rL.includes('стельн'));
-      const isStill = (c.is_stillborn === 1 || ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов'].some(k => rL.includes(k)));
 
       if (reproFilter === 'pregnant' && !isPreg) return false;
       if (reproFilter === 'pregnant_late') {
         const isLate = ((c.gestation_days || 0) >= 180) || (isPreg && agL.includes('сухосто'));
         if (!isLate) return false;
       }
-      if (reproFilter === 'stillborn' && !isStill) return false;
     }
 
     // Reason filter
@@ -2269,23 +2494,82 @@ app.get('/cows', loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
   const farmName = req.session.farm_name;
   const uniqueFarms = getUniqueFarms();
+  const farmFilter = String(req.query.farm || '').trim();
+  const categoryFilter = String(req.query.category || '').trim().toLowerCase();
+  const reasonFilter = String(req.query.reason || '').trim();
+  const ageGroupFilter = String(req.query.age_group || '').trim();
+  const lactationPhaseFilter = String(req.query.lactation_phase || '').trim();
   const reproFilter = String(req.query.repro_filter || '').trim().toLowerCase();
+  const startDate = String(req.query.start_date || '').trim();
+  const endDate = String(req.query.end_date || '').trim();
+  const isSanitaryCategory = (categoryFilter === 'санитарный' || categoryFilter === 'санбрак');
 
-  let userCows = cows;
+  const recordType = (reproFilter === 'stillborn' ? 'stillborn' : String(req.query.record_type || 'live')).trim().toLowerCase();
+
+  let userCows = cows.filter(c => {
+    const isStill = (c.is_stillborn === 1 || c.category === 'мертворождение' || normalizeAgeGroup(c.age_group) === 'Мертворождённые / Аборты');
+    if (recordType === 'stillborn') {
+      if (!isStill) return false;
+    } else if (recordType === 'all') {
+      // allow all records
+    } else {
+      // default 'live': show live cattle disposals only, strictly excluding abortions/stillborns
+      if (isStill) return false;
+    }
+    return true;
+  });
+
   if (userType !== 'admin') {
-    userCows = cows.filter(c => c.farm_name === farmName);
+    userCows = userCows.filter(c => c.farm_name === farmName);
+  } else if (farmFilter && farmFilter !== 'all') {
+    userCows = userCows.filter(c => c.farm_name === farmFilter);
   }
 
-  if (reproFilter) {
+  if (startDate && endDate) {
+    userCows = userCows.filter(c => c.disposal_date >= startDate && c.disposal_date <= endDate);
+  }
+
+  if (categoryFilter && categoryFilter !== 'all') {
+    userCows = userCows.filter(c => {
+      const catLower = c.category.toLowerCase();
+      if (isSanitaryCategory) return catLower.includes('сан');
+      return catLower === categoryFilter;
+    });
+  }
+
+  if (reasonFilter && reasonFilter !== 'all') {
+    userCows = userCows.filter(c => c.reason === reasonFilter);
+  }
+
+  if (ageGroupFilter && ageGroupFilter !== 'all') {
+    userCows = userCows.filter(c => {
+      const norm = normalizeAgeGroup(c.age_group, c.lactation);
+      if (ageGroupFilter === 'молодняк_все') {
+        const agL = norm.toLowerCase();
+        return agL.includes('тел') || agL.includes('молод') || agL.includes('быч');
+      }
+      if (norm === ageGroupFilter) return true;
+      const fL = ageGroupFilter.toLowerCase();
+      const nL = norm.toLowerCase();
+      return nL.includes(fL) || fL.includes(nL);
+    });
+  }
+
+  if (lactationPhaseFilter && lactationPhaseFilter !== 'all') {
+    userCows = userCows.filter(c => {
+      const phase = c.lactation_phase || computeLactationPhase(c.age_group, c.lactation_days, c.lactation);
+      return phase.toLowerCase().includes(lactationPhaseFilter.toLowerCase());
+    });
+  }
+
+  if (reproFilter && reproFilter !== 'stillborn') {
     userCows = userCows.filter(c => {
       const agL = (c.age_group || '').toLowerCase();
       const rL = (c.reason || '').toLowerCase();
       const isPreg = (c.is_pregnant === 1 || ((c.gestation_days || 0) > 0) || agL.includes('сухосто') || agL.includes('нетел') || rL.includes('стельн'));
-      const isStill = (c.is_stillborn === 1 || ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов'].some(k => rL.includes(k)));
 
       if (reproFilter === 'pregnant') return isPreg;
       if (reproFilter === 'pregnant_late') return ((c.gestation_days || 0) >= 180) || (isPreg && agL.includes('сухосто'));
-      if (reproFilter === 'stillborn') return isStill;
       return true;
     });
   }
@@ -2342,7 +2626,7 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
   }
 
   const farmName = req.session.farm_name || 'Ферма';
-  const { category, reason, disposal_date } = req.body;
+  const { category, reason, disposal_date, form_mode } = req.body;
 
   if (!category || !reason || !disposal_date) {
     addFlash(req, 'Заполните все обязательные поля', 'danger');
@@ -2351,25 +2635,43 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
 
   const todayStr = formatDate(new Date());
   if (disposal_date > todayStr) {
-    addFlash(req, 'Дата выбытия не может быть позже сегодняшнего дня', 'danger');
+    addFlash(req, 'Дата события не может быть позже сегодняшнего дня', 'danger');
     return res.redirect('/add_cow');
   }
 
   const cowId = generateCowId(farmName);
-  const ageGroup = req.body.age_group ? String(req.body.age_group).trim() : 'Коровы дойного стада';
-  const lact = req.body.lactation !== undefined && req.body.lactation !== '' ? parseInt(String(req.body.lactation), 10) : undefined;
-  const lactDays = req.body.lactation_days !== undefined && req.body.lactation_days !== '' ? parseInt(String(req.body.lactation_days), 10) : undefined;
+  let ageGroup = req.body.age_group ? String(req.body.age_group).trim() : 'Коровы дойного стада';
+
+  if (form_mode === 'stillborn' || ageGroup.includes('Мертворожд') || ageGroup.includes('Аборт')) {
+    ageGroup = 'Мертворождённые / Аборты';
+  }
+
+  let lact = req.body.lactation !== undefined && req.body.lactation !== '' ? parseInt(String(req.body.lactation), 10) : undefined;
+  let lactDays = req.body.lactation_days !== undefined && req.body.lactation_days !== '' ? parseInt(String(req.body.lactation_days), 10) : undefined;
+
+  // Автозаполнение дней лактации для группы "Новотельные коровы (0–30 дн DIM)"
+  if (ageGroup.includes('Новотел') || ageGroup.includes('0–30') || ageGroup.includes('0-30')) {
+    if (lactDays === undefined || lactDays === null || isNaN(lactDays) || lactDays === 0) {
+      lactDays = 15;
+    }
+  }
+
   const lactPhase = computeLactationPhase(ageGroup, lactDays, lact);
 
   // Воспроизводство и стельность
   let isPregnant = req.body.is_pregnant === '1' || req.body.is_pregnant === 'on' || req.body.is_pregnant === true ? 1 : 0;
   let gestationDays = req.body.gestation_days ? parseInt(String(req.body.gestation_days), 10) : 0;
-  let isStillborn = req.body.is_stillborn === '1' || req.body.is_stillborn === 'on' || req.body.is_stillborn === true ? 1 : 0;
+  let isStillborn = (form_mode === 'stillborn' || req.body.is_stillborn === '1' || req.body.is_stillborn === 'on' || req.body.is_stillborn === true || ageGroup === 'Мертворождённые / Аборты') ? 1 : 0;
+
+  let finalCategory = category;
+  if (isStillborn) {
+    finalCategory = 'мертворождение';
+  }
 
   // Автоопределение, если фермер не проставил чекбокс явно
   const reasonLower = (reason || '').toLowerCase();
   const ageGroupLower = (ageGroup || '').toLowerCase();
-  if (!isPregnant) {
+  if (!isPregnant && !isStillborn) {
     if (lactPhase.toLowerCase().includes('сухосто') || ageGroupLower.includes('сухосто') || ageGroupLower.includes('нетел') || reasonLower.includes('стельн')) {
       isPregnant = 1;
       if (gestationDays === 0) gestationDays = ageGroupLower.includes('сухосто') ? 210 : 180;
@@ -2379,6 +2681,7 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     const stillbornKeys = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок'];
     if (stillbornKeys.some(k => reasonLower.includes(k))) {
       isStillborn = 1;
+      finalCategory = 'мертворождение';
     }
   }
 
@@ -2386,7 +2689,7 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     id: cowIdCounter++,
     cow_id: cowId,
     farm_name: farmName,
-    category,
+    category: finalCategory,
     reason,
     disposal_date,
     ear_tag: req.body.ear_tag ? String(req.body.ear_tag).trim() : undefined,
@@ -2406,7 +2709,11 @@ app.post('/add_cow', loginRequired, (req: Request, res: Response) => {
     created_by: req.session.user_id
   });
 
-  addFlash(req, `Корова успешно добавлена с ID: ${cowId}`, 'success');
+  if (isStillborn) {
+    addFlash(req, `Мертворождение / Аборт зарегистрирован в учёте потерь приплода (ID: ${cowId})`, 'success');
+  } else {
+    addFlash(req, `Корова успешно добавлена с ID: ${cowId}`, 'success');
+  }
   res.redirect('/cows');
 });
 
@@ -3047,9 +3354,9 @@ app.post('/generate_report', loginRequired, heavyOpsProtection, async (req: Requ
     youthHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
     youthHeader.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    const youthCats = ['Телята (до 6 мес.)', 'Молодняк (6–18 мес.)', 'Нетели', 'Бычки на откорме'];
+    const youthCats = ['Телята (до 6 мес.)', 'Молодняк (от 6 до 18 мес.)', 'Нетели и тёлки (> 18 мес.)', 'Бычки на откорме'];
     for (const yCat of youthCats) {
-      const yCows = filteredCows.filter(c => (c.age_group || '').toLowerCase().includes(yCat.slice(0, 5).toLowerCase()));
+      const yCows = filteredCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === yCat);
       const tot = yCows.length;
       const dth = yCows.filter(c => c.category === 'падёж').length;
       const pct = tot > 0 ? (dth / tot * 100).toFixed(1) + '%' : '0.0%';
@@ -3287,16 +3594,44 @@ app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Respo
   if (milk_price_per_kg !== undefined) currentPricingStandards.milk_price_per_kg = Math.max(0, Number(milk_price_per_kg) || 1.18);
   if (replacement_cost !== undefined) currentPricingStandards.replacement_cost = Math.max(0, Number(replacement_cost) || 2950);
 
-  if (norm_youngstock_preservation !== undefined) currentPricingStandards.norm_youngstock_preservation = Math.max(0, Math.min(100, Number(norm_youngstock_preservation) || 92));
-  if (norm_fresh_cow_disposal !== undefined) currentPricingStandards.norm_fresh_cow_disposal = Math.max(0, Math.min(100, Number(norm_fresh_cow_disposal) || 10));
-  if (norm_first_lactation_culling !== undefined) currentPricingStandards.norm_first_lactation_culling = Math.max(0, Math.min(100, Number(norm_first_lactation_culling) || 20));
-  if (norm_mortality_rate !== undefined) currentPricingStandards.norm_mortality_rate = Math.max(0, Math.min(100, Number(norm_mortality_rate) || 25));
-  if (norm_locomotor_disorders !== undefined) currentPricingStandards.norm_locomotor_disorders = Math.max(0, Math.min(100, Number(norm_locomotor_disorders) || 15));
-  if (norm_mastitis_disorders !== undefined) currentPricingStandards.norm_mastitis_disorders = Math.max(0, Math.min(100, Number(norm_mastitis_disorders) || 15));
+  // 1. Сохранность телят (0-6 мес)
+  if (req.body.norm_calf_preservation !== undefined) currentPricingStandards.norm_calf_preservation = Math.max(0, Math.min(100, Number(req.body.norm_calf_preservation) || 95));
+  if (req.body.warn_calf_preservation !== undefined) currentPricingStandards.warn_calf_preservation = Math.max(0, Math.min(100, Number(req.body.warn_calf_preservation) || 92));
+  if (req.body.crit_calf_preservation !== undefined) currentPricingStandards.crit_calf_preservation = Math.max(0, Math.min(100, Number(req.body.crit_calf_preservation) || 88));
+
+  // 2. Сохранность молодняка (6-18 мес)
+  if (req.body.norm_youngstock_preservation !== undefined) currentPricingStandards.norm_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.norm_youngstock_preservation) || 92));
+  if (req.body.warn_youngstock_preservation !== undefined) currentPricingStandards.warn_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.warn_youngstock_preservation) || 88));
+  if (req.body.crit_youngstock_preservation !== undefined) currentPricingStandards.crit_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.crit_youngstock_preservation) || 82));
+
+  // 3. Выбытие новотельных (0-30 DIM)
+  if (req.body.norm_fresh_cow_disposal !== undefined) currentPricingStandards.norm_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.norm_fresh_cow_disposal) || 10));
+  if (req.body.warn_fresh_cow_disposal !== undefined) currentPricingStandards.warn_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.warn_fresh_cow_disposal) || 14));
+  if (req.body.crit_fresh_cow_disposal !== undefined) currentPricingStandards.crit_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.crit_fresh_cow_disposal) || 18));
+
+  // 4. Выбраковка первотёлок
+  if (req.body.norm_first_lactation_culling !== undefined) currentPricingStandards.norm_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.norm_first_lactation_culling) || 20));
+  if (req.body.warn_first_lactation_culling !== undefined) currentPricingStandards.warn_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.warn_first_lactation_culling) || 25));
+  if (req.body.crit_first_lactation_culling !== undefined) currentPricingStandards.crit_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.crit_first_lactation_culling) || 30));
+
+  // 5. Общая летальность (Падёж)
+  if (req.body.norm_mortality_rate !== undefined) currentPricingStandards.norm_mortality_rate = Math.max(0, Math.min(100, Number(req.body.norm_mortality_rate) || 25));
+  if (req.body.warn_mortality_rate !== undefined) currentPricingStandards.warn_mortality_rate = Math.max(0, Math.min(100, Number(req.body.warn_mortality_rate) || 35));
+  if (req.body.crit_mortality_rate !== undefined) currentPricingStandards.crit_mortality_rate = Math.max(0, Math.min(100, Number(req.body.crit_mortality_rate) || 45));
+
+  // 6. Болезни конечностей (копыт)
+  if (req.body.norm_locomotor_disorders !== undefined) currentPricingStandards.norm_locomotor_disorders = Math.max(0, Math.min(100, Number(req.body.norm_locomotor_disorders) || 15));
+  if (req.body.warn_locomotor_disorders !== undefined) currentPricingStandards.warn_locomotor_disorders = Math.max(0, Math.min(100, Number(req.body.warn_locomotor_disorders) || 20));
+  if (req.body.crit_locomotor_disorders !== undefined) currentPricingStandards.crit_locomotor_disorders = Math.max(0, Math.min(100, Number(req.body.crit_locomotor_disorders) || 25));
+
+  // 7. Маститы и заболевания вымени
+  if (req.body.norm_mastitis_disorders !== undefined) currentPricingStandards.norm_mastitis_disorders = Math.max(0, Math.min(100, Number(req.body.norm_mastitis_disorders) || 15));
+  if (req.body.warn_mastitis_disorders !== undefined) currentPricingStandards.warn_mastitis_disorders = Math.max(0, Math.min(100, Number(req.body.warn_mastitis_disorders) || 20));
+  if (req.body.crit_mastitis_disorders !== undefined) currentPricingStandards.crit_mastitis_disorders = Math.max(0, Math.min(100, Number(req.body.crit_mastitis_disorders) || 25));
 
   res.json({
     success: true,
-    message: 'Экономические ценники и зоотехнические пороги тревог успешно обновлены!',
+    message: 'Экономические ценники, зоотехнические нормы и критические пороги успешно обновлены!',
     pricing: currentPricingStandards
   });
 });

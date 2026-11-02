@@ -10,6 +10,19 @@
                 </span>
             </div>
             <div class="card-body">
+                <!-- Переключатель категорий учета: Живой скот / Мертворождения / Все -->
+                <div class="d-flex flex-wrap gap-2 mb-3" id="recordTypeTabGroup">
+                    <button type="button" class="btn btn-primary rounded-pill px-3 py-2 fw-bold record-tab-btn active" data-record-type="live">
+                        🐄 Выбытие живого скота (Падёж / Выбраковка / Санбрак)
+                    </button>
+                    <button type="button" class="btn btn-outline-danger rounded-pill px-3 py-2 fw-bold record-tab-btn" data-record-type="stillborn">
+                        ❌ Мертворождения и аборты (Потери приплода)
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 fw-bold record-tab-btn" data-record-type="all">
+                        📋 Сводный журнал (Все записи)
+                    </button>
+                </div>
+
                 <!-- Панель быстрых фильтров -->
                 <div class="bg-light p-3 rounded-3 mb-4 border">
                     <h5 class="mb-3 text-secondary d-flex align-items-center gap-2">
@@ -67,14 +80,16 @@
                                 <i class="bi bi-diagram-3-fill"></i> Категория скота (Половозрастная группа)
                             </label>
                             <select class="form-select border-success-subtle" id="age_group_filter">
-                                <option value="">Все категории скота</option>
-                                <option value="молодняк_все">👶 Молодняк КРС (все группы до 18 мес.)</option>
-                                <option value="Коровы дойного стада">🥛 Коровы дойного стада</option>
-                                <option value="Коровы сухостойные">💤 Коровы сухостойные</option>
-                                <option value="Нетели">🤰 Нетели</option>
+                                <option value="">Все категории и возрасты</option>
                                 <option value="Телята (до 6 мес.)">🍼 Телята (до 6 мес.)</option>
-                                <option value="Молодняк (6–18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                <option value="Молодняк (от 6 до 18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                <option value="Нетели и тёлки (> 18 мес.)">🤰 Нетели и тёлки (> 18 мес.)</option>
+                                <option value="Новотельные коровы (0–30 дн DIM)">⚡ Выбытие новотельных (0–30 дн DIM)</option>
+                                <option value="Коровы 1-й лактации (первотёлки)">⭐ Коровы 1-й лактации (первотёлки)</option>
+                                <option value="Коровы 2+ лактаций (полновозрастные)">🥛 Коровы 2+ лактаций (полновозрастные)</option>
+                                <option value="Коровы сухостойные">💤 Коровы сухостойные</option>
                                 <option value="Бычки на откорме">🐂 Бычки на откорме</option>
+                                <option value="Мертворождённые / Аборты">❌ Мертворождённые / Аборты (внутриутробные потери)</option>
                             </select>
                         </div>
 
@@ -230,13 +245,19 @@
                                         <% } %>
                                     </td>
                                     <td>
-                                        <% var grp = cow.age_group || 'Коровы дойного стада'; %>
-                                        <% if (grp.includes('Телят') || grp.includes('Молодняк') || grp.includes('Бычки')) { %>
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-tag-fill"></i> <%= grp %></span>
-                                        <% } else if (grp.includes('Нетел')) { %>
-                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-tag"></i> <%= grp %></span>
+                                        <% var grp = cow.age_group || 'Коровы 2+ лактаций (полновозрастные)'; %>
+                                        <% if (grp.includes('Телят') || grp.includes('до 6')) { %>
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-balloon-fill"></i> <%= grp %></span>
+                                        <% } else if (grp.includes('Молодняк') || grp.includes('6–18') || grp.includes('6-18')) { %>
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-flower1"></i> <%= grp %></span>
+                                        <% } else if (grp.includes('Нетел') || grp.includes('> 18')) { %>
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-shield-check"></i> <%= grp %></span>
+                                        <% } else if (grp.includes('первотёл') || grp.includes('1-й лакт')) { %>
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-gem"></i> <%= grp %></span>
                                         <% } else if (grp.includes('сухосто')) { %>
-                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-moon"></i> <%= grp %></span>
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-moon"></i> <%= grp %></span>
+                                        <% } else if (grp.includes('Бычк')) { %>
+                                            <span class="badge bg-dark-subtle text-dark border"><i class="bi bi-tag-fill"></i> <%= grp %></span>
                                         <% } else { %>
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-droplet-half"></i> <%= grp %></span>
                                         <% } %>
@@ -380,6 +401,31 @@
         var totalDb = ${total_cows_count};
         var totalPages = Math.ceil(${total_cows_count} / pageSize) || 1;
         var isFetching = false;
+        var activeRecordType = '<%= (typeof repro_filter !== "undefined" && repro_filter === "stillborn") ? "stillborn" : "live" %>';
+
+        // Bind Record Type Tabs (Live / Stillborn / All)
+        var tabBtns = document.querySelectorAll('.record-tab-btn');
+        tabBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var rType = this.getAttribute('data-record-type');
+                activeRecordType = rType;
+                tabBtns.forEach(function(b) {
+                    b.classList.remove('active', 'btn-primary', 'btn-danger', 'btn-secondary');
+                    b.classList.add('btn-outline-primary');
+                });
+                if (rType === 'stillborn') {
+                    this.classList.remove('btn-outline-primary');
+                    this.classList.add('btn-danger', 'active');
+                } else if (rType === 'all') {
+                    this.classList.remove('btn-outline-primary');
+                    this.classList.add('btn-secondary', 'active');
+                } else {
+                    this.classList.remove('btn-outline-primary');
+                    this.classList.add('btn-primary', 'active');
+                }
+                loadPage(1);
+            });
+        });
 
         var farmFilter = document.getElementById('farm_filter');
         var categoryFilter = document.getElementById('category_filter');
@@ -463,14 +509,20 @@
                 var weightHtml = c.weight ? (c.weight + ' кг') : '-';
                 
                 // Категория скота (бейдж)
-                var grp = c.age_group || 'Коровы дойного стада';
+                var grp = c.age_group || 'Коровы 2+ лактаций (полновозрастные)';
                 var grpBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-droplet-half"></i> ' + escapeHtml(grp) + '</span>';
-                if (grp.indexOf('Телят') !== -1 || grp.indexOf('Молодняк') !== -1 || grp.indexOf('Бычки') !== -1) {
-                    grpBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-tag-fill"></i> ' + escapeHtml(grp) + '</span>';
-                } else if (grp.indexOf('Нетел') !== -1) {
-                    grpBadge = '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-tag"></i> ' + escapeHtml(grp) + '</span>';
+                if (grp.indexOf('Телят') !== -1 || grp.indexOf('до 6') !== -1) {
+                    grpBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-balloon-fill"></i> ' + escapeHtml(grp) + '</span>';
+                } else if (grp.indexOf('Молодняк') !== -1 || grp.indexOf('6–18') !== -1 || grp.indexOf('6-18') !== -1) {
+                    grpBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-flower1"></i> ' + escapeHtml(grp) + '</span>';
+                } else if (grp.indexOf('Нетел') !== -1 || grp.indexOf('> 18') !== -1) {
+                    grpBadge = '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-shield-check"></i> ' + escapeHtml(grp) + '</span>';
+                } else if (grp.indexOf('первотёл') !== -1 || grp.indexOf('1-й лакт') !== -1) {
+                    grpBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-gem"></i> ' + escapeHtml(grp) + '</span>';
                 } else if (grp.indexOf('сухосто') !== -1) {
-                    grpBadge = '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-moon"></i> ' + escapeHtml(grp) + '</span>';
+                    grpBadge = '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-moon"></i> ' + escapeHtml(grp) + '</span>';
+                } else if (grp.indexOf('Бычк') !== -1) {
+                    grpBadge = '<span class="badge bg-dark-subtle text-dark border"><i class="bi bi-tag-fill"></i> ' + escapeHtml(grp) + '</span>';
                 }
 
                 // Лактация и DIM
@@ -601,12 +653,15 @@
 
             var url = '/api/cows?page=' + targetPage +
                 '&limit=' + encodeURIComponent(pageSize) +
+                '&record_type=' + encodeURIComponent(activeRecordType) +
                 '&farm=' + encodeURIComponent(farmVal) +
                 '&category=' + encodeURIComponent(catVal) +
                 '&reason=' + encodeURIComponent(reasonVal) +
                 '&age_group=' + encodeURIComponent(ageGroupVal) +
                 '&lactation_phase=' + encodeURIComponent(lactPhaseVal) +
                 '&repro_filter=' + encodeURIComponent(reproVal) +
+                '&start_date=' + encodeURIComponent(activeStartDate || '') +
+                '&end_date=' + encodeURIComponent(activeEndDate || '') +
                 '&sort=' + encodeURIComponent(sortVal) +
                 '&search=' + encodeURIComponent(searchVal);
 
@@ -793,6 +848,8 @@
         // Чтение параметров URL (deep linking с дашборда и отчетов)
         var urlParams = new URLSearchParams(window.location.search);
         var hasInitialFilter = false;
+        var activeStartDate = '';
+        var activeEndDate = '';
 
         if (urlParams.has('farm') && farmFilter && farmFilter.tagName === 'SELECT') {
             farmFilter.value = urlParams.get('farm');
@@ -817,6 +874,11 @@
         }
         if (urlParams.has('repro_filter') && reproFilter) {
             reproFilter.value = urlParams.get('repro_filter');
+            hasInitialFilter = true;
+        }
+        if (urlParams.has('start_date') && urlParams.has('end_date')) {
+            activeStartDate = urlParams.get('start_date') || '';
+            activeEndDate = urlParams.get('end_date') || '';
             hasInitialFilter = true;
         }
 

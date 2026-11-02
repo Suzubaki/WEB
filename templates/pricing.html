@@ -1,80 +1,168 @@
 {% extends "base.html" %}
 
-{% block title %}Экономические нормативы BYN - ОАО «Новая Припять»{% endblock %}
+{% block title %}Управление целями, нормативами и порогами тревог BYN - ОАО «Новая Припять»{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h3 class="fw-bold mb-1 d-flex align-items-center gap-2">
-                <i class="bi bi-calculator text-primary"></i> Экономические нормативы и оценка ущерба (BYN)
+                <i class="bi bi-sliders text-warning"></i> Управление целями, нормативами и порогами тревог (BYN)
             </h3>
-            <p class="text-muted mb-0">Управление нормативами балансовой стоимости скота и методикой расчета</p>
+            <p class="text-muted mb-0">Единый центр настройки целевых показателей Scorecard, порогов риска и балансовых цен</p>
         </div>
         <div>
-            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary fw-semibold">
                 <i class="bi bi-arrow-left"></i> Вернуться в дашборд
             </a>
         </div>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="card-title mb-0"><i class="bi bi-book me-2"></i> Методика расчета экономического ущерба</h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-primary p-3 mb-4">
-                        <strong>Формула расчета:</strong>
-                        <p class="mb-0 small">Общий ущерб (BYN) = ∑ (Фактическая или Нормативная стоимость каждого выбывшего животного).</p>
+    <form method="POST" action="/pricing">
+        <div class="row g-4 mb-4">
+            <!-- Методика -->
+            <div class="col-xl-5 col-lg-6">
+                <div class="card shadow-sm h-100 border-0 rounded-4 overflow-hidden">
+                    <div class="card-header bg-primary text-white py-3 px-4">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-book me-2"></i> Методика расчёта ущерба РБ</h5>
                     </div>
-                    <ol class="list-group list-group-numbered mb-3">
-                        <li class="list-group-item border-0 px-0">
-                            <strong>Фактическая балансовая стоимость:</strong> Берется из поля документа выбытия (если заполнено).
-                        </li>
-                        <li class="list-group-item border-0 px-0">
-                            <strong>Нормативная оценочная стоимость:</strong> Подставляется автоматически из прейскуранта ниже, если поле балансовой стоимости не заполнено.
-                        </li>
-                    </ol>
+                    <div class="card-body p-4">
+                        <div class="alert alert-primary p-3 mb-3">
+                            <h6 class="fw-bold mb-2"><i class="bi bi-info-circle-fill"></i> Главное правило:</h6>
+                            <p class="mb-0 small">Финансовый ущерб рассчитывается на основе балансовой (восстановительной) стоимости животного в BYN.</p>
+                        </div>
+                        <ol class="list-group list-group-numbered mb-0 small">
+                            <li class="list-group-item border-0 px-0 py-2"><strong>Фактическая оценка:</strong> Берется из документа выбытия (если заполнено).</li>
+                            <li class="list-group-item border-0 px-0 py-2"><strong>Нормативная оценка:</strong> Автоматически подставляется из прейскуранта ниже.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Цены -->
+            <div class="col-xl-7 col-lg-6">
+                <div class="card shadow-sm h-100 border-0 rounded-4 overflow-hidden">
+                    <div class="card-header bg-dark text-white py-3 px-4">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i> 1. Нормативная стоимость групп скота (BYN)</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Телята (0–6 мес)</label>
+                                <div class="input-group">
+                                    <input type="number" step="10" class="form-control" name="price_calves" value="{{ pricing.price_calves or 900 }}">
+                                    <span class="input-group-text">BYN</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Ремонтный молодняк</label>
+                                <div class="input-group">
+                                    <input type="number" step="10" class="form-control" name="price_youngstock" value="{{ pricing.price_youngstock or 1650 }}">
+                                    <span class="input-group-text">BYN</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Нетели</label>
+                                <div class="input-group">
+                                    <input type="number" step="10" class="form-control" name="price_heifers" value="{{ pricing.price_heifers or 2700 }}">
+                                    <span class="input-group-text">BYN</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Коровы дойного стада</label>
+                                <div class="input-group">
+                                    <input type="number" step="10" class="form-control" name="price_cows" value="{{ pricing.price_cows or 3200 }}">
+                                    <span class="input-group-text">BYN</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Сухостойные коровы</label>
+                                <div class="input-group">
+                                    <input type="number" step="10" class="form-control" name="price_dry_cows" value="{{ pricing.price_dry_cows or 3000 }}">
+                                    <span class="input-group-text">BYN</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="card-title mb-0"><i class="bi bi-sliders me-2"></i> Нормативы стоимости групп скота (BYN)</h5>
-                </div>
-                <div class="card-body">
-                    <form id="flaskPricingForm" method="POST" action="/pricing">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Телята (0–6 мес)</label>
-                                <input type="number" step="10" class="form-control" name="price_calves" value="{{ pricing.price_calves or 900 }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Ремонтный молодняк</label>
-                                <input type="number" step="10" class="form-control" name="price_youngstock" value="{{ pricing.price_youngstock or 1650 }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Нетели</label>
-                                <input type="number" step="10" class="form-control" name="price_heifers" value="{{ pricing.price_heifers or 2700 }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Коровы дойного стада</label>
-                                <input type="number" step="10" class="form-control" name="price_cows" value="{{ pricing.price_cows or 3200 }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Сухостойные коровы</label>
-                                <input type="number" step="10" class="form-control" name="price_dry_cows" value="{{ pricing.price_dry_cows or 3000 }}">
-                            </div>
+        <!-- Матрица порогов тревог -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+                    <div class="card-header bg-dark text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-shield-exclamation text-warning me-2"></i> 2. Зоотехнические нормативы и 3-уровневые пороги тревог (Scorecard %)</h5>
+                        <span class="badge bg-warning text-dark fw-bold">Светофор рисков</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle mb-0 small">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 38%;">Индикатор зооветеринарного контроля</th>
+                                        <th class="text-success text-center" style="width: 20%;">🟢 Целевая норма</th>
+                                        <th class="text-warning text-center" style="width: 20%;">🟡 Внимание</th>
+                                        <th class="text-danger text-center" style="width: 22%;">🔴 Критический риск</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Сохранность телят (0–6 мес.)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_calf_preservation" value="{{ pricing.norm_calf_preservation or 95.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_calf_preservation" value="{{ pricing.warn_calf_preservation or 92.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_calf_preservation" value="{{ pricing.crit_calf_preservation or 88.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Сохранность ремонтного молодняка (6–18 мес.)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_youngstock_preservation" value="{{ pricing.norm_youngstock_preservation or 92.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_youngstock_preservation" value="{{ pricing.warn_youngstock_preservation or 88.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_youngstock_preservation" value="{{ pricing.crit_youngstock_preservation or 82.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Макс. выбытие новотельных коров (0–30 DIM)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_fresh_cow_disposal" value="{{ pricing.norm_fresh_cow_disposal or 10.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_fresh_cow_disposal" value="{{ pricing.warn_fresh_cow_disposal or 14.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_fresh_cow_disposal" value="{{ pricing.crit_fresh_cow_disposal or 18.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Макс. выбраковка первотёлок (1-я лактация)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_first_lactation_culling" value="{{ pricing.norm_first_lactation_culling or 20.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_first_lactation_culling" value="{{ pricing.warn_first_lactation_culling or 25.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_first_lactation_culling" value="{{ pricing.crit_first_lactation_culling or 30.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Доля падежа (летальность в структуре выбытия)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_mortality_rate" value="{{ pricing.norm_mortality_rate or 25.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_mortality_rate" value="{{ pricing.warn_mortality_rate or 35.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_mortality_rate" value="{{ pricing.crit_mortality_rate or 45.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Ортопедические патологии (болезни копыт)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_locomotor_disorders" value="{{ pricing.norm_locomotor_disorders or 15.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_locomotor_disorders" value="{{ pricing.warn_locomotor_disorders or 20.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_locomotor_disorders" value="{{ pricing.crit_locomotor_disorders or 25.0 }}"></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Заболевания вымени (маститы)</strong></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-success fw-bold" name="norm_mastitis_disorders" value="{{ pricing.norm_mastitis_disorders or 15.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-warning fw-bold" name="warn_mastitis_disorders" value="{{ pricing.warn_mastitis_disorders or 20.0 }}"></td>
+                                        <td><input type="number" step="0.5" class="form-control form-control-sm text-center text-danger fw-bold" name="crit_mastitis_disorders" value="{{ pricing.crit_mastitis_disorders or 25.0 }}"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <button type="submit" class="btn btn-success w-100 fw-bold">Сохранить нормативы</button>
-                    </form>
+
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-success px-5 py-2 fw-bold shadow">
+                                <i class="bi bi-check-circle-fill me-2"></i> Сохранить все нормативы и пороги
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    </form>
 </div>
 {% endblock %}

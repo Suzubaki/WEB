@@ -49,6 +49,14 @@
         border-radius: 16px;
         padding: 24px;
     }
+    .filter-toolbar {
+        position: sticky;
+        top: 56px;
+        z-index: 1020;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
     .filter-chip {
         border-radius: 20px;
         padding: 6px 14px;
@@ -72,6 +80,37 @@
     .filter-chip:not(.active):hover {
         background-color: #e2e8f0;
         color: #0f172a;
+    }
+    @keyframes skeleton-shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    .skeleton-shimmer {
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s infinite ease-in-out;
+        border-radius: 6px;
+    }
+    .skeleton-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 20px;
+    }
+    .clickable-card {
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .clickable-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .4rem .8rem rgba(0,0,0,.08) !important;
+    }
+    .drilldown-link {
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .drilldown-link:hover {
+        text-decoration: underline;
     }
     @media print {
         .navbar, .filter-toolbar, .no-print, footer {
@@ -137,15 +176,19 @@
             <!-- Быстрые кнопки-пресеты периода -->
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <span class="small text-muted fw-bold me-1"><i class="bi bi-calendar3"></i> Период:</span>
-                <a href="{{ url_for('dashboard', period='this_month', farm=selected_farm) }}" 
+                <a href="{{ url_for('main.dashboard', period='last_7', farm=selected_farm) }}" 
+                   class="filter-chip {% if d.period_info.period == 'last_7' %}active{% endif %}">7 дней</a>
+                <a href="{{ url_for('main.dashboard', period='last_30', farm=selected_farm) }}" 
+                   class="filter-chip {% if d.period_info.period == 'last_30' %}active{% endif %}">30 дней</a>
+                <a href="{{ url_for('main.dashboard', period='this_month', farm=selected_farm) }}" 
                    class="filter-chip {% if d.period_info.period == 'this_month' %}active{% endif %}">Этот месяц</a>
-                <a href="{{ url_for('dashboard', period='last_month', farm=selected_farm) }}" 
+                <a href="{{ url_for('main.dashboard', period='last_month', farm=selected_farm) }}" 
                    class="filter-chip {% if d.period_info.period == 'last_month' %}active{% endif %}">Прошлый месяц</a>
-                <a href="{{ url_for('dashboard', period='quarter', farm=selected_farm) }}" 
+                <a href="{{ url_for('main.dashboard', period='quarter', farm=selected_farm) }}" 
                    class="filter-chip {% if d.period_info.period == 'quarter' %}active{% endif %}">Квартал</a>
-                <a href="{{ url_for('dashboard', period='ytd', farm=selected_farm) }}" 
+                <a href="{{ url_for('main.dashboard', period='ytd', farm=selected_farm) }}" 
                    class="filter-chip {% if d.period_info.period == 'ytd' %}active{% endif %}">С начала года (YTD)</a>
-                <a href="{{ url_for('dashboard', period='all', farm=selected_farm) }}" 
+                <a href="{{ url_for('main.dashboard', period='all', farm=selected_farm) }}" 
                    class="filter-chip {% if d.period_info.period == 'all' %}active{% endif %}">Всё время</a>
             </div>
 
@@ -170,6 +213,90 @@
         </div>
     </div>
 </div>
+
+<!-- SKELETON-ЗАГРУЗКА ПРИ СМЕНЕ ПЕРИОДА ИЛИ ФЕРМЫ -->
+<div id="dashboard-skeleton" class="d-none">
+    <!-- Скелетон KPI (4 карточки) -->
+    <div class="row g-3 mb-4">
+        {% for _ in range(4) %}
+        <div class="col-md">
+            <div class="skeleton-card h-100">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="w-75">
+                        <div class="skeleton-shimmer mb-2" style="height: 14px; width: 55%;"></div>
+                        <div class="skeleton-shimmer" style="height: 38px; width: 80%;"></div>
+                    </div>
+                    <div class="skeleton-shimmer rounded-3" style="width: 48px; height: 48px;"></div>
+                </div>
+                <div class="skeleton-shimmer mt-3" style="height: 18px; width: 45%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Скелетон Экономических карточек -->
+    <div class="row g-3 mb-4">
+        {% for _ in range(4) %}
+        <div class="col-md-3">
+            <div class="skeleton-card h-100">
+                <div class="skeleton-shimmer mb-2" style="height: 14px; width: 50%;"></div>
+                <div class="skeleton-shimmer mb-2" style="height: 32px; width: 75%;"></div>
+                <div class="skeleton-shimmer" style="height: 16px; width: 85%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Скелетон Зотехнического блока и скоркарда -->
+    <div class="card border-0 shadow-sm mb-4 bg-light p-3">
+        <div class="skeleton-shimmer mb-3" style="height: 24px; width: 40%;"></div>
+        <div class="row g-3 mb-3">
+            {% for _ in range(4) %}
+            <div class="col-md-3">
+                <div class="skeleton-card bg-white h-100">
+                    <div class="skeleton-shimmer mb-2" style="height: 14px; width: 60%;"></div>
+                    <div class="skeleton-shimmer mb-2" style="height: 30px; width: 70%;"></div>
+                    <div class="skeleton-shimmer" style="height: 14px; width: 80%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <!-- 6 скоркардов скелетон -->
+        <div class="row g-2">
+            {% for _ in range(6) %}
+            <div class="col-md-4 col-sm-6">
+                <div class="p-2 rounded border bg-white h-100">
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="skeleton-shimmer" style="height: 14px; width: 60%;"></div>
+                        <div class="skeleton-shimmer" style="height: 14px; width: 25%;"></div>
+                    </div>
+                    <div class="skeleton-shimmer mb-2" style="height: 24px; width: 45%;"></div>
+                    <div class="skeleton-shimmer" style="height: 6px; width: 100%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Скелетон Графиков -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="skeleton-card" style="height: 320px;">
+                <div class="skeleton-shimmer mb-3" style="height: 20px; width: 45%;"></div>
+                <div class="skeleton-shimmer h-75 w-100"></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="skeleton-card" style="height: 320px;">
+                <div class="skeleton-shimmer mb-3" style="height: 20px; width: 45%;"></div>
+                <div class="skeleton-shimmer h-75 w-100"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ОСНОВНОЙ КОНТЕНТ ДАШБОРДА -->
+<div id="dashboard-content">
 
 <!-- Предупреждения об аномалиях (Alerts ветслужбы) -->
 {% if alerts %}
@@ -203,14 +330,16 @@
 </div>
 {% endif %}
 
-<!-- KPI Карточки (5 метрик) -->
+<!-- KPI Карточки (5 метрик) с интерактивным переходом в журнал -->
 <div class="row g-3 mb-4">
     <!-- 1. Всего выбыло -->
     <div class="col-md">
-        <div class="kpi-card h-100">
+        <div class="kpi-card h-100 clickable-card" onclick="drillToCows({})" title="Нажмите, чтобы открыть журнал всех выбытий за период">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-title">Всего выбыло</div>
+                    <div class="kpi-title d-flex align-items-center gap-1">
+                        Всего выбыло <i class="bi bi-box-arrow-up-right small text-muted opacity-75"></i>
+                    </div>
                     <div class="kpi-value text-dark">{{ d.kpi.total_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                 </div>
                 <div class="kpi-icon-badge bg-primary-subtle text-primary">
@@ -232,10 +361,12 @@
 
     <!-- 2. Падёж -->
     <div class="col-md">
-        <div class="kpi-card h-100 border-danger-subtle">
+        <div class="kpi-card h-100 border-danger-subtle clickable-card" onclick="drillToCows({category: 'падёж'})" title="Нажмите, чтобы открыть журнал падежа скота">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-title text-danger">Падёж скота</div>
+                    <div class="kpi-title text-danger d-flex align-items-center gap-1">
+                        Падёж скота <i class="bi bi-box-arrow-up-right small opacity-75"></i>
+                    </div>
                     <div class="kpi-value text-danger">{{ d.kpi.death_count }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                 </div>
                 <div class="kpi-icon-badge bg-danger-subtle text-danger">
@@ -250,10 +381,12 @@
 
     <!-- 3. Выбраковка -->
     <div class="col-md">
-        <div class="kpi-card h-100 border-primary-subtle">
+        <div class="kpi-card h-100 border-primary-subtle clickable-card" onclick="drillToCows({category: 'выбраковка'})" title="Нажмите, чтобы открыть журнал выбраковки скота">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-title text-primary">Выбраковка</div>
+                    <div class="kpi-title text-primary d-flex align-items-center gap-1">
+                        Выбраковка <i class="bi bi-box-arrow-up-right small opacity-75"></i>
+                    </div>
                     <div class="kpi-value text-primary">{{ d.kpi.culling_count }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                 </div>
                 <div class="kpi-icon-badge bg-primary-subtle text-primary">
@@ -268,10 +401,12 @@
 
     <!-- 4. Санитарный брак -->
     <div class="col-md">
-        <div class="kpi-card h-100 border-warning-subtle">
+        <div class="kpi-card h-100 border-warning-subtle clickable-card" onclick="drillToCows({category: 'санитарный'})" title="Нажмите, чтобы открыть журнал санбрака / прирезки">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="kpi-title text-warning">Санитарная прирезка</div>
+                    <div class="kpi-title text-warning d-flex align-items-center gap-1">
+                        Санитарная прирезка <i class="bi bi-box-arrow-up-right small opacity-75"></i>
+                    </div>
                     <div class="kpi-value text-warning">{{ d.kpi.sanitary_count }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                 </div>
                 <div class="kpi-icon-badge bg-warning-subtle text-warning">
@@ -390,32 +525,70 @@
             </div>
         </div>
 
-        <!-- 4 Зоотехнические KPI карточки -->
+        <!-- Раздельная аналитика по физиологическим периодам (до 6 мес, 6-18 мес, >18 мес, лактации) -->
         <div class="row g-3 mb-3">
-            <!-- 1. Выбытие молодняка -->
-            <div class="col-md-3">
-                <div class="kpi-card h-100 border-success-subtle bg-white">
+            <!-- 1. Телята (до 6 мес.) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-info-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Телята (до 6 мес.)'})" title="Перейти к журналу: Телята (до 6 мес.)" role="button">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="kpi-title text-success">Молодняк (до 18 мес.)</div>
+                            <div class="kpi-title text-info fw-bold">Телята (до 6 мес.)</div>
+                            <div class="kpi-value text-info">{{ d.kpi.calf_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-info-subtle text-info">
+                            <i class="bi bi-gem"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted d-flex justify-content-between">
+                        <span>Падёж: <strong class="text-danger">{{ d.kpi.calf_death_count }} гол.</strong></span>
+                        <span class="text-success fw-semibold">Сохранность: {{ d.kpi.calf_preservation }}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Молодняк (от 6 до 18 мес.) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-success-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Ремонтный молодняк (6–18 мес.)'})" title="Перейти к журналу: Ремонтный молодняк (6–18 мес.)" role="button">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-success fw-bold">Молодняк (6–18 мес.)</div>
                             <div class="kpi-value text-success">{{ d.kpi.youngstock_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                         </div>
                         <div class="kpi-icon-badge bg-success-subtle text-success">
                             <i class="bi bi-flower1"></i>
                         </div>
                     </div>
-                    <div class="mt-2 small text-muted">
-                        Падёж: <strong class="text-danger">{{ d.kpi.youngstock_death_count }} гол.</strong> (доля: {{ d.kpi.youngstock_death_pct }}%)
+                    <div class="mt-2 small text-muted d-flex justify-content-between">
+                        <span>Падёж: <strong class="text-danger">{{ d.kpi.youngstock_death_count }} гол.</strong></span>
+                        <span class="text-success fw-semibold">Сохранность: {{ d.kpi.youngstock_preservation }}%</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. Критический период: Новотел (0-30 дн) -->
-            <div class="col-md-3">
-                <div class="kpi-card h-100 border-danger-subtle bg-white">
+            <!-- 3. Нетели (> 18 мес.) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-warning-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Нетели (>18 мес.)'})" title="Перейти к журналу: Нетели (>18 мес.)" role="button">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="kpi-title text-danger">Новотел (0–30 дн DIM)</div>
+                            <div class="kpi-title text-warning-emphasis fw-bold">Нетели (> 18 мес.)</div>
+                            <div class="kpi-value text-dark">{{ d.kpi.heifer_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-warning-subtle text-warning-emphasis">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Падёж: <strong class="text-danger">{{ d.kpi.heifer_death_count }} гол.</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Новотел (0-30 дн DIM) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-danger-subtle bg-white cursor-pointer" onclick="drillToCows({lactation_phase: 'Новотел'})" title="Перейти к журналу: Новотел (0–30 дн)" role="button">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-danger fw-bold">Новотел (0–30 дн DIM)</div>
                             <div class="kpi-value text-danger">{{ d.kpi.fresh_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                         </div>
                         <div class="kpi-icon-badge bg-danger-subtle text-danger">
@@ -428,16 +601,52 @@
                 </div>
             </div>
 
-            <!-- 3. Средний DIM выбывших коров -->
-            <div class="col-md-3">
+            <!-- 5. Первотёлки (1 лакт.) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-primary-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Коровы 1-й лактации (первотёлки)'})" title="Перейти к журналу: Первотёлки" role="button">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-primary fw-bold">Первотёлки (1 лакт.)</div>
+                            <div class="kpi-value text-primary">{{ d.kpi.first_lact_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-primary-subtle text-primary">
+                            <i class="bi bi-award-fill"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Падёж: <strong class="text-danger">{{ d.kpi.first_lact_death_count }} гол.</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Полновозрастные (2+ лакт.) -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-secondary-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Полновозрастные коровы (2+ лакт.)'})" title="Перейти к журналу: Полновозрастные коровы" role="button">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-title text-dark fw-bold">Полновозрастные (2+ лакт.)</div>
+                            <div class="kpi-value text-dark">{{ d.kpi.multiparous_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                        </div>
+                        <div class="kpi-icon-badge bg-secondary-subtle text-secondary">
+                            <i class="bi bi-droplet-half"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        Падёж: <strong class="text-danger">{{ d.kpi.multiparous_death_count }} гол.</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. Средний DIM выбывших коров -->
+            <div class="col-md-3 col-sm-6">
                 <div class="kpi-card h-100 border-primary-subtle bg-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="kpi-title text-primary">Ср. дни лактации (DIM)</div>
+                            <div class="kpi-title text-primary fw-bold">Ср. дни лактации (DIM)</div>
                             <div class="kpi-value text-primary">{{ d.kpi.avg_dim }} <span class="fs-6 fw-normal text-muted">дн.</span></div>
                         </div>
                         <div class="kpi-icon-badge bg-primary-subtle text-primary">
-                            <i class="bi bi-droplet-half"></i>
+                            <i class="bi bi-clock-history"></i>
                         </div>
                     </div>
                     <div class="mt-2 small text-muted">
@@ -446,20 +655,20 @@
                 </div>
             </div>
 
-            <!-- 4. Телята до 6 мес -->
-            <div class="col-md-3">
-                <div class="kpi-card h-100 border-info-subtle bg-white">
+            <!-- 8. Бычки на откорме -->
+            <div class="col-md-3 col-sm-6">
+                <div class="kpi-card h-100 border-secondary-subtle bg-white cursor-pointer" onclick="drillToCows({age_group: 'Бычки на откорме'})" title="Перейти к журналу: Бычки на откорме" role="button">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="kpi-title text-info">Телята (до 6 мес.)</div>
-                            <div class="kpi-value text-info">{{ d.kpi.calf_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
+                            <div class="kpi-title text-secondary fw-bold">Бычки на откорме</div>
+                            <div class="kpi-value text-secondary">{{ d.kpi.bull_disposals }} <span class="fs-6 fw-normal text-muted">гол.</span></div>
                         </div>
-                        <div class="kpi-icon-badge bg-info-subtle text-info">
-                            <i class="bi bi-gem"></i>
+                        <div class="kpi-icon-badge bg-light text-secondary border">
+                            <i class="bi bi-tag-fill"></i>
                         </div>
                     </div>
                     <div class="mt-2 small text-muted">
-                        Падёж телят: <strong class="text-danger">{{ d.kpi.calf_death_count }} гол.</strong>
+                        Падёж: <strong class="text-danger">{{ d.kpi.bull_death_count }} гол.</strong>
                     </div>
                 </div>
             </div>
@@ -490,7 +699,7 @@
                                 <div class="small text-muted">Норма: {{ sc.target }}</div>
                             </div>
                             <div class="progress mt-1" style="height: 5px;">
-                                <div class="progress-bar bg-{{ sc.status }}" role="progressbar" style="width: 75%;"></div>
+                                <div class="progress-bar bg-{{ sc.status }}" role="progressbar" style="width: {{ sc.progress_pct }}%;"></div>
                             </div>
                             <div class="small text-muted mt-1" style="font-size: 0.72rem;">{{ sc.note }}</div>
                         </div>
@@ -635,14 +844,32 @@
                 <tbody>
                     {% for f in d.reproduction.by_farm %}
                     <tr>
-                        <td class="fw-bold text-dark"><i class="bi bi-geo-alt text-primary me-1"></i> {{ f.farm_name }}</td>
-                        <td class="text-center fw-semibold">{{ f.total }} гол.</td>
+                        <td class="fw-bold">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ f.farm_name }}', repro_filter: 'pregnant'})" class="drilldown-link text-dark fw-bold" title="Стельные коровы по {{ f.farm_name }}">
+                                <i class="bi bi-geo-alt text-primary me-1"></i> {{ f.farm_name }} <i class="bi bi-box-arrow-up-right small text-muted ms-1"></i>
+                            </a>
+                        </td>
+                        <td class="text-center fw-semibold">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ f.farm_name }}'})" class="drilldown-link text-dark" title="Все выбытия по {{ f.farm_name }}">
+                                {{ f.total }} гол.
+                            </a>
+                        </td>
                         <td class="text-center">
-                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">{{ f.pregnant_count }} гол.</span>
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ f.farm_name }}', repro_filter: 'pregnant'})" class="drilldown-link" title="Выбывшие стельные по {{ f.farm_name }}">
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">{{ f.pregnant_count }} гол.</span>
+                            </a>
                         </td>
                         <td class="text-center fw-bold">{{ f.pregnant_pct }}%</td>
-                        <td class="text-center text-danger fw-semibold">{{ f.pregnant_death }} гол.</td>
-                        <td class="text-center text-primary fw-semibold">{{ f.pregnant_culling }} гол.</td>
+                        <td class="text-center">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ f.farm_name }}', repro_filter: 'pregnant', category: 'падёж'})" class="drilldown-link text-danger fw-semibold" title="Падёж стельных по {{ f.farm_name }}">
+                                {{ f.pregnant_death }} гол.
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ f.farm_name }}', repro_filter: 'pregnant', category: 'выбраковка'})" class="drilldown-link text-primary fw-semibold" title="Выбраковка стельных по {{ f.farm_name }}">
+                                {{ f.pregnant_culling }} гол.
+                            </a>
+                        </td>
                         <td class="text-end fw-bold text-dark">{{ "{:,.0f}".format(f.pregnant_loss_byn or 0).replace(',', ' ') }} BYN</td>
                     </tr>
                     {% endfor %}
@@ -682,16 +909,16 @@
                     <canvas id="categoryDoughnut"></canvas>
                 </div>
                 <div class="d-flex justify-content-around text-center mt-3 pt-2 border-top">
-                    <div>
-                        <small class="text-danger fw-bold d-block">Падёж</small>
+                    <div role="button" class="clickable-card p-1 rounded" onclick="drillToCows({category: 'падёж'})" title="Открыть журнал: Падёж">
+                        <small class="text-danger fw-bold d-block">Падёж <i class="bi bi-arrow-right-short"></i></small>
                         <span class="fw-bold">{{ d.kpi.death_count }}</span>
                     </div>
-                    <div>
-                        <small class="text-primary fw-bold d-block">Выбраковка</small>
+                    <div role="button" class="clickable-card p-1 rounded" onclick="drillToCows({category: 'выбраковка'})" title="Открыть журнал: Выбраковка">
+                        <small class="text-primary fw-bold d-block">Выбраковка <i class="bi bi-arrow-right-short"></i></small>
                         <span class="fw-bold">{{ d.kpi.culling_count }}</span>
                     </div>
-                    <div>
-                        <small class="text-warning fw-bold d-block">Санбрак</small>
+                    <div role="button" class="clickable-card p-1 rounded" onclick="drillToCows({category: 'санитарный'})" title="Открыть журнал: Санбрак">
+                        <small class="text-warning fw-bold d-block">Санбрак <i class="bi bi-arrow-right-short"></i></small>
                         <span class="fw-bold">{{ d.kpi.sanitary_count }}</span>
                     </div>
                 </div>
@@ -863,14 +1090,26 @@
                                 {% else %}
                                     <span class="badge bg-primary-subtle text-primary me-1"><i class="bi bi-droplet"></i></span>
                                 {% endif %}
-                                {{ item.category_name }}
+                                <a href="javascript:void(0)" onclick="drillToCows({age_group: '{{ item.category_name }}'})" class="drilldown-link text-dark fw-bold" title="Открыть журнал по группе: {{ item.category_name }}">
+                                    {{ item.category_name }} <i class="bi bi-box-arrow-up-right small text-muted ms-1"></i>
+                                </a>
                             </td>
-                            <td class="text-center fw-bold">{{ item.total }} гол.</td>
                             <td class="text-center">
-                                <span class="badge bg-danger">{{ item.death }} гол.</span>
+                                <a href="javascript:void(0)" onclick="drillToCows({age_group: '{{ item.category_name }}'})" class="drilldown-link fw-bold text-dark" title="Все выбытия по группе {{ item.category_name }}">
+                                    {{ item.total }} гол.
+                                </a>
+                            </td>
+                            <td class="text-center">
+                                <a href="javascript:void(0)" onclick="drillToCows({age_group: '{{ item.category_name }}', category: 'падёж'})" class="drilldown-link" title="Падёж: {{ item.category_name }}">
+                                    <span class="badge bg-danger">{{ item.death }} гол.</span>
+                                </a>
                                 <small class="text-muted ms-1">({{ item.death_rate_pct }}%)</small>
                             </td>
-                            <td class="text-center">{{ item.culling + item.sanitary }} гол.</td>
+                            <td class="text-center">
+                                <a href="javascript:void(0)" onclick="drillToCows({age_group: '{{ item.category_name }}', category: 'выбраковка'})" class="drilldown-link text-primary fw-semibold" title="Выбраковка: {{ item.category_name }}">
+                                    {{ item.culling + item.sanitary }} гол.
+                                </a>
+                            </td>
                             <td class="text-center">
                                 {% if item.avg_dim > 0 %}
                                     <span class="badge bg-light text-dark border">{{ item.avg_dim }} дн.</span>
@@ -917,17 +1156,27 @@
                             {% for r in d.top_reasons %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td class="fw-bold">{{ r.reason }}</td>
                                 <td>
-                                    {% if r.category == 'падёж' %}
-                                        <span class="badge bg-danger">Падёж</span>
-                                    {% elif r.category == 'выбраковка' %}
-                                        <span class="badge bg-primary">Выбраковка</span>
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark">Санбрак</span>
-                                    {% endif %}
+                                    <a href="javascript:void(0)" onclick="drillToCows({reason: '{{ r.reason }}', category: '{{ r.category }}'})" class="drilldown-link fw-bold text-dark" title="Показать коров с диагнозом: {{ r.reason }}">
+                                        {{ r.reason }} <i class="bi bi-box-arrow-up-right small text-muted ms-1"></i>
+                                    </a>
                                 </td>
-                                <td class="text-end fw-bold">{{ r.count }}</td>
+                                <td>
+                                    <a href="javascript:void(0)" onclick="drillToCows({category: '{{ r.category }}'})" class="drilldown-link" title="Показать категорию {{ r.category }}">
+                                        {% if r.category == 'падёж' %}
+                                            <span class="badge bg-danger">Падёж</span>
+                                        {% elif r.category == 'выбраковка' %}
+                                            <span class="badge bg-primary">Выбраковка</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Санбрак</span>
+                                        {% endif %}
+                                    </a>
+                                </td>
+                                <td class="text-end">
+                                    <a href="javascript:void(0)" onclick="drillToCows({reason: '{{ r.reason }}', category: '{{ r.category }}'})" class="drilldown-link fw-bold text-dark">
+                                        {{ r.count }}
+                                    </a>
+                                </td>
                                 <td class="text-end text-muted">
                                     {% if d.kpi.total_disposals > 0 %}
                                         {{ "{:.1f}%".format(r.count / d.kpi.total_disposals * 100) }}
@@ -978,7 +1227,9 @@
                         <th class="text-center">Всего выбыло</th>
                         <th class="text-center">Падёж (гол. / %)</th>
                         <th class="text-center">Выбраковка</th>
-                        <th class="text-center">Молодняк (гол.)</th>
+                        <th class="text-center">Телята (до 6 мес.)</th>
+                        <th class="text-center">Молодняк (6–18 мес.)</th>
+                        <th class="text-center">Нетели (>18 мес.)</th>
                         <th class="text-center">Новотел 0-30 DIM</th>
                         <th class="text-center">Ср. DIM</th>
                         <th class="text-end">Ущерб (BYN)</th>
@@ -988,23 +1239,59 @@
                 <tbody>
                     {% for fm in d.farm_matrix %}
                     <tr>
-                        <td class="fw-bold"><i class="bi bi-geo-alt-fill text-primary me-1"></i> {{ fm.farm }}</td>
-                        <td class="text-center fw-bold">{{ fm.total }} гол.</td>
+                        <td class="fw-bold">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}'})" class="drilldown-link text-primary fw-bold" title="Открыть журнал выбытия: {{ fm.farm }}">
+                                <i class="bi bi-geo-alt-fill me-1"></i> {{ fm.farm }} <i class="bi bi-box-arrow-up-right small text-muted ms-1"></i>
+                            </a>
+                        </td>
                         <td class="text-center">
-                            <span class="badge bg-danger">{{ fm.death }} гол.</span>
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}'})" class="drilldown-link fw-bold text-dark" title="Все выбытия по {{ fm.farm }}">
+                                {{ fm.total }} гол.
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', category: 'падёж'})" class="drilldown-link" title="Падёж по {{ fm.farm }}">
+                                <span class="badge bg-danger">{{ fm.death }} гол.</span>
+                            </a>
                             <small class="text-muted ms-1">({{ fm.death_pct }}%)</small>
                         </td>
-                        <td class="text-center">{{ fm.culling + fm.sanitary }} гол.</td>
+                        <td class="text-center">
+                            <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', category: 'выбраковка'})" class="drilldown-link text-primary fw-semibold" title="Выбраковка по {{ fm.farm }}">
+                                {{ fm.culling + fm.sanitary }} гол.
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            {% if fm.calves > 0 %}
+                                <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', age_group: 'Телята (до 6 мес.)'})" class="drilldown-link" title="Телята до 6 мес. по {{ fm.farm }}">
+                                    <span class="badge bg-info-subtle text-info border">{{ fm.calves }}</span>
+                                </a>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             {% if fm.youngstock > 0 %}
-                                <span class="badge bg-success-subtle text-success">{{ fm.youngstock }}</span>
+                                <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', age_group: 'Ремонтный молодняк (6–18 мес.)'})" class="drilldown-link" title="Ремонтный молодняк 6-18 мес. по {{ fm.farm }}">
+                                    <span class="badge bg-success-subtle text-success border">{{ fm.youngstock }}</span>
+                                </a>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if fm.heifers > 0 %}
+                                <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', age_group: 'Нетели (>18 мес.)'})" class="drilldown-link" title="Нетели >18 мес. по {{ fm.farm }}">
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border">{{ fm.heifers }}</span>
+                                </a>
                             {% else %}
                                 <span class="text-muted">0</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
                             {% if fm.fresh_0_30 > 0 %}
-                                <span class="badge bg-danger-subtle text-danger">{{ fm.fresh_0_30 }} гол.</span>
+                                <a href="javascript:void(0)" onclick="drillToCows({farm: '{{ fm.farm }}', lactation_phase: 'Новотел'})" class="drilldown-link" title="Выбытие новотельных по {{ fm.farm }}">
+                                    <span class="badge bg-danger-subtle text-danger">{{ fm.fresh_0_30 }} гол.</span>
+                                </a>
                             {% else %}
                                 <span class="text-muted">0</span>
                             {% endif %}
@@ -1095,12 +1382,67 @@
         </div>
     </div>
 </div>
+</div> <!-- #dashboard-content -->
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+function showDashboardSkeleton() {
+    const content = document.getElementById('dashboard-content');
+    const skeleton = document.getElementById('dashboard-skeleton');
+    if (content && skeleton) {
+        content.classList.add('d-none');
+        skeleton.classList.remove('d-none');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+const DASHBOARD_DRILLDOWN = {
+    period: {{ (d.period_info.period if d and d.period_info else 'all') | tojson }},
+    startDate: {{ (d.period_info.start_date if d and d.period_info else '') | tojson }},
+    endDate: {{ (d.period_info.end_date if d and d.period_info else '') | tojson }},
+    farm: {{ (selected_farm or 'all') | tojson }}
+};
+
+function drillToCows(filters) {
+    filters = filters || {};
+    const params = new URLSearchParams();
+    if (filters.category) params.set('category', filters.category);
+    if (filters.age_group) params.set('age_group', filters.age_group);
+    if (filters.reason) params.set('reason', filters.reason);
+    if (filters.lactation_phase) params.set('lactation_phase', filters.lactation_phase);
+    if (filters.repro_filter) params.set('repro_filter', filters.repro_filter);
+
+    const targetFarm = filters.farm || (DASHBOARD_DRILLDOWN.farm !== 'all' ? DASHBOARD_DRILLDOWN.farm : '');
+    if (targetFarm && targetFarm !== 'all') {
+        params.set('farm', targetFarm);
+    }
+    if (DASHBOARD_DRILLDOWN.period && DASHBOARD_DRILLDOWN.period !== 'all') {
+        params.set('period', DASHBOARD_DRILLDOWN.period);
+    }
+    if (DASHBOARD_DRILLDOWN.startDate && DASHBOARD_DRILLDOWN.endDate && DASHBOARD_DRILLDOWN.period !== 'all') {
+        params.set('start_date', DASHBOARD_DRILLDOWN.startDate);
+        params.set('end_date', DASHBOARD_DRILLDOWN.endDate);
+    }
+    window.location.href = '/cows?' + params.toString();
+}
+window.drillToCows = drillToCows;
+
 $(document).ready(function() {
+    // Активация skeleton-загрузки при смене периода или фермы
+    $(document).on('click', '.filter-chip, a[href*="period="]', function() {
+        showDashboardSkeleton();
+    });
+
+    $('select[name="farm"]').on('change', function() {
+        showDashboardSkeleton();
+    });
+
+    $('.filter-toolbar form').on('submit', function() {
+        showDashboardSkeleton();
+    });
+
     Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     Chart.defaults.color = '#64748b';
 
@@ -1197,6 +1539,19 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: function(e, elements) {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        const datasetIndex = elements[0].datasetIndex;
+                        const farmName = this.data.labels[index];
+                        const dsLabel = (this.data.datasets[datasetIndex].label || '').toLowerCase();
+                        const cat = dsLabel.includes('падёж') ? 'падёж' : 'выбраковка';
+                        drillToCows({ farm: farmName, repro_filter: 'pregnant', category: cat });
+                    }
+                },
+                onHover: function(e, elements) {
+                    e.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+                },
                 plugins: {
                     legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
                     tooltip: {
@@ -1204,7 +1559,7 @@ $(document).ready(function() {
                             footer: function(tooltipItems) {
                                 let sum = 0;
                                 tooltipItems.forEach(function(item) { sum += (item.raw || 0); });
-                                return 'Всего выбыло стельных: ' + sum + ' гол.';
+                                return 'Всего выбыло стельных: ' + sum + ' гол. (кликните для перехода)';
                             }
                         }
                     }
@@ -1239,6 +1594,20 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: function(e, elements) {
+                    if (elements && elements.length > 0 && totalCases > 0) {
+                        const index = elements[0].index;
+                        const label = (this.data.labels[index] || '').toLowerCase();
+                        let cat = '';
+                        if (label.includes('падёж') || label.includes('падеж')) cat = 'падёж';
+                        else if (label.includes('выбраков')) cat = 'выбраковка';
+                        else if (label.includes('сан')) cat = 'санитарный';
+                        if (cat) drillToCows({ category: cat });
+                    }
+                },
+                onHover: function(e, elements) {
+                    e.native.target.style.cursor = (elements && elements.length && totalCases > 0) ? 'pointer' : 'default';
+                },
                 plugins: {
                     legend: { position: 'bottom' },
                     tooltip: {
@@ -1247,7 +1616,7 @@ $(document).ready(function() {
                                 if (totalCases === 0) return ' Нет данных за период';
                                 const val = context.raw || 0;
                                 const pct = totalCases > 0 ? ((val / totalCases) * 100).toFixed(1) : 0;
-                                return ` ${context.label}: ${val} гол. (${pct}%)`;
+                                return ` ${context.label}: ${val} гол. (${pct}%) — кликните для журнала`;
                             }
                         }
                     }
@@ -1282,6 +1651,21 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: function(e, elements) {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        const phase = this.data.labels[index];
+                        const datasetIndex = elements[0].datasetIndex;
+                        const dsLabel = (this.data.datasets[datasetIndex].label || '').toLowerCase();
+                        let cat = '';
+                        if (dsLabel.includes('падёж')) cat = 'падёж';
+                        else if (dsLabel.includes('выбраков')) cat = 'выбраковка';
+                        drillToCows({ lactation_phase: phase, category: cat });
+                    }
+                },
+                onHover: function(e, elements) {
+                    e.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+                },
                 plugins: { legend: { position: 'top' } },
                 scales: {
                     x: { stacked: true, grid: { display: false } },
@@ -1356,7 +1740,32 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
+                onClick: function(e, elements) {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        const datasetIndex = elements[0].datasetIndex;
+                        const ageGroup = this.data.labels[index];
+                        const dsLabel = (this.data.datasets[datasetIndex].label || '').toLowerCase();
+                        let cat = '';
+                        if (dsLabel.includes('падёж') || dsLabel.includes('падеж')) cat = 'падёж';
+                        else if (dsLabel.includes('выбраков')) cat = 'выбраковка';
+                        else if (dsLabel.includes('сан')) cat = 'санитарный';
+                        drillToCows({ age_group: ageGroup, category: cat });
+                    }
+                },
+                onHover: function(e, elements) {
+                    e.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function() {
+                                return 'Кликните для перехода в журнал';
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: { stacked: true, grid: { display: false } },
                     y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' } }
@@ -1478,7 +1887,26 @@ $(document).ready(function() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                onClick: function(e, elements) {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        const farmName = this.data.labels[index];
+                        drillToCows({ farm: farmName });
+                    }
+                },
+                onHover: function(e, elements) {
+                    e.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function() {
+                                return 'Кликните для перехода в журнал';
+                            }
+                        }
+                    }
+                },
                 scales: {
                     y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
                     x: { grid: { display: false } }

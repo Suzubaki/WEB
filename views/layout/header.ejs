@@ -14,6 +14,17 @@
             background-color: #f4f6f9;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        .app-navbar {
+            position: sticky;
+            top: 0;
+            z-index: 1050;
+        }
+        .navbar .dropdown-menu {
+            z-index: 1090 !important;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+        }
         .navbar-brand {
             font-weight: 700;
             letter-spacing: 0.3px;
@@ -50,7 +61,7 @@
     <%- typeof extra_css !== 'undefined' ? extra_css : '' %>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark py-2 shadow">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark py-2 shadow app-navbar">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center gap-2" href="<%= session && session.user_id ? '/dashboard' : '/login' %>">
                 <img src="/img/logo.svg" onerror="this.onerror=null; this.src='/img/logo.jpg';" alt="ОАО Новая Припять" class="brand-logo-img">
@@ -71,7 +82,6 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/cows"><i class="bi bi-list-check"></i> Журнал коров</a>
                     </li>
-                    <% if (session.user_type !== 'admin') { %>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="addCowDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-plus-circle"></i> Добавить
@@ -84,20 +94,58 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/import_cows"><i class="bi bi-upload"></i> Импорт</a>
                     </li>
-                    <% } %>
                     <li class="nav-item">
                         <a class="nav-link" href="/reports"><i class="bi bi-file-earmark-text"></i> Акты & AITS</a>
                     </li>
-                    <% if (session.user_type === 'admin') { %>
                     <li class="nav-item">
-                        <a class="nav-link text-warning" href="/pricing"><i class="bi bi-calculator"></i> Нормативы BYN</a>
+                        <a class="nav-link text-warning fw-bold" href="/pricing"><i class="bi bi-sliders me-1"></i> Пороги & Нормативы BYN</a>
                     </li>
-                    <% } %>
+                    <% if (session.user_type === 'admin') { %>
+                    <!-- Выпадающее меню Администрирования -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-warning fw-bold" href="#" id="adminToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill me-1"></i> Администрирование
+                        </a>
+                        <ul class="dropdown-menu shadow-lg border-warning" aria-labelledby="adminToolsDropdown">
+                            <li><h6 class="dropdown-header text-uppercase text-muted extra-small fw-bold">Управление предприятием</h6></li>
+                            <li>
+                                <a class="dropdown-item py-2 fw-semibold" href="/pricing">
+                                    <i class="bi bi-calculator text-primary me-2"></i> Экономика и нормативы BYN
+                                    <small class="d-block text-muted extra-small">3-уровневые пороги тревог и оценочная стоимость</small>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2 fw-semibold" href="/user_management">
+                                    <i class="bi bi-people text-success me-2"></i> Управление пользователями / МТФ
+                                    <small class="d-block text-muted extra-small">Учетные записи ферм, роли и пароли</small>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/register">
+                                    <i class="bi bi-person-plus text-info me-2"></i> Регистрация нового аккаунта
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header text-uppercase text-muted extra-small fw-bold">Технические сервисы</h6></li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/admin/generator">
+                                    <i class="bi bi-shield-check text-success me-2"></i> Генератор данных и DDoS-защита
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="/fix_categories">
+                                    <i class="bi bi-wrench-adjustable text-warning me-2"></i> Сервис нормализации базы данных
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    <% } else { %>
                     <li class="nav-item">
-                        <a class="nav-link text-info fw-semibold" href="/admin/generator" title="Генератор тестовых данных и панель DDoS-защиты">
+                        <a class="nav-link text-info fw-semibold" href="/admin/generator" title="Статус базы данных">
                             <i class="bi bi-shield-check text-success"></i> База: <strong><%= typeof cows_count !== 'undefined' ? cows_count : '' %></strong> гол.
                         </a>
                     </li>
+                    <% } %>
                     <% } %>
                 </ul>
                 <ul class="navbar-nav">
@@ -116,15 +164,6 @@
                             <li><a class="dropdown-item <%= session.username === 'farm3' ? 'active fw-bold' : '' %>" href="/switch_user/farm3">🏢 farm3 (МТФ-3 Полесье)</a></li>
                         </ul>
                     </li>
-
-                    <% if (session.user_type === 'admin') { %>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/register"><i class="bi bi-person-plus"></i> Регистрация</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/user_management"><i class="bi bi-people"></i> Пользователи</a>
-                    </li>
-                    <% } %>
                     <li class="nav-item">
                         <a class="nav-link" href="/logout" title="Выйти"><i class="bi bi-box-arrow-right"></i> Выйти</a>
                     </li>

@@ -73,13 +73,14 @@
                             <label class="form-label small fw-semibold text-success">Категория скота (ПВГ)</label>
                             <select class="form-select form-select-sm" id="age_group_filter">
                                 <option value="">Все категории скота</option>
-                                <option value="молодняк_все">👶 Молодняк КРС (все группы)</option>
-                                <option value="Коровы дойного стада">🥛 Коровы дойного стада</option>
-                                <option value="Коровы сухостойные">💤 Коровы сухостойные</option>
-                                <option value="Нетели">🤰 Нетели</option>
                                 <option value="Телята (до 6 мес.)">🍼 Телята (до 6 мес.)</option>
-                                <option value="Молодняк (6–18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                <option value="Ремонтный молодняк (6–18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                <option value="Нетели (>18 мес.)">🤰 Нетели (>18 мес.)</option>
                                 <option value="Бычки на откорме">🐂 Бычки на откорме</option>
+                                <option value="Коровы 1-й лактации (первотёлки)">🐮 Коровы 1-й лактации (первотёлки)</option>
+                                <option value="Полновозрастные коровы (2+ лакт.)">🥛 Полновозрастные коровы (2+ лакт.)</option>
+                                <option value="Сухостойные коровы">💤 Сухостойные коровы</option>
+                                <option value="Коровы дойного стада">🐄 Коровы дойного стада</option>
                             </select>
                         </div>
 
@@ -106,6 +107,15 @@
                             </select>
                         </div>
                         
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-secondary"><i class="bi bi-calendar3 me-1"></i> Период выбытия</label>
+                            <div class="input-group input-group-sm">
+                                <input type="date" class="form-control" id="start_date_filter" value="{{ initial_start_date or '' }}" title="Дата с">
+                                <span class="input-group-text">-</span>
+                                <input type="date" class="form-control" id="end_date_filter" value="{{ initial_end_date or '' }}" title="Дата по">
+                            </div>
+                        </div>
+                        
                         <div class="col-md-1">
                             <label class="form-label small fw-semibold d-none d-md-block">&nbsp;</label>
                             <button type="button" id="reset_filters" class="btn btn-outline-secondary btn-sm w-100" title="Сбросить все фильтры">
@@ -113,6 +123,16 @@
                             </button>
                         </div>
                     </div>
+                </div>
+
+                <!-- Индикатор фильтрации при переходе (Drill-down) -->
+                <div id="drilldownBadge" class="alert alert-primary py-2 px-3 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2 d-none shadow-sm">
+                    <div class="small">
+                        <i class="bi bi-funnel-fill text-primary me-1"></i> <strong>Фильтр перехода:</strong> <span id="drilldownDetails"></span>
+                    </div>
+                    <a href="{{ url_for('cows.view_cows') }}" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" style="font-size: 0.8rem;">
+                        <i class="bi bi-x-circle me-1"></i> Сбросить и показать все
+                    </a>
                 </div>
                 
                 <!-- Поиск и пагинация -->
@@ -271,7 +291,7 @@ $(document).ready(function() {
         }
     });
 
-    $('#farm_filter, #reason_filter, #date_sort, #age_group_filter, #lactation_phase_filter, #repro_filter').change(function() {
+    $('#farm_filter, #reason_filter, #date_sort, #age_group_filter, #lactation_phase_filter, #repro_filter, #start_date_filter, #end_date_filter').change(function() {
         loadPage(1);
     });
 
@@ -286,12 +306,15 @@ $(document).ready(function() {
     $('#reset_filters').click(function() {
         $('#farm_filter').val('');
         $('#category_filter').val('');
-        $('#reason_filter').val('').prop('disabled', true);
+        $('#reason_filter').html('<option value="">Все причины</option>').val('').prop('disabled', true);
         $('#age_group_filter').val('');
         $('#lactation_phase_filter').val('');
         $('#repro_filter').val('');
+        $('#start_date_filter').val('');
+        $('#end_date_filter').val('');
         $('#searchInput').val('');
         $('#date_sort').val('newest');
+        $('#drilldownBadge').addClass('d-none');
         loadPage(1);
     });
 
@@ -315,6 +338,8 @@ $(document).ready(function() {
         var ageGroup = $('#age_group_filter').val() || '';
         var lactPhase = $('#lactation_phase_filter').val() || '';
         var repro = $('#repro_filter').val() || '';
+        var startDate = $('#start_date_filter').val() || '';
+        var endDate = $('#end_date_filter').val() || '';
         var sort = $('#date_sort').val() || 'newest';
         var search = $('#searchInput').val() || '';
 
@@ -325,6 +350,8 @@ $(document).ready(function() {
                   '&age_group=' + encodeURIComponent(ageGroup) +
                   '&lactation_phase=' + encodeURIComponent(lactPhase) +
                   '&repro_filter=' + encodeURIComponent(repro) +
+                  '&start_date=' + encodeURIComponent(startDate) +
+                  '&end_date=' + encodeURIComponent(endDate) +
                   '&sort=' + encodeURIComponent(sort) +
                   '&search=' + encodeURIComponent(search);
 
@@ -479,8 +506,78 @@ $(document).ready(function() {
     });
 
     var urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('repro_filter')) {
-        $('#repro_filter').val(urlParams.get('repro_filter'));
+    var hasInitial = false;
+    var filterLabels = [];
+
+    var paramFarm = urlParams.get('farm');
+    if (paramFarm && paramFarm !== 'all') {
+        $('#farm_filter').val(paramFarm);
+        filterLabels.push('Ферма: ' + paramFarm);
+        hasInitial = true;
+    }
+
+    var paramCat = urlParams.get('category');
+    if (paramCat) {
+        $('#category_filter').val(paramCat);
+        filterLabels.push('Категория: ' + paramCat);
+        var $rf = $('#reason_filter');
+        $rf.html('<option value="">Все причины</option>');
+        if (CATEGORIES_MAP && CATEGORIES_MAP[paramCat]) {
+            $.each(CATEGORIES_MAP[paramCat], function(i, r) {
+                $rf.append($('<option>', { value: r, text: r }));
+            });
+            $rf.prop('disabled', false);
+        }
+        hasInitial = true;
+    }
+
+    var paramReason = urlParams.get('reason');
+    if (paramReason) {
+        var $rf2 = $('#reason_filter');
+        if ($rf2.find('option[value="' + paramReason + '"]').length === 0) {
+            $rf2.append($('<option>', { value: paramReason, text: paramReason }));
+        }
+        $rf2.val(paramReason).prop('disabled', false);
+        filterLabels.push('Причина: ' + paramReason);
+        hasInitial = true;
+    }
+
+    var paramAge = urlParams.get('age_group');
+    if (paramAge) {
+        $('#age_group_filter').val(paramAge);
+        filterLabels.push('Категория скота: ' + paramAge);
+        hasInitial = true;
+    }
+
+    var paramPhase = urlParams.get('lactation_phase');
+    if (paramPhase) {
+        $('#lactation_phase_filter').val(paramPhase);
+        filterLabels.push('Фаза DIM: ' + paramPhase);
+        hasInitial = true;
+    }
+
+    var paramRepro = urlParams.get('repro_filter');
+    if (paramRepro) {
+        $('#repro_filter').val(paramRepro);
+        var rTxt = paramRepro === 'pregnant' ? 'Выбытие стельных' : (paramRepro === 'stillborn' ? 'Мертворождения' : 'Глубокостельные');
+        filterLabels.push(rTxt);
+        hasInitial = true;
+    }
+
+    var paramStart = urlParams.get('start_date');
+    var paramEnd = urlParams.get('end_date');
+    if (paramStart && paramEnd) {
+        $('#start_date_filter').val(paramStart);
+        $('#end_date_filter').val(paramEnd);
+        filterLabels.push('Период: ' + paramStart + ' — ' + paramEnd);
+        hasInitial = true;
+    }
+
+    if (hasInitial) {
+        if (filterLabels.length > 0) {
+            $('#drilldownDetails').text(filterLabels.join(' • '));
+            $('#drilldownBadge').removeClass('d-none');
+        }
         loadPage(1);
     } else {
         renderPagination();

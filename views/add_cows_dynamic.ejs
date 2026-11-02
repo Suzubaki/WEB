@@ -161,13 +161,15 @@
                                 <div class="col-md-4">
                                     <label class="form-label small fw-semibold">Половозрастная группа (ПВГ)</label>
                                     <select class="form-select form-select-sm age-group">
-                                        <option value="Коровы дойного стада" selected>Коровы дойного стада</option>
-                                        <option value="Коровы сухостойные">Коровы сухостойные</option>
-                                        <option value="Нетели">Нетели</option>
-                                        <option value="Тёлки старше 1 года">Тёлки старше 1 года</option>
-                                        <option value="Телята (0–6 мес.)">Телята (0–6 мес.)</option>
-                                        <option value="Молодняк (6–12 мес.)">Молодняк (6–12 мес.)</option>
-                                        <option value="Бычки на откорме">Бычки на откорме</option>
+                                        <option value="Телята (до 6 мес.)">🍼 Телята (до 6 мес.)</option>
+                                        <option value="Молодняк (от 6 до 18 мес.)">🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                        <option value="Нетели и тёлки (> 18 мес.)">🤰 Нетели и тёлки (> 18 мес.)</option>
+                                        <option value="Новотельные коровы (0–30 дн DIM)">⚡ Выбытие новотельных (0–30 дн DIM)</option>
+                                        <option value="Коровы 1-й лактации (первотёлки)">⭐ Коровы 1-й лактации (первотёлки)</option>
+                                        <option value="Коровы 2+ лактаций (полновозрастные)" selected>🥛 Коровы 2+ лактаций (полновозрастные)</option>
+                                        <option value="Коровы сухостойные">💤 Коровы сухостойные</option>
+                                        <option value="Бычки на откорме">🐂 Бычки на откорме</option>
+                                        <option value="Мертворождённые / Аборты">❌ Мертворождённые / Аборты (внутриутробные потери)</option>
                                     </select>
                                 </div>
                             </div>
@@ -274,11 +276,7 @@
                             </div>
 
                             <div class="row g-2 mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label small fw-semibold">Масса плода / телёнка (кг)</label>
-                                    <input type="number" step="0.1" class="form-control form-control-sm sb-weight" min="0" placeholder="Напр. 28.5 кг">
-                                </div>
-                                <div class="col-md-8">
+                                <div class="col-md-12">
                                     <label class="form-label small fw-semibold">Заключение ветврача / Примечание</label>
                                     <input type="text" class="form-control form-control-sm sb-notes" placeholder="Патологоанатомический диагноз, заключение лаборатории...">
                                 </div>

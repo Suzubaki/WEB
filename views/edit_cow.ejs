@@ -53,15 +53,20 @@
                                 <i class="bi bi-tag-fill"></i> Категория скота (ПВГ) *
                             </label>
                             <select class="form-select border-primary" id="age_group" name="age_group">
-                                <optgroup label="Взрослое маточное поголовье">
-                                    <option value="Коровы дойного стада" <%= cow.age_group === 'Коровы дойного стада' ? 'selected' : '' %>>Коровы дойного стада</option>
-                                    <option value="Коровы сухостойные" <%= cow.age_group === 'Коровы сухостойные' ? 'selected' : '' %>>Коровы сухостойные</option>
-                                    <option value="Нетели" <%= cow.age_group === 'Нетели' ? 'selected' : '' %>>Нетели (первотелки до отёла)</option>
+                                <optgroup label="Телята и молодняк (периоды выращивания)">
+                                    <option value="Телята (до 6 мес.)" <%= (cow.age_group || '').includes('Телят') || (cow.age_group || '').includes('до 6') ? 'selected' : '' %>>🍼 Телята (до 6 мес., молочный период)</option>
+                                    <option value="Молодняк (от 6 до 18 мес.)" <%= (cow.age_group || '').includes('Молодняк') || (cow.age_group || '').includes('6–18') || (cow.age_group || '').includes('6-18') ? 'selected' : '' %>>🌱 Ремонтный молодняк (6–18 мес.)</option>
+                                    <option value="Нетели и тёлки (> 18 мес.)" <%= (cow.age_group || '').includes('Нетел') || (cow.age_group || '').includes('> 18') ? 'selected' : '' %>>🤰 Нетели и тёлки (> 18 мес.)</option>
+                                    <option value="Бычки на откорме" <%= (cow.age_group || '').includes('Бычк') ? 'selected' : '' %>>🐂 Бычки на откорме</option>
                                 </optgroup>
-                                <optgroup label="Молодняк КРС">
-                                    <option value="Телята (до 6 мес.)" <%= (cow.age_group || '').includes('Телят') ? 'selected' : '' %>>Телята (до 6 мес., молочный период)</option>
-                                    <option value="Молодняк (6–18 мес.)" <%= ((cow.age_group || '').includes('Молодняк') || (cow.age_group || '').includes('Тёлки')) ? 'selected' : '' %>>Ремонтный молодняк (тёлки 6–18 мес.)</option>
-                                    <option value="Бычки на откорме" <%= cow.age_group === 'Бычки на откорме' ? 'selected' : '' %>>Бычки на откорме</option>
+                                <optgroup label="Взрослое дойное и сухостойное стадо">
+                                    <option value="Новотельные коровы (0–30 дн DIM)" <%= (cow.age_group || '').includes('новотел') || (cow.lactation_phase || '').includes('Новотел') || ((cow.lactation_days || 0) <= 30 && (cow.lactation_days || 0) > 0) ? 'selected' : '' %>>⚡ Выбытие новотельных (0–30 дн DIM)</option>
+                                    <option value="Коровы 1-й лактации (первотёлки)" <%= (cow.age_group || '').includes('первотёл') || (cow.age_group || '').includes('1-й лакт') || (cow.lactation === 1 && !(cow.age_group || '').includes('Телят') && !(cow.age_group || '').includes('Молодняк')) ? 'selected' : '' %>>⭐ Коровы 1-й лактации (первотёлки)</option>
+                                    <option value="Коровы 2+ лактаций (полновозрастные)" <%= (cow.age_group || '').includes('2+') || (cow.age_group || '').includes('полновозраст') || ((cow.lactation || 0) >= 2 && !(cow.age_group || '').includes('Телят') && !(cow.age_group || '').includes('сухосто')) ? 'selected' : '' %>>🥛 Коровы 2+ лактаций (полновозрастные)</option>
+                                    <option value="Коровы сухостойные" <%= (cow.age_group || '').includes('сухосто') ? 'selected' : '' %>>💤 Коровы сухостойные</option>
+                                </optgroup>
+                                <optgroup label="Потери приплода и воспроизводства">
+                                    <option value="Мертворождённые / Аборты" <%= cow.is_stillborn === 1 || (cow.age_group || '').includes('мертворож') || (cow.age_group || '').includes('аборт') ? 'selected' : '' %>>❌ Мертворождённые / Аборты (внутриутробные потери)</option>
                                 </optgroup>
                             </select>
                         </div>

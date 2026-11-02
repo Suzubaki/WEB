@@ -58,19 +58,72 @@ def view_cows():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    farm_filter = request.args.get('farm', '').strip()
+    category_filter = request.args.get('category', '').strip().lower()
+    reason_filter = request.args.get('reason', '').strip()
+    age_group_filter = request.args.get('age_group', '').strip()
+    lactation_phase_filter = request.args.get('lactation_phase', '').strip()
     repro_filter = request.args.get('repro_filter', '').strip().lower()
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
+    period = request.args.get('period', '').strip()
     
     where_parts = []
     base_params = []
     if user_type != 'admin':
         where_parts.append("farm_name = ?")
         base_params.append(farm_name)
+    elif farm_filter and farm_filter != 'all':
+        where_parts.append("farm_name = ?")
+        base_params.append(farm_filter)
+
+    if category_filter and category_filter != 'all':
+        if 'сан' in category_filter:
+            where_parts.append("category LIKE '%сан%'")
+        else:
+            where_parts.append("category = ?")
+            base_params.append(category_filter)
+
+    if reason_filter and reason_filter != 'all':
+        where_parts.append("reason = ?")
+        base_params.append(reason_filter)
+
+    if age_group_filter and age_group_filter != 'all':
+        ag_lower = age_group_filter.lower()
+        if age_group_filter == 'молодняк_все':
+            where_parts.append("(age_group LIKE '%Телят%' OR age_group LIKE '%Молодняк%' OR age_group LIKE '%Бычки%')")
+        elif 'телят' in ag_lower or 'до 6' in ag_lower or '0-6' in ag_lower:
+            where_parts.append("(LOWER(age_group) LIKE '%телят%' OR LOWER(age_group) LIKE '%до 6%' OR LOWER(age_group) LIKE '%0-6%' OR LOWER(age_group) LIKE '%0–6%')")
+        elif 'молодняк' in ag_lower or '6-18' in ag_lower or '6–18' in ag_lower or '6-12' in ag_lower:
+            where_parts.append("((LOWER(age_group) LIKE '%молодняк%' OR LOWER(age_group) LIKE '%6-18%' OR LOWER(age_group) LIKE '%6–18%' OR LOWER(age_group) LIKE '%6-12%') AND LOWER(age_group) NOT LIKE '%телят%')")
+        elif 'нетел' in ag_lower or '18' in ag_lower:
+            where_parts.append("(LOWER(age_group) LIKE '%нетел%' OR LOWER(age_group) LIKE '%18%')")
+        elif 'быч' in ag_lower or 'откорм' in ag_lower:
+            where_parts.append("(LOWER(age_group) LIKE '%быч%' OR LOWER(age_group) LIKE '%откорм%')")
+        elif 'первотел' in ag_lower or '1-я лакт' in ag_lower:
+            where_parts.append("(LOWER(age_group) LIKE '%первотел%' OR LOWER(age_group) LIKE '%1-я лакт%' OR lactation = 1)")
+        elif 'полновозраст' in ag_lower or '2+ лакт' in ag_lower:
+            where_parts.append("(LOWER(age_group) LIKE '%полновозраст%' OR LOWER(age_group) LIKE '%2+ лакт%' OR lactation > 1)")
+        elif 'сухосто' in ag_lower:
+            where_parts.append("LOWER(age_group) LIKE '%сухосто%'")
+        else:
+            where_parts.append("(age_group = ? OR LOWER(age_group) LIKE ?)")
+            base_params.extend([age_group_filter, f"%{ag_lower}%"])
+
+    if lactation_phase_filter and lactation_phase_filter != 'all':
+        where_parts.append("lactation_phase LIKE ?")
+        base_params.append(f"%{lactation_phase_filter}%")
+
     if repro_filter == 'pregnant':
         where_parts.append("(is_pregnant = 1 OR gestation_days > 0 OR age_group LIKE '%сухостой%' OR age_group LIKE '%нетел%' OR reason LIKE '%стельн%')")
     elif repro_filter == 'pregnant_late':
         where_parts.append("(gestation_days >= 180 OR (is_pregnant = 1 AND age_group LIKE '%сухостой%'))")
     elif repro_filter == 'stillborn':
         where_parts.append("(is_stillborn = 1 OR reason LIKE '%мертворож%' OR reason LIKE '%аборт%' OR reason LIKE '%мацерац%' OR reason LIKE '%мумификац%' OR reason LIKE '%патология родов%')")
+
+    if start_date and end_date:
+        where_parts.append("disposal_date BETWEEN ? AND ?")
+        base_params.extend([start_date, end_date])
         
     initial_where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
 
@@ -88,7 +141,7 @@ def view_cows():
     conn.close()
     
     cows = [dict(c) for c in cows_data]
-    return render_template('view_cows.html', cows=cows, user_type=user_type, total_count=total_count, farms=farms, categories=Config.DISPOSAL_CATEGORIES, repro_filter=repro_filter)
+    return render_template('view_cows.html', cows=cows, user_type=user_type, total_count=total_count, farms=farms, categories=Config.DISPOSAL_CATEGORIES, repro_filter=repro_filter, initial_farm=farm_filter, initial_category=category_filter, initial_reason=reason_filter, initial_age_group=age_group_filter, initial_start_date=start_date, initial_end_date=end_date, initial_period=period)
 
 @cows_bp.route('/api/cows')
 @login_required
@@ -106,6 +159,9 @@ def api_cows():
     age_group_filter = request.args.get('age_group', '').strip()
     lactation_phase_filter = request.args.get('lactation_phase', '').strip()
     repro_filter = request.args.get('repro_filter', '').strip().lower()
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
+    period = request.args.get('period', '').strip()
     search_query = request.args.get('search', '').strip()[:100].lower()
     sort = request.args.get('sort', 'newest').strip()
     
@@ -150,6 +206,10 @@ def api_cows():
         conditions.append("(gestation_days >= 180 OR (is_pregnant = 1 AND age_group LIKE '%сухостой%'))")
     elif repro_filter == 'stillborn':
         conditions.append("(is_stillborn = 1 OR reason LIKE '%мертворож%' OR reason LIKE '%аборт%' OR reason LIKE '%мацерац%' OR reason LIKE '%мумификац%' OR reason LIKE '%патология родов%')")
+
+    if start_date and end_date:
+        conditions.append("disposal_date BETWEEN ? AND ?")
+        params.extend([start_date, end_date])
         
     if search_query:
         conditions.append("(cow_id LIKE ? OR ear_tag LIKE ? OR reason LIKE ? OR farm_name LIKE ? OR age_group LIKE ? OR lactation_phase LIKE ?)")
