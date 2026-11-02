@@ -44,6 +44,18 @@
             color: #94a3b8;
             margin-top: auto;
         }
+        .navbar.sticky-top {
+            z-index: 1060 !important;
+            overflow: visible !important;
+        }
+        .navbar .dropdown-menu {
+            z-index: 1070 !important;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important;
+        }
+        .navbar-collapse {
+            overflow: visible !important;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -92,15 +104,15 @@
                         <a class="nav-link dropdown-toggle text-warning" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-sliders"></i> Администрирование
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/pricing"><i class="bi bi-calculator"></i> Нормативы цен BYN</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('user_management') }}"><i class="bi bi-people"></i> Пользователи ферм</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('manage_reasons') }}"><i class="bi bi-card-checklist"></i> Справочник причин</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('backup_page') }}"><i class="bi bi-shield-lock"></i> Резервная копия (Бэкап)</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('audit_log') }}"><i class="bi bi-shield-shaded"></i> Журнал аудита</a></li>
+                        <ul class="dropdown-menu shadow-lg border-0" style="min-width: 260px;">
+                            <li><a class="dropdown-item py-2" href="/pricing"><i class="bi bi-calculator me-2 text-primary"></i> Нормативы цен BYN</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('user_management') }}"><i class="bi bi-people me-2 text-success"></i> Пользователи ферм</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('manage_reasons') }}"><i class="bi bi-card-checklist me-2 text-info"></i> Справочник причин</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('backup_page') }}"><i class="bi bi-shield-lock me-2 text-warning"></i> Резервная копия (Бэкап)</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('audit_log') }}"><i class="bi bi-shield-shaded me-2 text-secondary"></i> Журнал аудита</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-primary fw-bold" href="{{ url_for('seed_test_data') }}"><i class="bi bi-lightning-charge-fill text-warning"></i> Загрузить 1 000 коров</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('register') }}"><i class="bi bi-person-plus"></i> Создать аккаунт</a></li>
+                            <li><a class="dropdown-item py-2 text-primary fw-bold" href="{{ url_for('seed_test_data') }}"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Загрузить 1 000 коров</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('register') }}"><i class="bi bi-person-plus me-2 text-muted"></i> Создать аккаунт</a></li>
                         </ul>
                     </li>
                     {% endif %}

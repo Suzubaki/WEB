@@ -41,10 +41,38 @@ def dashboard():
     alerts = get_anomaly_alerts(user_type, selected_farm)
     user_stats_data = get_user_statistics() if user_type == 'admin' else None
     
+    from database import get_setting
+    pricing_data = {
+        'price_calves': float(get_setting('price_calves', 900.0)),
+        'price_youngstock': float(get_setting('price_youngstock', 1650.0)),
+        'price_heifers': float(get_setting('price_heifers', 2700.0)),
+        'price_cows': float(get_setting('price_cows', 3200.0)),
+        'price_dry_cows': float(get_setting('price_dry_cows', 3000.0)),
+        'meat_price_per_kg': float(get_setting('meat_price_per_kg', 6.20)),
+        'milk_price_per_kg': float(get_setting('milk_price_per_kg', 1.18)),
+        'replacement_cost': float(get_setting('replacement_cost', 2950.0)),
+        'norm_fresh_cow_disposal': float(get_setting('norm_fresh_cow_disposal', 10.0)),
+        'warn_fresh_cow_disposal': float(get_setting('warn_fresh_cow_disposal', 14.0)),
+        'crit_fresh_cow_disposal': float(get_setting('crit_fresh_cow_disposal', 18.0)),
+        'norm_first_lactation_culling': float(get_setting('norm_first_lactation_culling', 20.0)),
+        'warn_first_lactation_culling': float(get_setting('warn_first_lactation_culling', 25.0)),
+        'crit_first_lactation_culling': float(get_setting('crit_first_lactation_culling', 30.0)),
+        'norm_mortality_rate': float(get_setting('norm_mortality_rate', 25.0)),
+        'warn_mortality_rate': float(get_setting('warn_mortality_rate', 35.0)),
+        'crit_mortality_rate': float(get_setting('crit_mortality_rate', 45.0)),
+        'norm_locomotor_disorders': float(get_setting('norm_locomotor_disorders', 15.0)),
+        'warn_locomotor_disorders': float(get_setting('warn_locomotor_disorders', 20.0)),
+        'crit_locomotor_disorders': float(get_setting('crit_locomotor_disorders', 25.0)),
+        'norm_mastitis_disorders': float(get_setting('norm_mastitis_disorders', 15.0)),
+        'warn_mastitis_disorders': float(get_setting('warn_mastitis_disorders', 20.0)),
+        'crit_mastitis_disorders': float(get_setting('crit_mastitis_disorders', 25.0))
+    }
+    
     return render_template('dashboard.html',
                            user_type=user_type,
                            farm_name=farm_name,
                            selected_farm=selected_farm,
                            d=dashboard_data,
                            alerts=alerts,
-                           user_stats_data=user_stats_data)
+                           user_stats_data=user_stats_data,
+                           pricing=pricing_data)

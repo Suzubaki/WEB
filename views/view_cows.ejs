@@ -388,18 +388,16 @@
     </div>
 </div>
 
-<%- include('layout/footer', {
-    extra_js: `
-    <script>
-    (function() {
-        var DISPOSAL_CATEGORIES = ${JSON.stringify(categories || {})};
-        var IS_ADMIN = ${user_type === 'admin' ? 'true' : 'false'};
+<script>
+(function() {
+    var DISPOSAL_CATEGORIES = <%- JSON.stringify(categories || {}) %>;
+    var IS_ADMIN = <%= user_type === 'admin' ? 'true' : 'false' %>;
 
-        var currentPage = 1;
-        var pageSize = 50;
-        var totalFiltered = ${total_cows_count};
-        var totalDb = ${total_cows_count};
-        var totalPages = Math.ceil(${total_cows_count} / pageSize) || 1;
+    var currentPage = 1;
+    var pageSize = 50;
+    var totalFiltered = <%= total_cows_count %>;
+    var totalDb = <%= total_cows_count %>;
+    var totalPages = Math.ceil(<%= total_cows_count %> / pageSize) || 1;
         var isFetching = false;
         var activeRecordType = '<%= (typeof repro_filter !== "undefined" && repro_filter === "stillborn") ? "stillborn" : "live" %>';
 
@@ -887,8 +885,7 @@
         } else {
             // Первичная отрисовка контролов пагинации
             renderPaginationControls();
-        }
     })();
     </script>
-    `
-}) %>
+
+<%- include('layout/footer') %>

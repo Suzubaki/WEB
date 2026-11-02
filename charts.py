@@ -473,26 +473,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
 
     scorecard = [
         {
-            'title': 'Сохранность телят (до 6 мес.)',
-            'target': f"≥ {norm_calf_preservation:.1f}%",
-            'current': f"{calf_preservation}%",
-            'progress_pct': prog_calf,
-            'status': 'success' if calf_preservation >= norm_calf_preservation else ('warning' if calf_preservation >= (norm_calf_preservation - 5.0) else 'danger'),
-            'statusText': 'Норма' if calf_preservation >= norm_calf_preservation else ('Внимание' if calf_preservation >= (norm_calf_preservation - 5.0) else 'Риск'),
-            'note': f"Пало телят: {calf_deaths} из {len(calf_cows)} гол.",
-            'icon': 'bi-gem'
-        },
-        {
-            'title': 'Сохранность молодняка (6–18 мес.)',
-            'target': f"≥ {norm_young_preservation:.1f}%",
-            'current': f"{youngstock_preservation}%",
-            'progress_pct': prog_young,
-            'status': 'success' if youngstock_preservation >= norm_young_preservation else ('warning' if youngstock_preservation >= (norm_young_preservation - 5.0) else 'danger'),
-            'statusText': 'Норма' if youngstock_preservation >= norm_young_preservation else ('Внимание' if youngstock_preservation >= (norm_young_preservation - 5.0) else 'Риск'),
-            'note': f"Пало ремонтных: {youngstock_deaths} из {len(youngstock_cows)} гол.",
-            'icon': 'bi-flower1'
-        },
-        {
+            'key': 'norm_fresh_cow_disposal',
+            'operator': '<=',
+            'val': float(norm_fresh),
+            'warn_val': float(norm_fresh + 4.0),
+            'crit_val': float(norm_fresh + 8.0),
+            'current_num': float(fresh_rate),
             'title': 'Выбытие новотельных (0-30 DIM)',
             'target': f"≤ {norm_fresh:.1f}%",
             'current': f"{fresh_rate}%",
@@ -503,6 +489,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'icon': 'bi-exclamation-octagon-fill'
         },
         {
+            'key': 'norm_first_lactation_culling',
+            'operator': '<=',
+            'val': float(norm_first_lact),
+            'warn_val': float(norm_first_lact + 5.0),
+            'crit_val': float(norm_first_lact + 10.0),
+            'current_num': float(first_lact_rate),
             'title': 'Выбраковка первотёлок',
             'target': f"≤ {norm_first_lact:.1f}%",
             'current': f"{first_lact_rate}%",
@@ -513,6 +505,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'icon': 'bi-gem'
         },
         {
+            'key': 'norm_mortality_rate',
+            'operator': '<=',
+            'val': float(norm_mortality),
+            'warn_val': float(norm_mortality + 10.0),
+            'crit_val': float(norm_mortality + 20.0),
+            'current_num': float(death_overall_rate),
             'title': 'Общая летальность (Падёж)',
             'target': f"≤ {norm_mortality:.1f}%",
             'current': f"{death_overall_rate}%",
@@ -523,6 +521,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'icon': 'bi-heart-pulse-fill'
         },
         {
+            'key': 'norm_locomotor_disorders',
+            'operator': '<=',
+            'val': float(norm_locomotor),
+            'warn_val': float(norm_locomotor + 5.0),
+            'crit_val': float(norm_locomotor + 10.0),
+            'current_num': float(locomotor_rate),
             'title': 'Болезни конечностей',
             'target': f"≤ {norm_locomotor:.1f}%",
             'current': f"{locomotor_rate}%",
@@ -533,6 +537,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'icon': 'bi-bandaid-fill'
         },
         {
+            'key': 'norm_mastitis_disorders',
+            'operator': '<=',
+            'val': float(norm_mastitis),
+            'warn_val': float(norm_mastitis + 5.0),
+            'crit_val': float(norm_mastitis + 10.0),
+            'current_num': float(mastitis_rate),
             'title': 'Маститы и патологии вымени',
             'target': f"≤ {norm_mastitis:.1f}%",
             'current': f"{mastitis_rate}%",

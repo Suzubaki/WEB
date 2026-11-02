@@ -163,22 +163,35 @@ def pricing():
     
     if request.method == 'POST':
         if session.get('user_type') != 'admin':
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return {'status': 'error', 'message': 'Редактирование доступно только администраторам'}, 403
             flash('Редактирование доступно только администраторам', 'danger')
             return redirect(url_for('admin.pricing'))
             
         fields = [
             'price_calves', 'price_youngstock', 'price_heifers', 'price_cows', 'price_dry_cows',
             'meat_price_per_kg', 'milk_price_per_kg', 'replacement_cost',
-            'norm_youngstock_preservation', 'norm_fresh_cow_disposal', 'norm_first_lactation_culling',
-            'norm_mortality_rate', 'norm_locomotor_disorders', 'norm_mastitis_disorders'
+            'norm_calf_preservation', 'warn_calf_preservation', 'crit_calf_preservation',
+            'norm_youngstock_preservation', 'warn_youngstock_preservation', 'crit_youngstock_preservation',
+            'norm_fresh_cow_disposal', 'warn_fresh_cow_disposal', 'crit_fresh_cow_disposal',
+            'norm_first_lactation_culling', 'warn_first_lactation_culling', 'crit_first_lactation_culling',
+            'norm_mortality_rate', 'warn_mortality_rate', 'crit_mortality_rate',
+            'norm_locomotor_disorders', 'warn_locomotor_disorders', 'crit_locomotor_disorders',
+            'norm_mastitis_disorders', 'warn_mastitis_disorders', 'crit_mastitis_disorders'
         ]
+        
+        req_data = request.get_json(silent=True) or request.form
         for f in fields:
-            val = request.form.get(f)
-            if val is not None:
+            val = req_data.get(f)
+            if val is not None and str(val).strip() != '':
                 try:
                     set_setting(f, str(float(val)))
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
+                    
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return {'status': 'success', 'message': 'Экономические нормативы и зоотехнические пороги успешно сохранены!'}
+            
         flash('Экономические нормативы и зоотехнические пороги цен успешно обновлены!', 'success')
         return redirect(url_for('admin.pricing'))
         
@@ -191,12 +204,27 @@ def pricing():
         'meat_price_per_kg': float(get_setting('meat_price_per_kg', 6.20)),
         'milk_price_per_kg': float(get_setting('milk_price_per_kg', 1.18)),
         'replacement_cost': float(get_setting('replacement_cost', 2950.0)),
+        'norm_calf_preservation': float(get_setting('norm_calf_preservation', 95.0)),
+        'warn_calf_preservation': float(get_setting('warn_calf_preservation', 92.0)),
+        'crit_calf_preservation': float(get_setting('crit_calf_preservation', 88.0)),
         'norm_youngstock_preservation': float(get_setting('norm_youngstock_preservation', 92.0)),
+        'warn_youngstock_preservation': float(get_setting('warn_youngstock_preservation', 88.0)),
+        'crit_youngstock_preservation': float(get_setting('crit_youngstock_preservation', 82.0)),
         'norm_fresh_cow_disposal': float(get_setting('norm_fresh_cow_disposal', 10.0)),
+        'warn_fresh_cow_disposal': float(get_setting('warn_fresh_cow_disposal', 14.0)),
+        'crit_fresh_cow_disposal': float(get_setting('crit_fresh_cow_disposal', 18.0)),
         'norm_first_lactation_culling': float(get_setting('norm_first_lactation_culling', 20.0)),
+        'warn_first_lactation_culling': float(get_setting('warn_first_lactation_culling', 25.0)),
+        'crit_first_lactation_culling': float(get_setting('crit_first_lactation_culling', 30.0)),
         'norm_mortality_rate': float(get_setting('norm_mortality_rate', 25.0)),
+        'warn_mortality_rate': float(get_setting('warn_mortality_rate', 35.0)),
+        'crit_mortality_rate': float(get_setting('crit_mortality_rate', 45.0)),
         'norm_locomotor_disorders': float(get_setting('norm_locomotor_disorders', 15.0)),
-        'norm_mastitis_disorders': float(get_setting('norm_mastitis_disorders', 15.0))
+        'warn_locomotor_disorders': float(get_setting('warn_locomotor_disorders', 20.0)),
+        'crit_locomotor_disorders': float(get_setting('crit_locomotor_disorders', 25.0)),
+        'norm_mastitis_disorders': float(get_setting('norm_mastitis_disorders', 15.0)),
+        'warn_mastitis_disorders': float(get_setting('warn_mastitis_disorders', 20.0)),
+        'crit_mastitis_disorders': float(get_setting('crit_mastitis_disorders', 25.0))
     }
     
     return render_template('pricing.html', pricing=pricing_data, user_type=session.get('user_type'))

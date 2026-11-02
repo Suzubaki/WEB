@@ -201,63 +201,7 @@
                                 <tbody>
                                     <tr>
                                         <td>
-                                            <strong class="d-block text-dark fs-6">1. Сохранность телят (до 6 мес.)</strong>
-                                            <span class="text-muted small">Целевой процент выживаемости новорожденных телят в молочный период</span>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-success-subtle text-success fw-bold">≥</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-success fw-bold" id="norm_calf_preservation" name="norm_calf_preservation" value="<%= pricing.norm_calf_preservation || 95.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-warning-subtle text-warning fw-bold">≥</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-warning fw-bold" id="warn_calf_preservation" name="warn_calf_preservation" value="<%= pricing.warn_calf_preservation || 92.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-danger-subtle text-danger fw-bold">&lt;</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-danger fw-bold" id="crit_calf_preservation" name="crit_calf_preservation" value="<%= pricing.crit_calf_preservation || 88.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <tr>
-                                        <td>
-                                            <strong class="d-block text-dark fs-6">2. Сохранность ремонтного молодняка (6–18 мес.)</strong>
-                                            <span class="text-muted small">Процент сохранения ремонтных тёлок и бычков на откорме</span>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-success-subtle text-success fw-bold">≥</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-success fw-bold" id="norm_youngstock_preservation" name="norm_youngstock_preservation" value="<%= pricing.norm_youngstock_preservation || 92.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-warning-subtle text-warning fw-bold">≥</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-warning fw-bold" id="warn_youngstock_preservation" name="warn_youngstock_preservation" value="<%= pricing.warn_youngstock_preservation || 88.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-danger-subtle text-danger fw-bold">&lt;</span>
-                                                <input type="number" step="0.5" min="0" max="100" class="form-control text-center text-danger fw-bold" id="crit_youngstock_preservation" name="crit_youngstock_preservation" value="<%= pricing.crit_youngstock_preservation || 82.0 %>" <%= user_type !== 'admin' ? 'disabled' : '' %>>
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    <tr>
-                                        <td>
-                                            <strong class="d-block text-dark fs-6">3. Макс. выбытие новотельных коров (0–30 DIM)</strong>
+                                            <strong class="d-block text-dark fs-6">1. Макс. выбытие новотельных коров (0–30 DIM)</strong>
                                             <span class="text-muted small">Допустимая доля выбытия в критический ранний период лактации</span>
                                         </td>
                                         <td>
@@ -285,7 +229,7 @@
 
                                     <tr>
                                         <td>
-                                            <strong class="d-block text-dark fs-6">4. Макс. выбраковка первотёлок (1-я лактация)</strong>
+                                            <strong class="d-block text-dark fs-6">2. Макс. выбраковка первотёлок (1-я лактация)</strong>
                                             <span class="text-muted small">Предельный допустимый порог браковки коров первой лактации</span>
                                         </td>
                                         <td>
@@ -313,7 +257,7 @@
 
                                     <tr>
                                         <td>
-                                            <strong class="d-block text-dark fs-6">5. Доля падежа (летальность в выбытии)</strong>
+                                            <strong class="d-block text-dark fs-6">3. Доля падежа (летальность в выбытии)</strong>
                                             <span class="text-muted small">Допустимый предел прямого невосполнимого падежа среди всех выбытий</span>
                                         </td>
                                         <td>
@@ -341,7 +285,7 @@
 
                                     <tr>
                                         <td>
-                                            <strong class="d-block text-dark fs-6">6. Ортопедические патологии (болезни копыт)</strong>
+                                            <strong class="d-block text-dark fs-6">4. Ортопедические патологии (болезни копыт)</strong>
                                             <span class="text-muted small">Предельная доля хромоты и поражений конечностей</span>
                                         </td>
                                         <td>
@@ -369,7 +313,7 @@
 
                                     <tr>
                                         <td>
-                                            <strong class="d-block text-dark fs-6">7. Заболевания вымени (маститы)</strong>
+                                            <strong class="d-block text-dark fs-6">5. Заболевания вымени (маститы)</strong>
                                             <span class="text-muted small">Предельная доля выбытия из-за патологий молочной железы</span>
                                         </td>
                                         <td>
@@ -442,14 +386,6 @@
                     milk_price_per_kg: parseFloat(document.getElementById('milk_price_per_kg').value) || 1.18,
                     replacement_cost: parseFloat(document.getElementById('replacement_cost').value) || 2950,
 
-                    norm_calf_preservation: parseFloat(document.getElementById('norm_calf_preservation').value) || 95.0,
-                    warn_calf_preservation: parseFloat(document.getElementById('warn_calf_preservation').value) || 92.0,
-                    crit_calf_preservation: parseFloat(document.getElementById('crit_calf_preservation').value) || 88.0,
-
-                    norm_youngstock_preservation: parseFloat(document.getElementById('norm_youngstock_preservation').value) || 92.0,
-                    warn_youngstock_preservation: parseFloat(document.getElementById('warn_youngstock_preservation').value) || 88.0,
-                    crit_youngstock_preservation: parseFloat(document.getElementById('crit_youngstock_preservation').value) || 82.0,
-
                     norm_fresh_cow_disposal: parseFloat(document.getElementById('norm_fresh_cow_disposal').value) || 10.0,
                     warn_fresh_cow_disposal: parseFloat(document.getElementById('warn_fresh_cow_disposal').value) || 14.0,
                     crit_fresh_cow_disposal: parseFloat(document.getElementById('crit_fresh_cow_disposal').value) || 18.0,
@@ -504,14 +440,6 @@
                     document.getElementById('meat_price_per_kg').value = 6.20;
                     document.getElementById('milk_price_per_kg').value = 1.18;
                     document.getElementById('replacement_cost').value = 2950;
-
-                    document.getElementById('norm_calf_preservation').value = 95.0;
-                    document.getElementById('warn_calf_preservation').value = 92.0;
-                    document.getElementById('crit_calf_preservation').value = 88.0;
-
-                    document.getElementById('norm_youngstock_preservation').value = 92.0;
-                    document.getElementById('warn_youngstock_preservation').value = 88.0;
-                    document.getElementById('crit_youngstock_preservation').value = 82.0;
 
                     document.getElementById('norm_fresh_cow_disposal').value = 10.0;
                     document.getElementById('warn_fresh_cow_disposal').value = 14.0;

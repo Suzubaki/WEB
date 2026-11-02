@@ -17,13 +17,31 @@
         .app-navbar {
             position: sticky;
             top: 0;
-            z-index: 1050;
+            z-index: 9999 !important;
+        }
+        .navbar {
+            overflow: visible !important;
+        }
+        .navbar .container,
+        .navbar .container-fluid,
+        .navbar-collapse {
+            overflow: visible !important;
+        }
+        .navbar-nav {
+            position: relative;
+        }
+        .navbar-nav .nav-item.dropdown {
+            position: relative;
+        }
+        .navbar-nav .nav-item.dropdown.show,
+        .navbar-nav .nav-item.dropdown:focus-within {
+            z-index: 10020 !important;
         }
         .navbar .dropdown-menu {
-            z-index: 1090 !important;
+            z-index: 10050 !important;
             border-radius: 12px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35) !important;
         }
         .navbar-brand {
             font-weight: 700;
@@ -103,40 +121,19 @@
                     <% if (session.user_type === 'admin') { %>
                     <!-- Выпадающее меню Администрирования -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle text-warning fw-bold" href="#" id="adminToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-gear-fill me-1"></i> Администрирование
+                        <a class="nav-link dropdown-toggle text-warning" href="#" id="adminToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-sliders"></i> Администрирование
                         </a>
-                        <ul class="dropdown-menu shadow-lg border-warning" aria-labelledby="adminToolsDropdown">
-                            <li><h6 class="dropdown-header text-uppercase text-muted extra-small fw-bold">Управление предприятием</h6></li>
-                            <li>
-                                <a class="dropdown-item py-2 fw-semibold" href="/pricing">
-                                    <i class="bi bi-calculator text-primary me-2"></i> Экономика и нормативы BYN
-                                    <small class="d-block text-muted extra-small">3-уровневые пороги тревог и оценочная стоимость</small>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item py-2 fw-semibold" href="/user_management">
-                                    <i class="bi bi-people text-success me-2"></i> Управление пользователями / МТФ
-                                    <small class="d-block text-muted extra-small">Учетные записи ферм, роли и пароли</small>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item py-2" href="/register">
-                                    <i class="bi bi-person-plus text-info me-2"></i> Регистрация нового аккаунта
-                                </a>
-                            </li>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="adminToolsDropdown" style="min-width: 280px; z-index: 10050 !important;">
+                            <li><a class="dropdown-item py-2" href="/pricing"><i class="bi bi-calculator me-2 text-primary"></i> Нормативы цен BYN</a></li>
+                            <li><a class="dropdown-item py-2" href="/user_management"><i class="bi bi-people me-2 text-success"></i> Пользователи ферм</a></li>
+                            <li><a class="dropdown-item py-2" href="/manage_reasons"><i class="bi bi-card-checklist me-2 text-info"></i> Справочник причин</a></li>
+                            <li><a class="dropdown-item py-2" href="/backup_page"><i class="bi bi-shield-lock me-2 text-warning"></i> Резервная копия (Бэкап)</a></li>
+                            <li><a class="dropdown-item py-2" href="/audit_log"><i class="bi bi-shield-shaded me-2 text-secondary"></i> Журнал аудита</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header text-uppercase text-muted extra-small fw-bold">Технические сервисы</h6></li>
-                            <li>
-                                <a class="dropdown-item py-2" href="/admin/generator">
-                                    <i class="bi bi-shield-check text-success me-2"></i> Генератор данных и DDoS-защита
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item py-2" href="/fix_categories">
-                                    <i class="bi bi-wrench-adjustable text-warning me-2"></i> Сервис нормализации базы данных
-                                </a>
-                            </li>
+                            <li><a class="dropdown-item py-2 text-primary fw-bold" href="/seed_test_data"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Загрузить 1 000 коров</a></li>
+                            <li><a class="dropdown-item py-2" href="/register"><i class="bi bi-person-plus me-2 text-muted"></i> Создать аккаунт</a></li>
+                            <li><a class="dropdown-item py-2 text-secondary" href="/admin/generator"><i class="bi bi-database-check me-2"></i> Генератор и нормализация БД</a></li>
                         </ul>
                     </li>
                     <% } else { %>

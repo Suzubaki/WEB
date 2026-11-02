@@ -70,37 +70,27 @@ export interface FinancialPricingStandards {
   milk_price_per_kg: number; // BYN/кг базисного молока
   replacement_cost: number;  // BYN/гол стоимость нетели на замену
 
-  // 1. Сохранность телят (0-6 мес)
-  norm_calf_preservation: number; // Целевая норма (%)
-  warn_calf_preservation: number; // Порог предупреждения (%)
-  crit_calf_preservation: number; // Критический порог (%)
-
-  // 2. Сохранность молодняка (6-18 мес)
-  norm_youngstock_preservation: number; // Целевая норма (%)
-  warn_youngstock_preservation: number; // Порог предупреждения (%)
-  crit_youngstock_preservation: number; // Критический порог (%)
-
-  // 3. Выбытие новотельных (0-30 DIM)
+  // 1. Выбытие новотельных (0-30 DIM)
   norm_fresh_cow_disposal: number; // Целевая норма (%)
   warn_fresh_cow_disposal: number; // Порог предупреждения (%)
   crit_fresh_cow_disposal: number; // Критический порог (%)
 
-  // 4. Выбраковка первотёлок
+  // 2. Выбраковка первотёлок
   norm_first_lactation_culling: number; // Целевая норма (%)
   warn_first_lactation_culling: number; // Порог предупреждения (%)
   crit_first_lactation_culling: number; // Критический порог (%)
 
-  // 5. Общая летальность (Падёж)
+  // 3. Общая летальность (Падёж)
   norm_mortality_rate: number; // Целевая норма (%)
   warn_mortality_rate: number; // Порог предупреждения (%)
   crit_mortality_rate: number; // Критический порог (%)
 
-  // 6. Болезни конечностей (копыт)
+  // 4. Болезни конечностей (копыт)
   norm_locomotor_disorders: number; // Целевая норма (%)
   warn_locomotor_disorders: number; // Порог предупреждения (%)
   crit_locomotor_disorders: number; // Критический порог (%)
 
-  // 7. Маститы и заболевания вымени
+  // 5. Маститы и заболевания вымени
   norm_mastitis_disorders: number; // Целевая норма (%)
   warn_mastitis_disorders: number; // Порог предупреждения (%)
   crit_mastitis_disorders: number; // Критический порог (%)
@@ -115,14 +105,6 @@ export let currentPricingStandards: FinancialPricingStandards = {
   meat_price_per_kg: 6.20,
   milk_price_per_kg: 1.18,
   replacement_cost: 2950,
-
-  norm_calf_preservation: 95.0,
-  warn_calf_preservation: 92.0,
-  crit_calf_preservation: 88.0,
-
-  norm_youngstock_preservation: 92.0,
-  warn_youngstock_preservation: 88.0,
-  crit_youngstock_preservation: 82.0,
 
   norm_fresh_cow_disposal: 10.0,
   warn_fresh_cow_disposal: 14.0,
@@ -658,6 +640,9 @@ export class SlidingWindowRateLimiter {
   }
 
   public check(ip: string): { allowed: boolean; remaining: number; retryAfterSec?: number; reason?: string } {
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+      return { allowed: true, remaining: 999 };
+    }
     const now = Date.now();
     let entry = this.windows.get(ip);
 
@@ -1392,12 +1377,14 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   // 1. Телята (до 6 мес.) — молочный и профилакторный период
   const calfDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Телята (до 6 мес.)');
   const calfDeathCount = calfDisposals.filter(c => c.category === 'падёж').length;
-  const calfPreservationPct = calfDisposals.length > 0 ? Math.round(((calfDisposals.length - calfDeathCount) / calfDisposals.length) * 1000) / 10 : 100;
+  const calfCullingCount = calfDisposals.filter(c => c.category === 'выбраковка').length;
+  const calfSanitaryCount = calfDisposals.filter(c => c.category === 'санитарный').length;
 
   // 2. Молодняк (от 6 до 18 мес.) — строго 6-18 месяцев
   const youngstockDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Молодняк (от 6 до 18 мес.)');
   const youngstockDeathCount = youngstockDisposals.filter(c => c.category === 'падёж').length;
-  const youngstockPreservationPct = youngstockDisposals.length > 0 ? Math.round(((youngstockDisposals.length - youngstockDeathCount) / youngstockDisposals.length) * 1000) / 10 : 100;
+  const youngstockCullingCount = youngstockDisposals.filter(c => c.category === 'выбраковка').length;
+  const youngstockSanitaryCount = youngstockDisposals.filter(c => c.category === 'санитарный').length;
 
   // 3. Нетели и тёлки (> 18 мес.) — старший молодняк и нетели
   const heiferDisposals = liveCows.filter(c => normalizeAgeGroup(c.age_group, c.lactation) === 'Нетели и тёлки (> 18 мес.)');
@@ -1472,8 +1459,6 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
   const mastitisPct = totalDisposals > 0 ? (mastitisTotal / totalDisposals) * 100 : 0;
 
   // Progress calculations
-  const progCalfPreservation = Math.max(5, Math.min(100, Math.round(calfPreservationPct)));
-  const progYoungstockPreservation = Math.max(5, Math.min(100, Math.round(youngstockPreservationPct)));
   const progFresh = Math.max(5, Math.min(100, Math.round((freshSharePct / Math.max(currentPricingStandards.norm_fresh_cow_disposal, 0.1)) * 100)));
   const progFirstLact = Math.max(5, Math.min(100, Math.round((firstLactPct / Math.max(currentPricingStandards.norm_first_lactation_culling, 0.1)) * 100)));
   const progMortality = Math.max(5, Math.min(100, Math.round((mortalityPct / Math.max(currentPricingStandards.norm_mortality_rate, 0.1)) * 100)));
@@ -1482,26 +1467,12 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
 
   const scorecard = [
     {
-      title: 'Сохранность телят (до 6 мес.)',
-      target: `≥ ${currentPricingStandards.norm_calf_preservation.toFixed(1)}%`,
-      current: `${calfPreservationPct.toFixed(1)}%`,
-      progress_pct: progCalfPreservation,
-      status: calfPreservationPct >= currentPricingStandards.norm_calf_preservation ? 'success' : (calfPreservationPct >= currentPricingStandards.warn_calf_preservation ? 'warning' : 'danger'),
-      statusText: calfPreservationPct >= currentPricingStandards.norm_calf_preservation ? 'Норма' : (calfPreservationPct >= currentPricingStandards.warn_calf_preservation ? 'Внимание' : 'Риск'),
-      note: `Пало телят: ${calfDeathCount} из ${calfDisposals.length} гол.`,
-      icon: 'bi-balloon-fill'
-    },
-    {
-      title: 'Сохранность молодняка (6–18 мес.)',
-      target: `≥ ${currentPricingStandards.norm_youngstock_preservation.toFixed(1)}%`,
-      current: `${youngstockPreservationPct.toFixed(1)}%`,
-      progress_pct: progYoungstockPreservation,
-      status: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'success' : (youngstockPreservationPct >= currentPricingStandards.warn_youngstock_preservation ? 'warning' : 'danger'),
-      statusText: youngstockPreservationPct >= currentPricingStandards.norm_youngstock_preservation ? 'Норма' : (youngstockPreservationPct >= currentPricingStandards.warn_youngstock_preservation ? 'Внимание' : 'Риск'),
-      note: `Пало молодняка: ${youngstockDeathCount} из ${youngstockDisposals.length} гол.`,
-      icon: 'bi-flower1'
-    },
-    {
+      key: 'norm_fresh_cow_disposal',
+      operator: '<=',
+      val: currentPricingStandards.norm_fresh_cow_disposal,
+      warn_val: currentPricingStandards.warn_fresh_cow_disposal,
+      crit_val: currentPricingStandards.crit_fresh_cow_disposal,
+      current_num: freshSharePct,
       title: 'Выбытие новотельных (0-30 DIM)',
       target: `≤ ${currentPricingStandards.norm_fresh_cow_disposal.toFixed(1)}%`,
       current: `${freshSharePct.toFixed(1)}%`,
@@ -1512,6 +1483,12 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       icon: 'bi-exclamation-octagon-fill'
     },
     {
+      key: 'norm_first_lactation_culling',
+      operator: '<=',
+      val: currentPricingStandards.norm_first_lactation_culling,
+      warn_val: currentPricingStandards.warn_first_lactation_culling,
+      crit_val: currentPricingStandards.crit_first_lactation_culling,
+      current_num: firstLactPct,
       title: 'Выбраковка первотёлок',
       target: `≤ ${currentPricingStandards.norm_first_lactation_culling.toFixed(1)}%`,
       current: `${firstLactPct.toFixed(1)}%`,
@@ -1522,6 +1499,12 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       icon: 'bi-gem'
     },
     {
+      key: 'norm_mortality_rate',
+      operator: '<=',
+      val: currentPricingStandards.norm_mortality_rate,
+      warn_val: currentPricingStandards.warn_mortality_rate,
+      crit_val: currentPricingStandards.crit_mortality_rate,
+      current_num: mortalityPct,
       title: 'Общая летальность (Падёж)',
       target: `≤ ${currentPricingStandards.norm_mortality_rate.toFixed(1)}%`,
       current: `${mortalityPct.toFixed(1)}%`,
@@ -1532,6 +1515,12 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       icon: 'bi-heart-pulse-fill'
     },
     {
+      key: 'norm_locomotor_disorders',
+      operator: '<=',
+      val: currentPricingStandards.norm_locomotor_disorders,
+      warn_val: currentPricingStandards.warn_locomotor_disorders,
+      crit_val: currentPricingStandards.crit_locomotor_disorders,
+      current_num: locomotorPct,
       title: 'Болезни конечностей',
       target: `≤ ${currentPricingStandards.norm_locomotor_disorders.toFixed(1)}%`,
       current: `${locomotorPct.toFixed(1)}%`,
@@ -1542,6 +1531,12 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       icon: 'bi-bandaid-fill'
     },
     {
+      key: 'norm_mastitis_disorders',
+      operator: '<=',
+      val: currentPricingStandards.norm_mastitis_disorders,
+      warn_val: currentPricingStandards.warn_mastitis_disorders,
+      crit_val: currentPricingStandards.crit_mastitis_disorders,
+      current_num: mastitisPct,
       title: 'Маститы и патологии вымени',
       target: `≤ ${currentPricingStandards.norm_mastitis_disorders.toFixed(1)}%`,
       current: `${mastitisPct.toFixed(1)}%`,
@@ -1760,12 +1755,14 @@ function getDashboardFullData(userType?: string, farmName?: string | null, perio
       // 1. Телята (до 6 мес.)
       calf_disposals: calfDisposals.length,
       calf_death_count: calfDeathCount,
-      calf_preservation_pct: calfPreservationPct,
+      calf_culling_count: calfCullingCount,
+      calf_sanitary_count: calfSanitaryCount,
       // 2. Молодняк (от 6 до 18 мес.)
       youngstock_disposals: youngstockDisposals.length,
       youngstock_death_count: youngstockDeathCount,
+      youngstock_culling_count: youngstockCullingCount,
+      youngstock_sanitary_count: youngstockSanitaryCount,
       youngstock_death_pct: youngstockDisposals.length > 0 ? Math.round((youngstockDeathCount / youngstockDisposals.length) * 1000) / 10 : 0,
-      youngstock_preservation_pct: youngstockPreservationPct,
       // 3. Нетели и тёлки (> 18 мес.)
       heifer_disposals: heiferDisposals.length,
       heifer_death_count: heiferDeathCount,
@@ -2299,7 +2296,8 @@ app.get('/dashboard', loginRequired, (req: Request, res: Response) => {
     selected_farm: selectedFarm,
     d: dashboardData,
     alerts: alerts,
-    user_stats_data: userStatsData
+    user_stats_data: userStatsData,
+    pricing: currentPricingStandards
   });
 });
 
@@ -3567,7 +3565,7 @@ app.get('/api/pricing', loginRequired, (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Response) => {
+app.post(['/pricing', '/api/pricing'], loginRequired, adminRequired, (req: Request, res: Response) => {
   const {
     price_calves,
     price_youngstock,
@@ -3577,7 +3575,6 @@ app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Respo
     meat_price_per_kg,
     milk_price_per_kg,
     replacement_cost,
-    norm_youngstock_preservation,
     norm_fresh_cow_disposal,
     norm_first_lactation_culling,
     norm_mortality_rate,
@@ -3594,22 +3591,12 @@ app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Respo
   if (milk_price_per_kg !== undefined) currentPricingStandards.milk_price_per_kg = Math.max(0, Number(milk_price_per_kg) || 1.18);
   if (replacement_cost !== undefined) currentPricingStandards.replacement_cost = Math.max(0, Number(replacement_cost) || 2950);
 
-  // 1. Сохранность телят (0-6 мес)
-  if (req.body.norm_calf_preservation !== undefined) currentPricingStandards.norm_calf_preservation = Math.max(0, Math.min(100, Number(req.body.norm_calf_preservation) || 95));
-  if (req.body.warn_calf_preservation !== undefined) currentPricingStandards.warn_calf_preservation = Math.max(0, Math.min(100, Number(req.body.warn_calf_preservation) || 92));
-  if (req.body.crit_calf_preservation !== undefined) currentPricingStandards.crit_calf_preservation = Math.max(0, Math.min(100, Number(req.body.crit_calf_preservation) || 88));
-
-  // 2. Сохранность молодняка (6-18 мес)
-  if (req.body.norm_youngstock_preservation !== undefined) currentPricingStandards.norm_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.norm_youngstock_preservation) || 92));
-  if (req.body.warn_youngstock_preservation !== undefined) currentPricingStandards.warn_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.warn_youngstock_preservation) || 88));
-  if (req.body.crit_youngstock_preservation !== undefined) currentPricingStandards.crit_youngstock_preservation = Math.max(0, Math.min(100, Number(req.body.crit_youngstock_preservation) || 82));
-
-  // 3. Выбытие новотельных (0-30 DIM)
+  // 1. Выбытие новотельных (0-30 DIM)
   if (req.body.norm_fresh_cow_disposal !== undefined) currentPricingStandards.norm_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.norm_fresh_cow_disposal) || 10));
   if (req.body.warn_fresh_cow_disposal !== undefined) currentPricingStandards.warn_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.warn_fresh_cow_disposal) || 14));
   if (req.body.crit_fresh_cow_disposal !== undefined) currentPricingStandards.crit_fresh_cow_disposal = Math.max(0, Math.min(100, Number(req.body.crit_fresh_cow_disposal) || 18));
 
-  // 4. Выбраковка первотёлок
+  // 2. Выбраковка первотёлок
   if (req.body.norm_first_lactation_culling !== undefined) currentPricingStandards.norm_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.norm_first_lactation_culling) || 20));
   if (req.body.warn_first_lactation_culling !== undefined) currentPricingStandards.warn_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.warn_first_lactation_culling) || 25));
   if (req.body.crit_first_lactation_culling !== undefined) currentPricingStandards.crit_first_lactation_culling = Math.max(0, Math.min(100, Number(req.body.crit_first_lactation_culling) || 30));
@@ -3629,11 +3616,15 @@ app.post('/api/pricing', loginRequired, adminRequired, (req: Request, res: Respo
   if (req.body.warn_mastitis_disorders !== undefined) currentPricingStandards.warn_mastitis_disorders = Math.max(0, Math.min(100, Number(req.body.warn_mastitis_disorders) || 20));
   if (req.body.crit_mastitis_disorders !== undefined) currentPricingStandards.crit_mastitis_disorders = Math.max(0, Math.min(100, Number(req.body.crit_mastitis_disorders) || 25));
 
-  res.json({
-    success: true,
-    message: 'Экономические ценники, зоотехнические нормы и критические пороги успешно обновлены!',
-    pricing: currentPricingStandards
-  });
+  if (req.headers['x-requested-with'] === 'XMLHttpRequest' || req.is('json')) {
+    return res.json({
+      success: true,
+      message: 'Экономические ценники, зоотехнические нормы и критические пороги успешно обновлены!',
+      pricing: currentPricingStandards
+    });
+  }
+
+  res.redirect('/pricing');
 });
 
 app.get('/pricing', loginRequired, adminRequired, (req: Request, res: Response) => {
@@ -3642,6 +3633,62 @@ app.get('/pricing', loginRequired, adminRequired, (req: Request, res: Response) 
     user_type: req.session.user_type
   });
 });
+
+// Seed 1000 Cows route
+app.get('/seed_test_data', loginRequired, adminRequired, (req: Request, res: Response) => {
+  populateRealisticCows(1000, false);
+  addFlash(req, `Добавлено +1 000 тестовых записей. Всего в базе: ${cows.length} голов.`, 'success');
+  res.redirect('/dashboard');
+});
+
+// Manage Reasons route
+app.get('/manage_reasons', loginRequired, adminRequired, (req: Request, res: Response) => {
+  res.render('fix_categories');
+});
+
+// Import Cows Alias Route
+app.get('/import_cows', loginRequired, (req: Request, res: Response) => {
+  res.render('add_multiple_cows', {
+    categories: DISPOSAL_CATEGORIES,
+    user_type: req.session.user_type,
+    farm_name: req.session.farm_name
+  });
+});
+
+// Admin Generator, Backup & Audit Log routes
+function handleAdminGeneratorView(req: Request, res: Response) {
+  const start = Date.now();
+  const farmStats: Record<string, number> = {};
+  const catStats: Record<string, number> = { 'падёж': 0, 'выбраковка': 0, 'санитарный': 0 };
+  let totalWeight = 0;
+  for (const c of cows) {
+    farmStats[c.farm_name] = (farmStats[c.farm_name] || 0) + 1;
+    const catKey = (c.category || 'санитарный').toLowerCase();
+    catStats[catKey] = (catStats[catKey] || 0) + 1;
+    if (c.weight) totalWeight += c.weight;
+  }
+  const benchmarkMs = (Date.now() - start) + 0.1;
+  const memoryMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+
+  const secMetrics = {
+    ...securityMetrics,
+    trackedIpsCount: globalDdosLimiter.getTrackedCount()
+  };
+
+  res.render('admin_generator', {
+    cows: cows,
+    cows_count: cows.length,
+    user_type: req.session.user_type,
+    benchmark_ms: benchmarkMs.toFixed(2),
+    memory_mb: memoryMb,
+    farm_stats: farmStats,
+    cat_stats: catStats,
+    total_weight_formatted: (totalWeight / 1000).toFixed(1) + ' тонн',
+    security_metrics: secMetrics
+  });
+}
+
+app.get(['/backup_page', '/backup', '/audit_log', '/admin/generator'], loginRequired, adminRequired, handleAdminGeneratorView);
 
 app.get('/get_stats_data', loginRequired, (req: Request, res: Response) => {
   const userType = req.session.user_type;
