@@ -48,6 +48,32 @@ def compute_lactation_phase(age_group, lactation_days, lactation=None):
             
     return 'Новотел (0–30 дн)' if (lactation or 1) <= 1 else 'Раздой (31–100 дн)'
 
+def build_age_group_sql(filter_val):
+    if not filter_val or filter_val == 'all':
+        return None, []
+    f_lower = filter_val.lower().strip()
+    if f_lower == 'молодняк_все':
+        return "(LOWER(age_group) LIKE '%телят%' OR LOWER(age_group) LIKE '%молодняк%' OR LOWER(age_group) LIKE '%быч%')", []
+    if any(k in f_lower for k in ['телят', 'до 6', '0-6', '0–6', 'новорожд']):
+        return "(LOWER(age_group) LIKE '%телят%' OR LOWER(age_group) LIKE '%до 6%' OR LOWER(age_group) LIKE '%0-6%' OR LOWER(age_group) LIKE '%0–6%' OR LOWER(age_group) LIKE '%новорожд%')", []
+    if any(k in f_lower for k in ['молодняк', '6-18', '6–18', '6-12', '6–12', 'ремонтн']):
+        return "((LOWER(age_group) LIKE '%молодняк%' OR LOWER(age_group) LIKE '%6-18%' OR LOWER(age_group) LIKE '%6–18%' OR LOWER(age_group) LIKE '%6-12%' OR LOWER(age_group) LIKE '%ремонтн%') AND LOWER(age_group) NOT LIKE '%телят%')", []
+    if any(k in f_lower for k in ['нетел', '18']):
+        return "(LOWER(age_group) LIKE '%нетел%' OR LOWER(age_group) LIKE '%18%')", []
+    if any(k in f_lower for k in ['быч', 'бык', 'откорм']):
+        return "(LOWER(age_group) LIKE '%быч%' OR LOWER(age_group) LIKE '%бык%' OR LOWER(age_group) LIKE '%откорм%')", []
+    if any(k in f_lower for k in ['первотел', 'первотёл', '1-я лакт', '1-й лакт', '1 лакт']):
+        return "(LOWER(age_group) LIKE '%первотел%' OR LOWER(age_group) LIKE '%первотёл%' OR LOWER(age_group) LIKE '%1-я лакт%' OR LOWER(age_group) LIKE '%1-й лакт%' OR LOWER(age_group) LIKE '%1 лакт%' OR lactation = 1)", []
+    if any(k in f_lower for k in ['полновозраст', '2+ лакт', '2+', '2 лакт', 'старше 2']):
+        return "(LOWER(age_group) LIKE '%полновозраст%' OR LOWER(age_group) LIKE '%2+%' OR LOWER(age_group) LIKE '%2 лакт%' OR lactation > 1 OR (age_group LIKE '%дойное%' AND (lactation IS NULL OR lactation > 1)))", []
+    if 'сухосто' in f_lower:
+        return "LOWER(age_group) LIKE '%сухосто%'", []
+    if any(k in f_lower for k in ['новотел', '0-30', '0–30']):
+        return "(LOWER(age_group) LIKE '%новотел%' OR (lactation_days IS NOT NULL AND lactation_days <= 30 AND (lactation > 0 OR age_group LIKE '%коров%')))", []
+    if any(k in f_lower for k in ['мертворож', 'аборт', 'плод']):
+        return "(is_stillborn = 1 OR LOWER(age_group) LIKE '%мертворож%' OR LOWER(age_group) LIKE '%аборт%' OR LOWER(category) = 'мертворождение')", []
+    return "(age_group = ? OR LOWER(age_group) LIKE ?)", [filter_val, f"%{f_lower}%"]
+
 @cows_bp.route('/cows')
 @login_required
 def view_cows():
@@ -89,26 +115,10 @@ def view_cows():
         base_params.append(reason_filter)
 
     if age_group_filter and age_group_filter != 'all':
-        ag_lower = age_group_filter.lower()
-        if age_group_filter == 'молодняк_все':
-            where_parts.append("(age_group LIKE '%Телят%' OR age_group LIKE '%Молодняк%' OR age_group LIKE '%Бычки%')")
-        elif 'телят' in ag_lower or 'до 6' in ag_lower or '0-6' in ag_lower:
-            where_parts.append("(LOWER(age_group) LIKE '%телят%' OR LOWER(age_group) LIKE '%до 6%' OR LOWER(age_group) LIKE '%0-6%' OR LOWER(age_group) LIKE '%0–6%')")
-        elif 'молодняк' in ag_lower or '6-18' in ag_lower or '6–18' in ag_lower or '6-12' in ag_lower:
-            where_parts.append("((LOWER(age_group) LIKE '%молодняк%' OR LOWER(age_group) LIKE '%6-18%' OR LOWER(age_group) LIKE '%6–18%' OR LOWER(age_group) LIKE '%6-12%') AND LOWER(age_group) NOT LIKE '%телят%')")
-        elif 'нетел' in ag_lower or '18' in ag_lower:
-            where_parts.append("(LOWER(age_group) LIKE '%нетел%' OR LOWER(age_group) LIKE '%18%')")
-        elif 'быч' in ag_lower or 'откорм' in ag_lower:
-            where_parts.append("(LOWER(age_group) LIKE '%быч%' OR LOWER(age_group) LIKE '%откорм%')")
-        elif 'первотел' in ag_lower or '1-я лакт' in ag_lower:
-            where_parts.append("(LOWER(age_group) LIKE '%первотел%' OR LOWER(age_group) LIKE '%1-я лакт%' OR lactation = 1)")
-        elif 'полновозраст' in ag_lower or '2+ лакт' in ag_lower:
-            where_parts.append("(LOWER(age_group) LIKE '%полновозраст%' OR LOWER(age_group) LIKE '%2+ лакт%' OR lactation > 1)")
-        elif 'сухосто' in ag_lower:
-            where_parts.append("LOWER(age_group) LIKE '%сухосто%'")
-        else:
-            where_parts.append("(age_group = ? OR LOWER(age_group) LIKE ?)")
-            base_params.extend([age_group_filter, f"%{ag_lower}%"])
+        ag_cond, ag_params = build_age_group_sql(age_group_filter)
+        if ag_cond:
+            where_parts.append(ag_cond)
+            base_params.extend(ag_params)
 
     if lactation_phase_filter and lactation_phase_filter != 'all':
         where_parts.append("lactation_phase LIKE ?")
@@ -190,11 +200,10 @@ def api_cows():
         params.append(reason_filter)
         
     if age_group_filter and age_group_filter != 'all':
-        if age_group_filter == 'молодняк_все':
-            conditions.append("(age_group LIKE '%Телят%' OR age_group LIKE '%Молодняк%' OR age_group LIKE '%Бычки%')")
-        else:
-            conditions.append("age_group = ?")
-            params.append(age_group_filter)
+        ag_cond, ag_params = build_age_group_sql(age_group_filter)
+        if ag_cond:
+            conditions.append(ag_cond)
+            params.extend(ag_params)
 
     if lactation_phase_filter and lactation_phase_filter != 'all':
         conditions.append("lactation_phase LIKE ?")

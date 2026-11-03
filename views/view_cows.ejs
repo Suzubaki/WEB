@@ -863,7 +863,23 @@
             hasInitialFilter = true;
         }
         if (urlParams.has('age_group') && ageGroupFilter) {
-            ageGroupFilter.value = urlParams.get('age_group');
+            var paramAge = urlParams.get('age_group');
+            var matchedVal = '';
+            for (var oi = 0; oi < ageGroupFilter.options.length; oi++) {
+                var ov = ageGroupFilter.options[oi].value;
+                if (!ov) continue;
+                var ovL = ov.toLowerCase();
+                var paL = paramAge.toLowerCase();
+                if (ov === paramAge) { matchedVal = ov; break; }
+                if ((paL.indexOf('полновозраст') !== -1 || paL.indexOf('2+') !== -1) && (ovL.indexOf('полновозраст') !== -1 || ovL.indexOf('2+') !== -1)) { matchedVal = ov; break; }
+                if ((paL.indexOf('первотел') !== -1 || paL.indexOf('1') !== -1) && (ovL.indexOf('первотел') !== -1 || ovL.indexOf('1') !== -1)) { matchedVal = ov; break; }
+                if ((paL.indexOf('телят') !== -1 || (paL.indexOf('6') !== -1 && paL.indexOf('18') === -1)) && ovL.indexOf('телят') !== -1) { matchedVal = ov; break; }
+                if (paL.indexOf('молод') !== -1 && ovL.indexOf('молод') !== -1) { matchedVal = ov; break; }
+                if (paL.indexOf('нетел') !== -1 && ovL.indexOf('нетел') !== -1) { matchedVal = ov; break; }
+                if (paL.indexOf('быч') !== -1 && ovL.indexOf('быч') !== -1) { matchedVal = ov; break; }
+                if (paL.indexOf('сухост') !== -1 && ovL.indexOf('сухост') !== -1) { matchedVal = ov; break; }
+            }
+            ageGroupFilter.value = matchedVal || paramAge;
             hasInitialFilter = true;
         }
         if (urlParams.has('lactation_phase') && lactationPhaseFilter) {

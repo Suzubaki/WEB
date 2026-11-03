@@ -132,32 +132,83 @@ export function normalizeAgeGroup(ag?: string, lact?: number): string {
     if (lact === 1) return 'Коровы 1-й лактации (первотёлки)';
     return 'Коровы 2+ лактаций (полновозрастные)';
   }
-  const lower = ag.toLowerCase();
+  const lower = ag.toLowerCase().trim();
   if (lower.includes('мертворож') || lower.includes('аборт') || lower.includes('плод')) {
     return 'Мертворождённые / Аборты';
   }
   if (lower.includes('новотел') || lower.includes('0-30') || lower.includes('0–30')) {
     return 'Новотельные коровы (0–30 дн DIM)';
   }
-  if (lower.includes('тел') || lower.includes('до 6') || lower.includes('0–6') || lower.includes('0-6')) {
+  if (lower.includes('телят') || lower.includes('до 6') || lower.includes('0–6') || lower.includes('0-6') || lower.includes('новорожд') || lower.includes('молочн')) {
     return 'Телята (до 6 мес.)';
   }
-  if (lower.includes('молод') || lower.includes('6–18') || lower.includes('6-18') || lower.includes('6–12') || lower.includes('от 6 до 18') || lower.includes('6-12')) {
+  if (lower.includes('быч') || lower.includes('бык') || lower.includes('откорм')) {
+    return 'Бычки на откорме';
+  }
+  if (lower.includes('молод') || lower.includes('6–18') || lower.includes('6-18') || lower.includes('6–12') || lower.includes('от 6 до 18') || lower.includes('6-12') || lower.includes('ремонтн')) {
     return 'Молодняк (от 6 до 18 мес.)';
   }
-  if (lower.includes('нетел') || lower.includes('старше 18') || lower.includes('> 18') || lower.includes('старше 1 года')) {
+  if (lower.includes('нетел') || lower.includes('старше 18') || lower.includes('> 18') || lower.includes('>18') || lower.includes('старше 1 года')) {
     return 'Нетели и тёлки (> 18 мес.)';
   }
   if (lower.includes('сухосто')) {
     return 'Коровы сухостойные';
   }
-  if (lower.includes('быч')) {
-    return 'Бычки на откорме';
-  }
-  if (lower.includes('первотёл') || lower.includes('1-й лакт') || lower.includes('1 лакт') || lact === 1) {
+  if (lower.includes('первотёл') || lower.includes('первотел') || lower.includes('1-й лакт') || lower.includes('1-я лакт') || lower.includes('1 лакт') || lact === 1) {
     return 'Коровы 1-й лактации (первотёлки)';
   }
+  if (lower.includes('полновозраст') || lower.includes('2+ лакт') || lower.includes('2+') || lower.includes('2 лакт') || (lact !== undefined && lact > 1)) {
+    return 'Коровы 2+ лактаций (полновозрастные)';
+  }
+  if (lact === 1) return 'Коровы 1-й лактации (первотёлки)';
   return 'Коровы 2+ лактаций (полновозрастные)';
+}
+
+export function matchesAgeGroupFilter(c: { age_group?: string; lactation?: number }, filter?: string): boolean {
+  if (!filter || filter === 'all') return true;
+  const fL = filter.toLowerCase().trim();
+  if (fL === 'молодняк_все') {
+    const norm = normalizeAgeGroup(c.age_group, c.lactation).toLowerCase();
+    return norm.includes('тел') || norm.includes('молод') || norm.includes('быч');
+  }
+
+  // 1. Direct equality of normalized forms
+  const normCow = normalizeAgeGroup(c.age_group, c.lactation);
+  const normFilter = normalizeAgeGroup(filter);
+  if (normCow === normFilter) return true;
+
+  // 2. Semantic keywords check
+  if (fL.includes('полновозраст') || fL.includes('2+')) {
+    return normCow === 'Коровы 2+ лактаций (полновозрастные)' || (c.lactation !== undefined && c.lactation > 1);
+  }
+  if (fL.includes('первотел') || fL.includes('первотёл') || fL.includes('1-й лакт') || fL.includes('1-я лакт') || fL.includes('1 лакт')) {
+    return normCow === 'Коровы 1-й лактации (первотёлки)' || c.lactation === 1;
+  }
+  if (fL.includes('телят') || fL.includes('до 6') || fL.includes('0-6') || fL.includes('0–6')) {
+    return normCow === 'Телята (до 6 мес.)';
+  }
+  if (fL.includes('молод') || fL.includes('6-18') || fL.includes('6–18') || fL.includes('ремонтн')) {
+    return normCow === 'Молодняк (от 6 до 18 мес.)';
+  }
+  if (fL.includes('нетел') || fL.includes('18')) {
+    return normCow === 'Нетели и тёлки (> 18 мес.)';
+  }
+  if (fL.includes('быч') || fL.includes('откорм')) {
+    return normCow === 'Бычки на откорме';
+  }
+  if (fL.includes('сухосто')) {
+    return normCow === 'Коровы сухостойные';
+  }
+  if (fL.includes('новотел')) {
+    return normCow === 'Новотельные коровы (0–30 дн DIM)';
+  }
+  if (fL.includes('мертворож') || fL.includes('аборт')) {
+    return normCow === 'Мертворождённые / Аборты';
+  }
+
+  // 3. Fallback raw string match
+  const cL = (c.age_group || '').toLowerCase();
+  return cL.includes(fL) || fL.includes(cL);
 }
 
 export function estimateCowValue(c: { book_value?: number; age_group?: string; lactation?: number }): number {
@@ -2382,15 +2433,7 @@ app.get('/api/cows', loginRequired, (req: Request, res: Response) => {
 
     // Age group filter (категория скота)
     if (ageGroupFilter && ageGroupFilter !== 'all') {
-      const norm = normalizeAgeGroup(c.age_group, c.lactation);
-      if (ageGroupFilter === 'молодняк_все') {
-        const agL = norm.toLowerCase();
-        if (!agL.includes('тел') && !agL.includes('молод') && !agL.includes('быч')) return false;
-      } else if (norm !== ageGroupFilter) {
-        const fL = ageGroupFilter.toLowerCase();
-        const nL = norm.toLowerCase();
-        if (!nL.includes(fL) && !fL.includes(nL)) return false;
-      }
+      if (!matchesAgeGroupFilter(c, ageGroupFilter)) return false;
     }
 
     // Lactation phase filter
@@ -2540,17 +2583,7 @@ app.get('/cows', loginRequired, (req: Request, res: Response) => {
   }
 
   if (ageGroupFilter && ageGroupFilter !== 'all') {
-    userCows = userCows.filter(c => {
-      const norm = normalizeAgeGroup(c.age_group, c.lactation);
-      if (ageGroupFilter === 'молодняк_все') {
-        const agL = norm.toLowerCase();
-        return agL.includes('тел') || agL.includes('молод') || agL.includes('быч');
-      }
-      if (norm === ageGroupFilter) return true;
-      const fL = ageGroupFilter.toLowerCase();
-      const nL = norm.toLowerCase();
-      return nL.includes(fL) || fL.includes(nL);
-    });
+    userCows = userCows.filter(c => matchesAgeGroupFilter(c, ageGroupFilter));
   }
 
   if (lactationPhaseFilter && lactationPhaseFilter !== 'all') {

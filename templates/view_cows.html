@@ -544,8 +544,28 @@ $(document).ready(function() {
 
     var paramAge = urlParams.get('age_group');
     if (paramAge) {
-        $('#age_group_filter').val(paramAge);
-        filterLabels.push('Категория скота: ' + paramAge);
+        var foundVal = '';
+        $('#age_group_filter option').each(function() {
+            var v = $(this).val();
+            if (!v) return;
+            var vL = v.toLowerCase();
+            var pL = paramAge.toLowerCase();
+            if (v === paramAge) { foundVal = v; return false; }
+            if ((pL.indexOf('полновозраст') !== -1 || pL.indexOf('2+') !== -1) && (vL.indexOf('полновозраст') !== -1 || vL.indexOf('2+') !== -1)) { foundVal = v; return false; }
+            if ((pL.indexOf('первотел') !== -1 || pL.indexOf('1') !== -1) && (vL.indexOf('первотел') !== -1 || vL.indexOf('1') !== -1)) { foundVal = v; return false; }
+            if ((pL.indexOf('телят') !== -1 || (pL.indexOf('6') !== -1 && pL.indexOf('18') === -1)) && vL.indexOf('телят') !== -1) { foundVal = v; return false; }
+            if (pL.indexOf('молод') !== -1 && vL.indexOf('молод') !== -1) { foundVal = v; return false; }
+            if (pL.indexOf('нетел') !== -1 && vL.indexOf('нетел') !== -1) { foundVal = v; return false; }
+            if (pL.indexOf('быч') !== -1 && vL.indexOf('быч') !== -1) { foundVal = v; return false; }
+            if (pL.indexOf('сухост') !== -1 && vL.indexOf('сухост') !== -1) { foundVal = v; return false; }
+        });
+        if (foundVal) {
+            $('#age_group_filter').val(foundVal);
+        } else {
+            $('#age_group_filter').val(paramAge);
+        }
+        var selectedText = $('#age_group_filter option:selected').text().replace(/^[^\wа-яА-ЯёЁ]+/, '').trim();
+        filterLabels.push('Категория скота: ' + (selectedText || paramAge));
         hasInitial = true;
     }
 
