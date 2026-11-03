@@ -228,12 +228,26 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         'Мертворождённые / Аборты'
     ]
     for g in standard_groups:
-        age_group_data[g] = {'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0, 'dims': [], 'weights': [], 'reasons': {}}
+        age_group_data[g] = {
+            'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0,
+            'dims': [], 'weights': [],
+            'reasons': {},
+            'culling_reasons': {},
+            'death_reasons': {},
+            'sanitary_reasons': {}
+        }
 
     for c in live_cows:
         ag = normalize_age_group(c.get('age_group'), c.get('lactation'))
         if ag not in age_group_data:
-            age_group_data[ag] = {'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0, 'dims': [], 'weights': [], 'reasons': {}}
+            age_group_data[ag] = {
+                'total': 0, 'падёж': 0, 'выбраковка': 0, 'санитарный': 0, 'loss': 0.0,
+                'dims': [], 'weights': [],
+                'reasons': {},
+                'culling_reasons': {},
+                'death_reasons': {},
+                'sanitary_reasons': {}
+            }
         cat = c['category']
         val = estimate_cow_val(c)
         age_group_data[ag]['total'] += 1
@@ -245,6 +259,12 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             age_group_data[ag]['weights'].append(c['weight'])
         r = c.get('reason') or 'Не указана'
         age_group_data[ag]['reasons'][r] = age_group_data[ag]['reasons'].get(r, 0) + 1
+        if cat == 'выбраковка':
+            age_group_data[ag]['culling_reasons'][r] = age_group_data[ag]['culling_reasons'].get(r, 0) + 1
+        elif cat == 'падёж':
+            age_group_data[ag]['death_reasons'][r] = age_group_data[ag]['death_reasons'].get(r, 0) + 1
+        elif cat == 'санитарный':
+            age_group_data[ag]['sanitary_reasons'][r] = age_group_data[ag]['sanitary_reasons'].get(r, 0) + 1
 
     sorted_groups = sorted(age_group_data.keys(), key=lambda x: age_group_data[x]['total'], reverse=True)
     age_labels = sorted_groups
@@ -258,19 +278,53 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         tot = d_grp['total']
         if tot == 0:
             continue
-        top_r = sorted(d_grp['reasons'].items(), key=lambda x: x[1], reverse=True)[:2]
+        sorted_reasons = sorted(d_grp['reasons'].items(), key=lambda x: x[1], reverse=True)
+        top_r = sorted_reasons[:3]
         top_r_str = ', '.join([f"{k} ({v})" for k, v in top_r]) if top_r else 'Нет записей'
+        reasons_list = [
+            {'reason': k, 'count': v, 'pct': round((v / tot) * 100, 1)}
+            for k, v in sorted_reasons[:6]
+        ]
+
+        culling_cnt = d_grp['выбраковка']
+        culling_reasons_list = [
+            {'reason': k, 'count': v, 'pct': round((v / max(culling_cnt, 1)) * 100, 1)}
+            for k, v in sorted(d_grp['culling_reasons'].items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+
+        death_cnt = d_grp['падёж']
+        death_reasons_list = [
+            {'reason': k, 'count': v, 'pct': round((v / max(death_cnt, 1)) * 100, 1)}
+            for k, v in sorted(d_grp['death_reasons'].items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+
+        sanitary_cnt = d_grp['санитарный']
+        sanitary_reasons_list = [
+            {'reason': k, 'count': v, 'pct': round((v / max(sanitary_cnt, 1)) * 100, 1)}
+            for k, v in sorted(d_grp['sanitary_reasons'].items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+
+        culling_pct = round((culling_cnt / tot) * 100, 1)
+        death_pct = round((death_cnt / tot) * 100, 1)
+        sanitary_pct = round((sanitary_cnt / tot) * 100, 1)
+
         category_analytics.append({
             'category_name': g,
             'total': tot,
-            'death': d_grp['падёж'],
-            'culling': d_grp['выбраковка'],
-            'sanitary': d_grp['санитарный'],
-            'death_rate_pct': round((d_grp['падёж'] / tot) * 100, 1),
+            'death': death_cnt,
+            'culling': culling_cnt,
+            'sanitary': sanitary_cnt,
+            'death_rate_pct': death_pct,
+            'culling_pct': culling_pct,
+            'sanitary_pct': sanitary_pct,
             'avg_dim': round(sum(d_grp['dims']) / len(d_grp['dims'])) if d_grp['dims'] else 0,
             'avg_weight': round(sum(d_grp['weights']) / len(d_grp['weights'])) if d_grp['weights'] else 0,
             'loss_byn': round(d_grp['loss']),
-            'top_reasons': top_r_str
+            'top_reasons': top_r_str,
+            'reasons_list': reasons_list,
+            'culling_reasons': culling_reasons_list,
+            'death_reasons': death_reasons_list,
+            'sanitary_reasons': sanitary_reasons_list
         })
 
     # 5. Аналитика лактации: DIM Bins (8 интервалов) & Parity
@@ -962,7 +1016,7 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
             'message': f'Зафиксировано {last_7_days} случаев падежа (+{growth}% по сравнению с предшествующей неделей ({prev_7_days} случаев)). Требуется срочный контроль ветврача.'
         })
     
-    # 2. Серийные вспышки конкретных причин за 30 дней
+    # 2. Серийные вспышки конкретных причин за 30 дней (группировка по фермам без дублирования)
     cursor.execute(f'''
         SELECT reason, category, farm_name, COUNT(*) as cnt 
         FROM cows 
@@ -970,15 +1024,33 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
         GROUP BY reason, category, farm_name
         HAVING cnt >= 3
         ORDER BY cnt DESC
-        LIMIT 3
+        LIMIT 5
     ''', params)
-    for row in cursor.fetchall():
-        alerts.append({
-            'type': 'warning',
-            'icon': 'bi-exclamation-triangle-fill',
-            'title': f'Повторяющаяся патология: {row["reason"]}',
-            'message': f'Подразделение «{row["farm_name"]}»: за 30 дней выявлено {row["cnt"]} случаев ({row["category"]}). Рекомендуется проверить баланс рациона и микроклимат.'
-        })
+    pathology_rows = cursor.fetchall()
+    if pathology_rows:
+        farm_pathologies = {}
+        for r in pathology_rows:
+            f_name = r['farm_name'] or 'Подразделение'
+            if f_name not in farm_pathologies:
+                farm_pathologies[f_name] = []
+            farm_pathologies[f_name].append(f"{r['reason']} ({r['cnt']} гол.)")
+        
+        for f_name, p_list in farm_pathologies.items():
+            if len(p_list) == 1:
+                alerts.append({
+                    'type': 'warning',
+                    'icon': 'bi-exclamation-triangle-fill',
+                    'title': f'Повторяющаяся патология ({f_name})',
+                    'message': f'За 30 дней зафиксированы случаи: {p_list[0]}. Рекомендуется проверить рацион, условия содержания и микроклимат.'
+                })
+            else:
+                p_str = "; ".join(p_list)
+                alerts.append({
+                    'type': 'warning',
+                    'icon': 'bi-exclamation-triangle-fill',
+                    'title': f'Часто повторяющиеся патологии ({f_name})',
+                    'message': f'За последние 30 дней зарегистрировано несколько повторяющихся диагнозов: {p_str}. Рекомендуется комплексный ветконтроль и проверка микроклимата.'
+                })
         
     # 3. Предупреждение по падежу телят (0-6 мес.)
     cursor.execute(f'''

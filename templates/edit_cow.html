@@ -19,6 +19,7 @@
                                 <option value="падёж" {% if cow.category == 'падёж' %}selected{% endif %}>Падёж</option>
                                 <option value="выбраковка" {% if cow.category == 'выбраковка' %}selected{% endif %}>Выбраковка</option>
                                 <option value="санитарный" {% if cow.category == 'санитарный' %}selected{% endif %}>Санитарный брак</option>
+                                <option value="мертворождение" {% if cow.category == 'мертворождение' or cow.is_stillborn == 1 %}selected{% endif %}>Мертворождение / Аборт</option>
                             </select>
                         </div>
                         
@@ -181,21 +182,68 @@ $(document).ready(function() {
         }
     }
 
-    $('#age_group').change(updateLactationPhase);
+    function syncStillbornState() {
+        var isStill = $('#is_stillborn').is(':checked') ||
+                      ($('#age_group').val() || '').indexOf('Мертворожд') !== -1 ||
+                      $('#category').val() === 'мертворождение';
+
+        if (isStill) {
+            if ($('#category').val() !== 'мертворождение') {
+                $('#category').val('мертворождение');
+                loadReasons('мертворождение', null);
+            }
+            if (($('#age_group').val() || '').indexOf('Мертворожд') === -1) {
+                $('#age_group').val('Мертворождённые / Аборты');
+            }
+            if (!$('#is_stillborn').is(':checked')) {
+                $('#is_stillborn').prop('checked', true);
+            }
+            $('#lactation_days').val('').prop('disabled', true);
+            $('#lactation').val('').prop('disabled', true);
+            $('#milk_yield').val('').prop('disabled', true);
+            $('#is_pregnant').prop('checked', false).prop('disabled', true);
+            $('#gestation_days').val('').prop('disabled', true);
+            $('#lactationPhaseBadge').html('<span class="badge text-white" style="background-color: #6f42c1;"><i class="bi bi-x-circle-fill"></i> Плод (без лактации)</span>');
+        } else {
+            $('#lactation_days').prop('disabled', false);
+            $('#lactation').prop('disabled', false);
+            $('#milk_yield').prop('disabled', false);
+            $('#is_pregnant').prop('disabled', false);
+            $('#gestation_days').prop('disabled', false);
+            updateLactationPhase();
+        }
+    }
+
+    $('#age_group').change(syncStillbornState);
     $('#lactation_days').on('input', updateLactationPhase);
+    $('#is_stillborn').change(function() {
+        if ($(this).is(':checked') && $('#category').val() !== 'мертворождение') {
+            $('#category').val('мертворождение');
+            loadReasons('мертворождение', null);
+        } else if (!$(this).is(':checked') && $('#category').val() === 'мертворождение') {
+            $('#category').val('выбраковка');
+            loadReasons('выбраковка', null);
+        }
+        syncStillbornState();
+    });
 
     function loadReasons(category, selectedReason) {
         if (!category) return;
         $.getJSON('{{ url_for("get_reasons", category="") }}' + category, function(data) {
             var $reasonSelect = $('#reason');
             $reasonSelect.empty();
+            var matchFound = false;
             $.each(data, function(index, reason) {
                 var $opt = $('<option>', { value: reason, text: reason });
                 if (reason === selectedReason) {
                     $opt.prop('selected', true);
+                    matchFound = true;
                 }
                 $reasonSelect.append($opt);
             });
+            if (!matchFound && data && data.length > 0) {
+                $reasonSelect.val(data[0]);
+            }
         });
     }
 
@@ -204,8 +252,17 @@ $(document).ready(function() {
     loadReasons(currentCat, currentReason);
 
     $('#category').change(function() {
+        if ($(this).val() === 'мертворождение') {
+            $('#is_stillborn').prop('checked', true);
+            $('#age_group').val('Мертворождённые / Аборты');
+        } else if ($(this).val() !== 'мертворождение' && $('#is_stillborn').is(':checked')) {
+            $('#is_stillborn').prop('checked', false);
+        }
         loadReasons($(this).val(), null);
+        syncStillbornState();
     });
+
+    syncStillbornState();
 });
 </script>
 {% endblock %}
