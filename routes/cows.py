@@ -70,9 +70,8 @@ def build_age_group_sql(filter_val):
         return "LOWER(age_group) LIKE '%сухосто%'", []
     if any(k in f_lower for k in ['новотел', '0-30', '0–30']):
         return "(LOWER(age_group) LIKE '%новотел%' OR (lactation_days IS NOT NULL AND lactation_days <= 30 AND (lactation > 0 OR age_group LIKE '%коров%')))", []
-    if any(k in f_lower for k in ['мертворож', 'аборт', 'плод']):
-        return "(is_stillborn = 1 OR LOWER(age_group) LIKE '%мертворож%' OR LOWER(age_group) LIKE '%аборт%' OR LOWER(category) = 'мертворождение')", []
     return "(age_group = ? OR LOWER(age_group) LIKE ?)", [filter_val, f"%{f_lower}%"]
+
 
 @cows_bp.route('/cows')
 @login_required
@@ -128,8 +127,6 @@ def view_cows():
         where_parts.append("(is_pregnant = 1 OR gestation_days > 0 OR age_group LIKE '%сухостой%' OR age_group LIKE '%нетел%' OR reason LIKE '%стельн%')")
     elif repro_filter == 'pregnant_late':
         where_parts.append("(gestation_days >= 180 OR (is_pregnant = 1 AND age_group LIKE '%сухостой%'))")
-    elif repro_filter == 'stillborn':
-        where_parts.append("(is_stillborn = 1 OR reason LIKE '%мертворож%' OR reason LIKE '%аборт%' OR reason LIKE '%мацерац%' OR reason LIKE '%мумификац%' OR reason LIKE '%патология родов%')")
 
     if start_date and end_date:
         where_parts.append("disposal_date BETWEEN ? AND ?")
@@ -213,8 +210,6 @@ def api_cows():
         conditions.append("(is_pregnant = 1 OR gestation_days > 0 OR age_group LIKE '%сухостой%' OR age_group LIKE '%нетел%' OR reason LIKE '%стельн%')")
     elif repro_filter == 'pregnant_late':
         conditions.append("(gestation_days >= 180 OR (is_pregnant = 1 AND age_group LIKE '%сухостой%'))")
-    elif repro_filter == 'stillborn':
-        conditions.append("(is_stillborn = 1 OR reason LIKE '%мертворож%' OR reason LIKE '%аборт%' OR reason LIKE '%мацерац%' OR reason LIKE '%мумификац%' OR reason LIKE '%патология родов%')")
 
     if start_date and end_date:
         conditions.append("disposal_date BETWEEN ? AND ?")
@@ -270,6 +265,53 @@ def add_cow():
     farm_name = session.get('farm_name')
     
     if request.method == 'POST':
+        # Если отправлена форма мертворождения со второй вкладки
+        if request.form.get('form_mode') == 'stillborn':
+            from database import generate_stillborn_code
+            sb_date = request.form.get('disposal_date') or datetime.now().strftime('%Y-%m-%d')
+            sb_reason = request.form.get('reason') or 'Мертворождённый телёнок (в срок)'
+            sb_mother_tag = request.form.get('ear_tag', '').strip() or None
+            sb_notes = request.form.get('notes', '').strip() or None
+            try:
+                sb_weight = float(request.form.get('weight')) if request.form.get('weight') else 25.0
+            except (ValueError, TypeError):
+                sb_weight = 25.0
+            try:
+                sb_gest = int(request.form.get('gestation_days')) if request.form.get('gestation_days') else 280
+            except (ValueError, TypeError):
+                sb_gest = 280
+                
+            sb_code = generate_stillborn_code(farm_name)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO stillbirth_records (
+                    record_code, farm_name, event_date, mother_tag, mother_group,
+                    event_type, fetus_sex, fetus_weight, gestation_days, cause,
+                    mother_condition, attendant, notes, created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                sb_code, farm_name, sb_date, sb_mother_tag, 'Коровы дойного стада',
+                sb_reason, 'Не определён', sb_weight, sb_gest, sb_reason,
+                'Здорова, оставлена в стаде', 'Дежурный ветврач', sb_notes, session.get('user_id')
+            ))
+            new_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            log_audit_event(
+                username=session.get('username'),
+                farm_name=farm_name,
+                action='CREATE',
+                entity_type='STILLBORN',
+                entity_id=new_id,
+                details=f"Зарегистрирован акт мертворождения {sb_code} (мать: {sb_mother_tag or '-'})",
+                user_id=session.get('user_id'),
+                ip_address=request.remote_addr
+            )
+            flash(f'Акт мертворождения успешно зарегистрирован под номером: {sb_code}', 'success')
+            return redirect(url_for('stillborn.stillborn_list'))
+
         category = request.form.get('category')
         reason = request.form.get('reason')
         disposal_date = request.form.get('disposal_date')
@@ -292,19 +334,13 @@ def add_cow():
             gestation_days_val = int(request.form.get('gestation_days')) if request.form.get('gestation_days') else 0
         except (ValueError, TypeError):
             gestation_days_val = 0
-        is_stillborn_val = 1 if request.form.get('is_stillborn') in ['1', 'on', 'true'] else 0
-
-        # Автоопределение по признакам, если оператор не указал вручную
+        is_stillborn_val = 0
         if not is_pregnant_val:
             if 'сухосто' in (lactation_phase or '').lower() or 'сухосто' in (age_group or '').lower() or 'нетел' in (age_group or '').lower() or 'стельн' in (reason or '').lower():
                 is_pregnant_val = 1
                 if gestation_days_val == 0:
                     gestation_days_val = 210 if 'сухосто' in (age_group or '').lower() else 180
 
-        if not is_stillborn_val:
-            stillborn_keys = ['мертворож', 'аборт', 'плод', 'мумификац', 'мацерац', 'патология родов', 'патологические роды', 'гибель плода', 'мертвый теленок']
-            if any(k in (reason or '').lower() for k in stillborn_keys):
-                is_stillborn_val = 1
         
         if not category or not reason or not disposal_date:
             flash('Заполните обязательные поля: категория, причина и дата', 'danger')
@@ -389,7 +425,7 @@ def edit_cow(cow_id):
             gestation_days_val = int(request.form.get('gestation_days')) if request.form.get('gestation_days') else 0
         except (ValueError, TypeError):
             gestation_days_val = 0
-        is_stillborn_val = 1 if request.form.get('is_stillborn') in ['1', 'on', 'true'] else 0
+        is_stillborn_val = 0
 
         lactation_phase = compute_lactation_phase(age_group, lactation_days, lactation)
         

@@ -46,5 +46,9 @@ desktop.ini
 *.rar
 *.7z
 
+# Node modules
+node_modules/
+.aistudio/
+
 # Конфигурационные файлы (кроме config.py)
 config_*.py

@@ -50,6 +50,7 @@
                                 </div>
                             </div>
                             <form method="POST" action="{{ url_for('restore_db_backup') }}" enctype="multipart/form-data">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="mb-3">
                                     <input type="file" class="form-control" name="backup_file" accept=".db,.sqlite,.sqlite3" required>
                                     <div class="form-text text-danger">Внимание: текущая база будет заменена данными из копии!</div>

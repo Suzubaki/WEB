@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if action == 'edit' %}Редактирование акта: {{ record.record_code }}{% else %}Регистрация мертворождения / аборта{% endif %} - АгроУчёт PRO
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-3">
+                <h4 class="mb-0 fs-5 fw-bold">
+                    <i class="bi bi-heartbreak-fill me-2"></i>
+                    {% if action == 'edit' %}
+                        Редактирование акта: {{ record.record_code }}
+                    {% else %}
+                        Первичная регистрация мертворождения / аборта плода
+                    {% endif %}
+                </h4>
+                <span class="badge bg-white text-danger fw-semibold px-3 py-2">
+                    <i class="bi bi-geo-alt-fill me-1"></i> Ферма: {{ farm_name }}
+                </span>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="alert alert-info py-2 px-3 mb-4 d-flex align-items-center gap-2 small">
+                    <i class="bi bi-info-circle-fill fs-5 text-primary"></i>
+                    <div>
+                        <strong>Зоотехническое правило:</strong> Мертворождённые плоды и выкидыши не приходуются в живое поголовье и не списываются в падёж коров. Корова-мать остаётся в стаде, если не указано иное.
+                    </div>
+                </div>
+
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row g-3">
+                        <!-- Блок 1: Событие -->
+                        <div class="col-12">
+                            <h6 class="text-uppercase text-secondary fw-bold small border-bottom pb-1 mb-2">
+                                1. Параметры события и дата
+                            </h6>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="event_date" class="form-label fw-semibold">Дата события (отёла / аборта) *</label>
+                            <input type="date" class="form-control" id="event_date" name="event_date" 
+                                   value="{{ record.event_date if action == 'edit' else today }}" required>
+                        </div>
+
+                        <div class="col-md-5">
+                            <label for="event_type" class="form-label fw-semibold">Тип события *</label>
+                            <select class="form-select" id="event_type" name="event_type" required>
+                                {% for et in event_types %}
+                                <option value="{{ et }}" {% if (record.event_type if action == 'edit' else '') == et %}selected{% endif %}>
+                                    {{ et }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="gestation_days" class="form-label fw-semibold">Срок стельности (дней)</label>
+                            <input type="number" class="form-control" id="gestation_days" name="gestation_days" min="0" max="320" 
+                                   value="{{ record.gestation_days if action == 'edit' else '280' }}" placeholder="Напр. 280">
+                            <div class="form-text small">Норма доношенности: ~280–285 дн.</div>
+                        </div>
+
+                        <!-- Блок 2: Мать -->
+                        <div class="col-12 mt-3">
+                            <h6 class="text-uppercase text-secondary fw-bold small border-bottom pb-1 mb-2">
+                                2. Идентификация коровы-матери (остаётся в стаде)
+                            </h6>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="mother_tag" class="form-label fw-semibold">AITS / Ушная бирка матери</label>
+                            <input type="text" class="form-control" id="mother_tag" name="mother_tag" 
+                                   value="{{ record.mother_tag if action == 'edit' else '' }}" placeholder="Например, BY 04 12345678">
+                            <div class="form-text small">Инвентарный номер дойной коровы / нетели</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="mother_group" class="form-label fw-semibold">Группа коровы-матери</label>
+                            <select class="form-select" id="mother_group" name="mother_group">
+                                {% for mg in mother_groups %}
+                                <option value="{{ mg }}" {% if (record.mother_group if action == 'edit' else '') == mg %}selected{% endif %}>
+                                    {{ mg }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="mother_condition" class="form-label fw-semibold">Состояние матери после отёла</label>
+                            <select class="form-select" id="mother_condition" name="mother_condition">
+                                {% for mc in mother_conditions %}
+                                <option value="{{ mc }}" {% if (record.mother_condition if action == 'edit' else '') == mc %}selected{% endif %}>
+                                    {{ mc }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Блок 3: Плод и причина -->
+                        <div class="col-12 mt-3">
+                            <h6 class="text-uppercase text-secondary fw-bold small border-bottom pb-1 mb-2">
+                                3. Данные плода и ветеринарная причина гибели
+                            </h6>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="fetus_sex" class="form-label fw-semibold">Пол плода</label>
+                            <select class="form-select" id="fetus_sex" name="fetus_sex">
+                                {% for fs in fetus_sexes %}
+                                <option value="{{ fs }}" {% if (record.fetus_sex if action == 'edit' else '') == fs %}selected{% endif %}>
+                                    {{ fs }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="fetus_weight" class="form-label fw-semibold">Масса плода (кг)</label>
+                            <input type="number" step="0.1" class="form-control" id="fetus_weight" name="fetus_weight" min="0" max="80" 
+                                   value="{{ record.fetus_weight if action == 'edit' else '28.0' }}" placeholder="кг">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="cause" class="form-label fw-semibold">Причина гибели плода (диагноз) *</label>
+                            <select class="form-select" id="cause" name="cause" required>
+                                {% for c in causes %}
+                                <option value="{{ c }}" {% if (record.cause if action == 'edit' else '') == c %}selected{% endif %}>
+                                    {{ c }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-12 d-none" id="customCauseBlock">
+                            <label for="custom_cause" class="form-label fw-semibold">Уточнение другой причины / диагноза</label>
+                            <input type="text" class="form-control" id="custom_cause" name="custom_cause" placeholder="Введите индивидуальный ветеринарный диагноз...">
+                        </div>
+
+                        <!-- Блок 4: Заключение -->
+                        <div class="col-12 mt-3">
+                            <h6 class="text-uppercase text-secondary fw-bold small border-bottom pb-1 mb-2">
+                                4. Родовспоможение и заключение
+                            </h6>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="attendant" class="form-label fw-semibold">Принял отёл / Ветврач</label>
+                            <input type="text" class="form-control" id="attendant" name="attendant" 
+                                   value="{{ record.attendant if action == 'edit' else 'Дежурный ветврач' }}" placeholder="ФИО специалиста">
+                        </div>
+
+                        <div class="col-md-8">
+                            <label for="notes" class="form-label fw-semibold">Заключение ветеринарной комиссии / Примечание</label>
+                            <input type="text" class="form-control" id="notes" name="notes" 
+                                   value="{{ record.notes if action == 'edit' else '' }}" placeholder="Особенности отёла, патологоанатомические признаки, рекомендации...">
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ url_for('stillborn.stillborn_list') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Отмена
+                        </a>
+                        <button type="submit" class="btn btn-danger px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-save-fill me-1"></i> 
+                            {% if action == 'edit' %}Сохранить изменения{% else %}Зарегистрировать акт{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    function toggleCustomCause() {
+        if ($('#cause').val() === 'Другое') {
+            $('#customCauseBlock').removeClass('d-none');
+        } else {
+            $('#customCauseBlock').addClass('d-none');
+        }
+    }
+    $('#cause').change(toggleCustomCause);
+    toggleCustomCause();
+
+    // Автоматическая корректировка срока стельности при выборе типа события
+    $('#event_type').change(function() {
+        var val = $(this).val();
+        if (val.indexOf('1-й триместр') !== -1) {
+            $('#gestation_days').val(75);
+            $('#fetus_weight').val(5.0);
+        } else if (val.indexOf('2-й триместр') !== -1) {
+            $('#gestation_days').val(140);
+            $('#fetus_weight').val(14.0);
+        } else if (val.indexOf('3-й триместр') !== -1) {
+            $('#gestation_days').val(220);
+            $('#fetus_weight').val(22.0);
+        } else if (val.indexOf('в срок') !== -1) {
+            $('#gestation_days').val(280);
+            $('#fetus_weight').val(32.0);
+        }
+    });
+});
+</script>
+{% endblock %}

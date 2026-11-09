@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}ОАО «Новая Припять» - Учёт выбытия скота{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
     <link rel="alternate icon" href="/img/logo.jpg">
@@ -82,14 +83,19 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('view_cows') }}"><i class="bi bi-list-check"></i> Журнал коров</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('stillborn.stillborn_list') }}"><i class="bi bi-heartbreak text-danger me-1"></i> Мертворождения / Аборты</a>
+                    </li>
                     {% if session.user_type != 'admin' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="addCowDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-plus-circle"></i> Добавить
                         </a>
                         <ul class="dropdown-menu shadow" aria-labelledby="addCowDropdown">
-                            <li><a class="dropdown-item py-2 fw-semibold" href="{{ url_for('add_cows_dynamic') }}"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Быстрый ввод списком</a></li>
-                            <li><a class="dropdown-item py-2" href="{{ url_for('add_cow') }}"><i class="bi bi-file-earmark-plus text-primary me-2"></i>Одиночная карточка</a></li>
+                            <li><a class="dropdown-item py-2 fw-semibold" href="{{ url_for('add_cows_dynamic') }}"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Выбытие (быстрый ввод)</a></li>
+                            <li><a class="dropdown-item py-2" href="{{ url_for('add_cow') }}"><i class="bi bi-file-earmark-plus text-primary me-2"></i>Карточка выбытия коровы</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item py-2 text-danger fw-semibold" href="{{ url_for('stillborn.add_stillborn') }}"><i class="bi bi-heartbreak-fill text-danger me-2"></i>Акт мертворождения / аборта</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
@@ -171,6 +177,43 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+    // Глобальная передача X-CSRFToken для всех AJAX-запросов (jQuery и fetch)
+    (function() {
+        var csrfToken = $('meta[name="csrf-token"]').attr('content');
+        if (csrfToken) {
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                        xhr.setRequestHeader("X-CSRFToken", csrfToken);
+                    }
+                }
+            });
+
+            // Перехват window.fetch для автоматического добавления X-CSRFToken
+            var originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                options = options || {};
+                var method = (options.method || 'GET').toUpperCase();
+                if (!/^(GET|HEAD|OPTIONS|TRACE)$/.test(method)) {
+                    options.headers = options.headers || {};
+                    if (options.headers instanceof Headers) {
+                        if (!options.headers.has('X-CSRFToken')) {
+                            options.headers.append('X-CSRFToken', csrfToken);
+                        }
+                    } else if (Array.isArray(options.headers)) {
+                        options.headers.push(['X-CSRFToken', csrfToken]);
+                    } else {
+                        if (!options.headers['X-CSRFToken']) {
+                            options.headers['X-CSRFToken'] = csrfToken;
+                        }
+                    }
+                }
+                return originalFetch.call(this, url, options);
+            };
+        }
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

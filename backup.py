@@ -42,7 +42,17 @@ def restore_db_from_upload(upload_file, username=None, ip_address=None):
     Восстановление базы данных из загруженного файла .db/.sqlite с валидацией
     """
     try:
-        # Читаем первые 100 байт для проверки SQLite заголовка: "SQLite format 3\000"
+        # Проверка размера загружаемого файла (лимит 50 МБ)
+        upload_file.seek(0, os.SEEK_END)
+        file_size = upload_file.tell()
+        upload_file.seek(0)
+        
+        if file_size > 50 * 1024 * 1024:
+            return False, 'Файл резервной копии слишком велик (максимум 50 МБ)'
+        if file_size < 100:
+            return False, 'Файл резервной копии поврежден или пуст'
+
+        # Читаем первые 16 байт для проверки SQLite заголовка: "SQLite format 3\000"
         header = upload_file.read(16)
         if not header.startswith(b'SQLite format 3'):
             upload_file.seek(0)
@@ -54,9 +64,18 @@ def restore_db_from_upload(upload_file, username=None, ip_address=None):
         temp_path = Config.DATABASE + '.restore_temp'
         upload_file.save(temp_path)
         
-        # Проверяем наличие ключевых таблиц (cows, users)
+        # Проверяем целостность и список таблиц
         test_conn = sqlite3.connect(temp_path)
         test_cursor = test_conn.cursor()
+        
+        # Проверка целостности SQLite
+        test_cursor.execute("PRAGMA quick_check")
+        check_result = test_cursor.fetchone()
+        if not check_result or check_result[0] != 'ok':
+            test_conn.close()
+            os.remove(temp_path)
+            return False, 'Файл резервной копии поврежден (PRAGMA quick_check failed)'
+
         test_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [r[0] for r in test_cursor.fetchall()]
         test_conn.close()

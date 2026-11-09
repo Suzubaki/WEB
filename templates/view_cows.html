@@ -26,6 +26,17 @@
             </div>
             
             <div class="card-body">
+                <!-- Информационный баннер об обособленном учёте мертворождений -->
+                <div class="alert alert-light border border-danger-subtle d-flex justify-content-between align-items-center py-2 px-3 mb-3 flex-wrap gap-2 shadow-xs">
+                    <div class="small text-dark">
+                        <i class="bi bi-heartbreak-fill text-danger me-1"></i>
+                        <strong>Учёт мертворождений и абортов</strong> вынесен в отдельный реестр для корректного ветеринарного баланса без искажения падежа коров.
+                    </div>
+                    <a href="{{ url_for('stillborn.stillborn_list') }}" class="btn btn-sm btn-outline-danger fw-semibold py-1 px-3">
+                        <i class="bi bi-heartbreak me-1"></i> Журнал мертворождений →
+                    </a>
+                </div>
+
                 <!-- Панель фильтров -->
                 <div class="bg-light p-3 rounded-3 mb-4 border">
                     <div class="row g-2 align-items-end">
@@ -98,12 +109,11 @@
                         </div>
 
                         <div class="col-md-3">
-                            <label class="form-label small fw-semibold text-danger"><i class="bi bi-heart-pulse-fill me-1"></i> Выбытие стельных / Аборты</label>
+                            <label class="form-label small fw-semibold text-danger"><i class="bi bi-suit-heart-fill me-1"></i> Выбытие стельных коров</label>
                             <select class="form-select form-select-sm border-danger-subtle fw-semibold" id="repro_filter">
                                 <option value="">Все статусы</option>
                                 <option value="pregnant" {% if repro_filter == 'pregnant' %}selected{% endif %}>⚠️ Только выбытие стельных</option>
                                 <option value="pregnant_late" {% if repro_filter == 'pregnant_late' %}selected{% endif %}>🤰 Глубокостельные (180+ дн.)</option>
-                                <option value="stillborn" {% if repro_filter == 'stillborn' %}selected{% endif %}>❌ Мертворождённые / Аборты</option>
                             </select>
                         </div>
                         

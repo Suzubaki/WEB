@@ -19,67 +19,128 @@
     </div>
 
     <form method="POST" action="/pricing">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row g-4 mb-4">
-            <!-- Методика -->
+            <!-- Методика расчёта и прозрачность формул -->
             <div class="col-xl-5 col-lg-6">
                 <div class="card shadow-sm h-100 border-0 rounded-4 overflow-hidden">
                     <div class="card-header bg-primary text-white py-3 px-4">
-                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-book me-2"></i> Методика расчёта ущерба РБ</h5>
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-calculator me-2"></i> Прозрачность формул и методика РБ</h5>
                     </div>
                     <div class="card-body p-4">
                         <div class="alert alert-primary p-3 mb-3">
-                            <h6 class="fw-bold mb-2"><i class="bi bi-info-circle-fill"></i> Главное правило:</h6>
-                            <p class="mb-0 small">Финансовый ущерб рассчитывается на основе балансовой (восстановительной) стоимости животного в BYN.</p>
+                            <h6 class="fw-bold mb-2"><i class="bi bi-info-circle-fill me-1"></i> Как рассчитываются показатели дашборда:</h6>
+                            <p class="mb-0 small">Все вычисления производятся <strong>динамически</strong> из БД SQLite с использованием установленных ниже цен и параметров:</p>
                         </div>
-                        <ol class="list-group list-group-numbered mb-0 small">
-                            <li class="list-group-item border-0 px-0 py-2"><strong>Фактическая оценка:</strong> Берется из документа выбытия (если заполнено).</li>
-                            <li class="list-group-item border-0 px-0 py-2"><strong>Нормативная оценка:</strong> Автоматически подставляется из прейскуранта ниже.</li>
-                        </ol>
+                        <ul class="list-group list-group-flush mb-0 small">
+                            <li class="list-group-item px-0 py-2">
+                                <strong>1. Прямой урон (Валовый):</strong><br>
+                                <code class="text-primary">Σ Стоимость (Балансовая из ПВГ или из акта 209/210-АПК)</code>
+                            </li>
+                            <li class="list-group-item px-0 py-2">
+                                <strong>2. Выручка от сдачи мяса (выбраковка/санбрак):</strong><br>
+                                <code class="text-success">Живой вес (кг) × Закупочная цена мяса (BYN/кг)</code>
+                            </li>
+                            <li class="list-group-item px-0 py-2">
+                                <strong>3. Упущенная выгода от молока (до 305 DIM):</strong><br>
+                                <code class="text-info">(305 - DIM) × Суточный удой (кг) × Цена молока (BYN/кг)</code>
+                            </li>
+                            <li class="list-group-item px-0 py-2">
+                                <strong>4. Неокупаемость первотёлок (1 лакт.):</strong><br>
+                                <code class="text-warning">(1 - DIM / 305) × Стоимость ремонта (BYN)</code>
+                            </li>
+                            <li class="list-group-item px-0 py-2">
+                                <strong>5. Чистый экономический ущерб:</strong><br>
+                                <code class="text-danger">Падёж + Max(0, Выбраковка - Выручка от мяса) + Упущенное молоко + Неокупившийся ремонт</code>
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
 
-            <!-- Цены -->
+            <!-- Цены реализации и восстановительная стоимость -->
             <div class="col-xl-7 col-lg-6">
                 <div class="card shadow-sm h-100 border-0 rounded-4 overflow-hidden">
-                    <div class="card-header bg-dark text-white py-3 px-4">
-                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i> 1. Нормативная стоимость групп скота (BYN)</h5>
+                    <div class="card-header bg-dark text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i> 1. Прейскурант цен и нормативы скота (BYN)</h5>
+                        <span class="badge bg-warning text-dark fw-bold">Параметры формул</span>
                     </div>
                     <div class="card-body p-4">
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Телята (0–6 мес)</label>
-                                <div class="input-group">
-                                    <input type="number" step="10" class="form-control" name="price_calves" value="{{ pricing.price_calves or 900 }}">
-                                    <span class="input-group-text">BYN</span>
+                        <!-- Секция реализационных цен (Мясо/Молоко/Ремонт) -->
+                        <div class="mb-3 pb-3 border-bottom">
+                            <h6 class="fw-bold text-primary mb-3"><i class="bi bi-currency-exchange me-2"></i>Закупочные и реализационные цены (Мясное / Молочное направление):</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-dark">
+                                        <i class="bi bi-percent text-danger me-1"></i>Мясо (BYN / кг)
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="0.1" class="form-control fw-bold text-primary" name="meat_price_per_kg" value="{{ pricing.meat_price_per_kg or 6.20 }}" required>
+                                        <span class="input-group-text">BYN/кг</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Закупочная цена 1 кг живой массы КРС</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-dark">
+                                        <i class="bi bi-droplet-fill text-primary me-1"></i>Молоко (BYN / кг)
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="0.05" class="form-control fw-bold text-primary" name="milk_price_per_kg" value="{{ pricing.milk_price_per_kg or 1.18 }}" required>
+                                        <span class="input-group-text">BYN/кг</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Закупочная цена 1 кг молока (база)</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-dark">
+                                        <i class="bi bi-arrow-repeat text-success me-1"></i>Ремонт первотёлки
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="50" class="form-control fw-bold text-primary" name="replacement_cost" value="{{ pricing.replacement_cost or 2950 }}" required>
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Затраты на ввод 1 новой первотёлки</small>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Ремонтный молодняк</label>
-                                <div class="input-group">
-                                    <input type="number" step="10" class="form-control" name="price_youngstock" value="{{ pricing.price_youngstock or 1650 }}">
-                                    <span class="input-group-text">BYN</span>
+                        </div>
+
+                        <!-- Секция восстановительной стоимости по ПВГ -->
+                        <div>
+                            <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-tag-fill me-2"></i>Нормативная (балансовая) стоимость по половозрастным группам (ПВГ):</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Телята (0–6 мес)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="10" class="form-control" name="price_calves" value="{{ pricing.price_calves or 900 }}">
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Нетели</label>
-                                <div class="input-group">
-                                    <input type="number" step="10" class="form-control" name="price_heifers" value="{{ pricing.price_heifers or 2700 }}">
-                                    <span class="input-group-text">BYN</span>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Ремонтный молодняк</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="10" class="form-control" name="price_youngstock" value="{{ pricing.price_youngstock or 1650 }}">
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Коровы дойного стада</label>
-                                <div class="input-group">
-                                    <input type="number" step="10" class="form-control" name="price_cows" value="{{ pricing.price_cows or 3200 }}">
-                                    <span class="input-group-text">BYN</span>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Нетели (>18 мес)</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="10" class="form-control" name="price_heifers" value="{{ pricing.price_heifers or 2700 }}">
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Сухостойные коровы</label>
-                                <div class="input-group">
-                                    <input type="number" step="10" class="form-control" name="price_dry_cows" value="{{ pricing.price_dry_cows or 3000 }}">
-                                    <span class="input-group-text">BYN</span>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Коровы дойного стада</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="10" class="form-control" name="price_cows" value="{{ pricing.price_cows or 3200 }}">
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Сухостойные коровы</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="10" class="form-control" name="price_dry_cows" value="{{ pricing.price_dry_cows or 3000 }}">
+                                        <span class="input-group-text">BYN</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

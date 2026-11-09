@@ -164,3 +164,60 @@ class Cow(db.Model):
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None,
             'updated_by': self.updated_by
         }
+
+
+class StillbirthRecord(db.Model):
+    """
+    Модель учёта мертворождений и абортов (Акушерско-гинекологический журнал).
+    Не смешивается с выбытием взрослых коров!
+    """
+    __tablename__ = 'stillbirth_records'
+    __table_args__ = (
+        db.Index('idx_stillbirth_farm_date', 'farm_name', 'event_date'),
+        db.Index('idx_stillbirth_event_type', 'event_type'),
+        db.Index('idx_stillbirth_mother_tag', 'mother_tag'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    record_code = db.Column(db.String(50), nullable=False, index=True)   # Системный номер ('МТК Цегельня-М001')
+    farm_name = db.Column(db.String(120), nullable=False, index=True)   # Название МТФ
+    event_date = db.Column(db.String(10), nullable=False, index=True)   # Дата события (ГГГГ-ММ-ДД)
+    mother_tag = db.Column(db.String(50), nullable=True, index=True)    # Инвентарный / AITS номер матери (мать жива!)
+    mother_group = db.Column(db.String(80), nullable=True)              # Половозрастная группа матери
+    event_type = db.Column(db.String(100), nullable=False)              # Мертворождение в срок / Аборт / др.
+    fetus_sex = db.Column(db.String(40), nullable=True)                 # Пол плода
+    fetus_weight = db.Column(db.Float, nullable=True)                   # Масса плода (кг)
+    gestation_days = db.Column(db.Integer, default=0, nullable=True)    # Срок стельности на момент события (дней)
+    cause = db.Column(db.String(255), nullable=False)                   # Причина гибели плода
+    mother_condition = db.Column(db.String(120), nullable=True)         # Состояние матери после отёла
+    attendant = db.Column(db.String(120), nullable=True)                # Принял отёл (ветврач / техник)
+    notes = db.Column(db.Text, nullable=True)                           # Заключение / примечания
+    
+    # Системный аудит
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow, nullable=True)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'record_code': self.record_code,
+            'farm_name': self.farm_name,
+            'event_date': self.event_date,
+            'mother_tag': self.mother_tag,
+            'mother_group': self.mother_group,
+            'event_type': self.event_type,
+            'fetus_sex': self.fetus_sex,
+            'fetus_weight': self.fetus_weight,
+            'gestation_days': self.gestation_days,
+            'cause': self.cause,
+            'mother_condition': self.mother_condition,
+            'attendant': self.attendant,
+            'notes': self.notes,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.created_at, datetime) else str(self.created_at),
+            'created_by': self.created_by,
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None,
+            'updated_by': self.updated_by
+        }
+

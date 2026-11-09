@@ -16,6 +16,7 @@ from .cows import cows_bp
 from .reports import reports_bp
 from .admin import admin_bp
 from .api import api_bp
+from .stillborn import stillborn_bp
 
 __all__ = [
     'main_bp',
@@ -23,5 +24,7 @@ __all__ = [
     'cows_bp',
     'reports_bp',
     'admin_bp',
-    'api_bp'
+    'api_bp',
+    'stillborn_bp'
 ]
+

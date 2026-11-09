@@ -119,6 +119,7 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None):
 
     farm_totals = {farm: 0 for farm in farms}
     grand_total = 0
+    current_row = 6
 
     for reason in reasons:
         cell_reason = ws.cell(row=current_row, column=1, value=reason)

@@ -11,6 +11,7 @@
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('add_multiple_cows') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label">Ферма</label>
                         <input type="text" class="form-control" value="{{ farm_name }}" disabled>

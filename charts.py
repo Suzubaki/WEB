@@ -201,18 +201,63 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
 
     live_cows = [c for c in period_cows if not c.get('is_stillborn') and c.get('category') != 'мертворождение' and normalize_age_group(c.get('age_group'), c.get('lactation')) != 'Мертворождённые / Аборты']
 
+    meat_price_per_kg = float(get_setting('meat_price_per_kg', 6.20))
+    milk_price_per_kg = float(get_setting('milk_price_per_kg', 1.18))
+    replacement_cost = float(get_setting('replacement_cost', 2950.0))
+
+    culled_live_weight_total = 0.0
+    estimated_meat_revenue_byn = 0.0
+    unrealized_milk_loss_byn = 0.0
+    unrealized_milk_kg_total = 0.0
+    unrecovered_heifer_loss_byn = 0.0
+
     for c in live_cows:
         cat = c['category']
         category_counts[cat] = category_counts.get(cat, 0) + 1
         val = estimate_cow_val(c)
         total_loss_byn += val
+        
+        w = float(c.get('weight') or 0.0)
+        if w <= 0:
+            norm_grp = normalize_age_group(c.get('age_group'), c.get('lactation'))
+            w = 520.0 if ('Коровы' in norm_grp or 'Нетели' in norm_grp or 'Сухостой' in norm_grp) else (320.0 if 'молодняк' in norm_grp.lower() else 45.0)
+
+        dim = int(c.get('lactation_days') or 0)
+        lact = int(c.get('lactation') or 0)
+
+        # 1. Расчет упущенной выгоды от недополученного молока (305 дней лактации)
+        if lact > 0 and dim < 305:
+            rem_days = 305 - dim
+            daily_milk = (float(c.get('milk_yield') or 0.0) / 305.0) if c.get('milk_yield') else 22.0
+            if daily_milk <= 0: daily_milk = 22.0
+            lost_milk_kg = rem_days * daily_milk
+            unrealized_milk_kg_total += lost_milk_kg
+            unrealized_milk_loss_byn += lost_milk_kg * milk_price_per_kg
+
+        # 2. Расчет неамортизированного ущерба при выбытии первотёлок (до окупаемости ремонта)
+        if lact == 1 and dim < 305:
+            unrecovered_heifer_loss_byn += max(0.0, replacement_cost * (1.0 - (dim / 305.0)))
+
         if cat == 'падёж':
             death_loss_byn += val
         elif cat == 'выбраковка':
             culling_loss_byn += val
-        
+            culled_live_weight_total += w
+            estimated_meat_revenue_byn += w * meat_price_per_kg
+        elif cat == 'санитарный':
+            culling_loss_byn += val
+            culled_live_weight_total += w
+            # Санбрак: дисконт 30% на реализационную стоимость мяса (2-я категория)
+            estimated_meat_revenue_byn += w * (meat_price_per_kg * 0.70)
+
     total_disposals = len(live_cows)
     avg_head_loss = round(total_loss_byn / max(total_disposals, 1))
+    estimated_meat_revenue_byn = round(estimated_meat_revenue_byn)
+    unrealized_milk_loss_byn = round(unrealized_milk_loss_byn)
+    unrecovered_heifer_loss_byn = round(unrecovered_heifer_loss_byn)
+
+    # Совокупный чистый экономический ущерб с учетом мясной выручки, упущенного молока и ремонта
+    net_economic_loss_byn = round(death_loss_byn + max(0.0, culling_loss_byn - estimated_meat_revenue_byn) + unrealized_milk_loss_byn + unrecovered_heifer_loss_byn)
     
     # 4. Распределение по Половозрастным группам (ПВГ) со стеком
     age_group_data = {}
@@ -347,6 +392,23 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     fresh_disposals = 0
     fresh_deaths = 0
 
+    # Аналитика продуктивности (когорты надоя, кг)
+    milk_cohort_labels = ['До 4 500 кг', '4 500–6 500 кг', '6 500–8 500 кг', 'Свыше 8 500 кг']
+    milk_cohort_death = [0, 0, 0, 0]
+    milk_cohort_culling = [0, 0, 0, 0]
+    cows_with_milk = 0
+    total_milk_sum = 0.0
+    high_yield_lost_count = 0  # Потеря высокопродуктивных (>6500 кг)
+    high_yield_death_count = 0
+
+    # Матрица «Патология × Фаза лактации (DIM)»
+    pathology_dim_matrix = {}
+
+    # Сезонность выбытия
+    seasons_labels = ['Зима (Дек–Фев)', 'Весна (Мар–Май)', 'Лето (Июн–Авг)', 'Осень (Сен–Ноя)']
+    seasons_death = [0, 0, 0, 0]
+    seasons_culling = [0, 0, 0, 0]
+
     for c in live_cows:
         dim = c.get('lactation_days') or 0
         lact = c.get('lactation') or 1
@@ -389,6 +451,14 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             else:
                 lact_phase_culling[p_idx] += 1
 
+            # Заполнение матрицы Патология x DIM
+            p_phase_name = 'Новотел (0-30 дн)' if dim <= 30 else ('Раздой (31-100 дн)' if dim <= 100 else ('Середина (101-200 дн)' if dim <= 200 else 'Спад и сухостой (>200)'))
+            sys_name = classify_pathology_system(c.get('reason'))
+            if sys_name not in pathology_dim_matrix:
+                pathology_dim_matrix[sys_name] = {'total': 0, 'Новотел (0-30 дн)': 0, 'Раздой (31-100 дн)': 0, 'Середина (101-200 дн)': 0, 'Спад и сухостой (>200)': 0}
+            pathology_dim_matrix[sys_name]['total'] += 1
+            pathology_dim_matrix[sys_name][p_phase_name] += 1
+
         if lact > 0:
             total_lact += lact
             cows_with_lact += 1
@@ -398,8 +468,60 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             else:
                 lact_num_culling[l_idx] += 1
 
+        # Анализ продуктивности коров
+        m = float(c.get('milk_yield') or 0.0)
+        norm_ag = normalize_age_group(c.get('age_group'), lact)
+        if ('Коровы' in norm_ag or lact > 0) and 'Телята' not in norm_ag and 'молодняк' not in norm_ag.lower():
+            if m <= 0:
+                m = 6200.0 if lact > 1 else 5300.0
+            cows_with_milk += 1
+            total_milk_sum += m
+            if m < 4500: m_idx = 0
+            elif m <= 6500: m_idx = 1
+            elif m <= 8500: m_idx = 2
+            else: m_idx = 3
+
+            if is_death:
+                milk_cohort_death[m_idx] += 1
+                if m >= 6500: high_yield_death_count += 1
+            else:
+                milk_cohort_culling[m_idx] += 1
+
+            if m >= 6500:
+                high_yield_lost_count += 1
+
+        # Анализ сезонности
+        d_str = c.get('disposal_date')
+        if d_str:
+            try:
+                m_num = int(d_str.split('-')[1])
+                s_idx = 0 if m_num in (12, 1, 2) else (1 if m_num in (3, 4, 5) else (2 if m_num in (6, 7, 8) else 3))
+                if is_death:
+                    seasons_death[s_idx] += 1
+                else:
+                    seasons_culling[s_idx] += 1
+            except Exception:
+                pass
+
     avg_dim = round(total_dim / cows_with_dim) if cows_with_dim > 0 else 0
     avg_lact = round(total_lact / cows_with_lact, 1) if cows_with_lact > 0 else 0
+    avg_milk_yield = round(total_milk_sum / max(cows_with_milk, 1)) if cows_with_milk > 0 else 0
+
+    total_adult_disposals = sum(lact_num_death) + sum(lact_num_culling)
+    unrecovered_cows_count = lact_num_death[0] + lact_num_culling[0]  # Выбыли на 1-й лактации
+    unrecovered_pct = round((unrecovered_cows_count / max(total_adult_disposals, 1)) * 100, 1)
+
+    # Преобразование матрицы патологий в сортированный список для шаблона
+    pathology_dim_list = []
+    for s_name, counts in sorted(pathology_dim_matrix.items(), key=lambda x: x[1]['total'], reverse=True)[:7]:
+        pathology_dim_list.append({
+            'system': s_name,
+            'total': counts['total'],
+            'fresh_0_30': counts['Новотел (0-30 дн)'],
+            'peak_31_100': counts['Раздой (31-100 дн)'],
+            'mid_101_200': counts['Середина (101-200 дн)'],
+            'late_200_plus': counts['Спад и сухостой (>200)']
+        })
 
     # 5. Строго разделенные физиологические группы и сохранность
     calf_cows = [c for c in live_cows if normalize_age_group(c.get('age_group'), c.get('lactation')) == 'Телята (до 6 мес.)']
@@ -472,16 +594,45 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             if d_val <= 30:
                 farm_data[f]['fresh'] += 1
 
+    # Динамические зоотехнические нормативы и пороги тревог строго из базы данных
+    norm_calf_preservation = float(get_setting('norm_calf_preservation', 95.0))
+    warn_calf_preservation = float(get_setting('warn_calf_preservation', 92.0))
+    crit_calf_preservation = float(get_setting('crit_calf_preservation', 88.0))
+
+    norm_young_preservation = float(get_setting('norm_youngstock_preservation', 92.0))
+    warn_young_preservation = float(get_setting('warn_youngstock_preservation', 88.0))
+    crit_young_preservation = float(get_setting('crit_youngstock_preservation', 82.0))
+
+    norm_fresh = float(get_setting('norm_fresh_cow_disposal', 10.0))
+    warn_fresh = float(get_setting('warn_fresh_cow_disposal', 14.0))
+    crit_fresh = float(get_setting('crit_fresh_cow_disposal', 18.0))
+
+    norm_first_lact = float(get_setting('norm_first_lactation_culling', 20.0))
+    warn_first_lact = float(get_setting('warn_first_lactation_culling', 25.0))
+    crit_first_lact = float(get_setting('crit_first_lactation_culling', 30.0))
+
+    norm_mortality = float(get_setting('norm_mortality_rate', 25.0))
+    warn_mortality = float(get_setting('warn_mortality_rate', 35.0))
+    crit_mortality = float(get_setting('crit_mortality_rate', 45.0))
+
+    norm_locomotor = float(get_setting('norm_locomotor_disorders', 15.0))
+    warn_locomotor = float(get_setting('warn_locomotor_disorders', 20.0))
+    crit_locomotor = float(get_setting('crit_locomotor_disorders', 25.0))
+
+    norm_mastitis = float(get_setting('norm_mastitis_disorders', 15.0))
+    warn_mastitis = float(get_setting('warn_mastitis_disorders', 20.0))
+    crit_mastitis = float(get_setting('crit_mastitis_disorders', 25.0))
+
     sorted_farms = sorted([(f, d['total']) for f, d in farm_data.items()], key=lambda x: x[1], reverse=True)
     farm_matrix = []
     for f, d in sorted(farm_data.items(), key=lambda x: x[1]['total'], reverse=True):
         d_pct = round((d['death'] / max(d['total'], 1)) * 100, 1)
         stat = 'optimal'
         stat_lbl = 'Норма'
-        if d_pct > 30 or d['fresh'] >= 5:
+        if d_pct >= crit_mortality or (d['total'] > 10 and (d['fresh'] / max(d['total'], 1) * 100) >= crit_fresh):
             stat = 'critical'
             stat_lbl = 'Критический риск'
-        elif d_pct > 15 or d['fresh'] >= 2:
+        elif d_pct >= warn_mortality or (d['total'] > 10 and (d['fresh'] / max(d['total'], 1) * 100) >= warn_fresh):
             stat = 'warning'
             stat_lbl = 'Внимание'
         farm_matrix.append({
@@ -507,16 +658,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     first_lact_rate = round((lact_num_culling[0] / max(sum(lact_num_culling), 1)) * 100, 1) if sum(lact_num_culling) > 0 else 0.0
     locomotor_rate = round((pathology_systems.get('Конечности и травматизм', 0) / max(total_disposals, 1)) * 100, 1)
     mastitis_rate = round((pathology_systems.get('Болезни вымени (маститы)', 0) / max(total_disposals, 1)) * 100, 1)
-    # Динамические зоотехнические нормативы и пороги тревог из БД
-    norm_calf_preservation = float(get_setting('norm_calf_preservation', 95.0))
-    norm_young_preservation = float(get_setting('norm_youngstock_preservation', 98.0))
-    norm_fresh = float(get_setting('norm_fresh_cow_disposal', 10.0))
-    norm_first_lact = float(get_setting('norm_first_lactation_culling', 20.0))
-    norm_mortality = float(get_setting('norm_mortality_rate', 25.0))
-    norm_locomotor = float(get_setting('norm_locomotor_disorders', 15.0))
-    norm_mastitis = float(get_setting('norm_mastitis_disorders', 15.0))
 
-    # Расчет процента заполнения progress-bar скоркарда, отражающего реальное отклонение от норматива
     prog_calf = max(5, min(100, round(float(calf_preservation))))
     prog_young = max(5, min(100, round(float(youngstock_preservation))))
     prog_fresh = max(5, min(100, round((fresh_rate / max(norm_fresh, 0.1)) * 100)))
@@ -530,15 +672,15 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'key': 'norm_fresh_cow_disposal',
             'operator': '<=',
             'val': float(norm_fresh),
-            'warn_val': float(norm_fresh + 4.0),
-            'crit_val': float(norm_fresh + 8.0),
+            'warn_val': float(warn_fresh),
+            'crit_val': float(crit_fresh),
             'current_num': float(fresh_rate),
             'title': 'Выбытие новотельных (0-30 DIM)',
             'target': f"≤ {norm_fresh:.1f}%",
             'current': f"{fresh_rate}%",
             'progress_pct': prog_fresh,
-            'status': 'success' if fresh_rate <= norm_fresh else ('warning' if fresh_rate <= (norm_fresh + 8.0) else 'danger'),
-            'statusText': 'Норма' if fresh_rate <= norm_fresh else ('Внимание' if fresh_rate <= (norm_fresh + 8.0) else 'Риск'),
+            'status': 'success' if fresh_rate <= norm_fresh else ('warning' if fresh_rate <= crit_fresh else 'danger'),
+            'statusText': 'Норма' if fresh_rate <= norm_fresh else ('Внимание' if fresh_rate <= crit_fresh else 'Риск'),
             'note': f"Новотел: {fresh_disposals} гол. ({fresh_deaths} пало)",
             'icon': 'bi-exclamation-octagon-fill'
         },
@@ -546,14 +688,14 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'key': 'norm_first_lactation_culling',
             'operator': '<=',
             'val': float(norm_first_lact),
-            'warn_val': float(norm_first_lact + 5.0),
-            'crit_val': float(norm_first_lact + 10.0),
+            'warn_val': float(warn_first_lact),
+            'crit_val': float(crit_first_lact),
             'current_num': float(first_lact_rate),
             'title': 'Выбраковка первотёлок',
             'target': f"≤ {norm_first_lact:.1f}%",
             'current': f"{first_lact_rate}%",
             'progress_pct': prog_first_lact,
-            'status': 'success' if first_lact_rate <= norm_first_lact else ('warning' if first_lact_rate <= (norm_first_lact + 8.0) else 'danger'),
+            'status': 'success' if first_lact_rate <= norm_first_lact else ('warning' if first_lact_rate <= crit_first_lact else 'danger'),
             'statusText': 'Норма' if first_lact_rate <= norm_first_lact else 'Высокая',
             'note': 'Доля 1-й лактации в выбраковке',
             'icon': 'bi-gem'
@@ -562,15 +704,15 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'key': 'norm_mortality_rate',
             'operator': '<=',
             'val': float(norm_mortality),
-            'warn_val': float(norm_mortality + 10.0),
-            'crit_val': float(norm_mortality + 20.0),
+            'warn_val': float(warn_mortality),
+            'crit_val': float(crit_mortality),
             'current_num': float(death_overall_rate),
             'title': 'Общая летальность (Падёж)',
             'target': f"≤ {norm_mortality:.1f}%",
             'current': f"{death_overall_rate}%",
             'progress_pct': prog_mortality,
-            'status': 'success' if death_overall_rate <= norm_mortality else ('warning' if death_overall_rate <= (norm_mortality + 15.0) else 'danger'),
-            'statusText': 'Норма' if death_overall_rate <= norm_mortality else ('Повышен' if death_overall_rate <= (norm_mortality + 15.0) else 'Критич.'),
+            'status': 'success' if death_overall_rate <= norm_mortality else ('warning' if death_overall_rate <= crit_mortality else 'danger'),
+            'statusText': 'Норма' if death_overall_rate <= norm_mortality else ('Повышен' if death_overall_rate <= crit_mortality else 'Критич.'),
             'note': f"Пало {category_counts.get('падёж', 0)} из {total_disposals} гол.",
             'icon': 'bi-heart-pulse-fill'
         },
@@ -578,15 +720,15 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'key': 'norm_locomotor_disorders',
             'operator': '<=',
             'val': float(norm_locomotor),
-            'warn_val': float(norm_locomotor + 5.0),
-            'crit_val': float(norm_locomotor + 10.0),
+            'warn_val': float(warn_locomotor),
+            'crit_val': float(crit_locomotor),
             'current_num': float(locomotor_rate),
             'title': 'Болезни конечностей',
             'target': f"≤ {norm_locomotor:.1f}%",
             'current': f"{locomotor_rate}%",
             'progress_pct': prog_locomotor,
-            'status': 'success' if locomotor_rate <= norm_locomotor else 'warning',
-            'statusText': 'В норме' if locomotor_rate <= norm_locomotor else 'Контроль',
+            'status': 'success' if locomotor_rate <= norm_locomotor else ('warning' if locomotor_rate <= crit_locomotor else 'danger'),
+            'statusText': 'В норме' if locomotor_rate <= norm_locomotor else ('Контроль' if locomotor_rate <= crit_locomotor else 'Риск'),
             'note': 'Ортопедическая патология',
             'icon': 'bi-bandaid-fill'
         },
@@ -594,19 +736,20 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'key': 'norm_mastitis_disorders',
             'operator': '<=',
             'val': float(norm_mastitis),
-            'warn_val': float(norm_mastitis + 5.0),
-            'crit_val': float(norm_mastitis + 10.0),
+            'warn_val': float(warn_mastitis),
+            'crit_val': float(crit_mastitis),
             'current_num': float(mastitis_rate),
             'title': 'Маститы и патологии вымени',
             'target': f"≤ {norm_mastitis:.1f}%",
             'current': f"{mastitis_rate}%",
             'progress_pct': prog_mastitis,
-            'status': 'success' if mastitis_rate <= norm_mastitis else 'warning',
-            'statusText': 'В норме' if mastitis_rate <= norm_mastitis else 'Контроль',
+            'status': 'success' if mastitis_rate <= norm_mastitis else ('warning' if mastitis_rate <= crit_mastitis else 'danger'),
+            'statusText': 'В норме' if mastitis_rate <= norm_mastitis else ('Контроль' if mastitis_rate <= crit_mastitis else 'Риск'),
             'note': 'Инфекции молочной железы',
             'icon': 'bi-droplet-fill'
         }
     ]
+
     
     # 9. Динамика по месяцам за последние 12 месяцев
     twelve_months_ago = (now - timedelta(days=365)).strftime('%Y-%m-%d')
@@ -742,16 +885,71 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             
         if is_preg:
             pregnant_cows.append(c)
-            
-        is_stillborn = False
-        if c.get('is_stillborn') == 1:
-            is_stillborn = True
-        elif any(k in reason_lower for k in stillborn_keywords) or 'мертворожд' in age_grp_lower or 'аборт' in age_grp_lower:
-            is_stillborn = True
-            
-        if is_stillborn:
-            stillborn_cows.append(c)
-            
+    # Извлечение мертворождений из отдельной таблицы stillbirth_records
+    sb_where = ["event_date BETWEEN ? AND ?"]
+    sb_params = [start_date, end_date]
+    if user_type == 'farm' and farm_name:
+        sb_where.append("farm_name = ?")
+        sb_params.append(farm_name)
+    elif user_type == 'admin' and farm_name and farm_name != 'all':
+        sb_where.append("farm_name = ?")
+        sb_params.append(farm_name)
+
+    cursor.execute(f"SELECT * FROM stillbirth_records WHERE {' AND '.join(sb_where)}", sb_params)
+    period_stillborn_rows = [dict(r) for r in cursor.fetchall()]
+    # Детальная аналитика мертворождений из stillbirth_records
+    sb_sex_counts = {'Бычки': 0, 'Тёлочки': 0, 'Двойня': 0, 'Не определён': 0}
+    sb_mother_groups = {}
+    sb_causes = {}
+    total_fetus_weight = 0.0
+    total_gest_days = 0
+    sb_weight_cnt = 0
+    sb_days_cnt = 0
+
+    for r in period_stillborn_rows:
+        sx = r.get('fetus_sex') or 'Не определён'
+        if 'быч' in sx.lower(): sb_sex_counts['Бычки'] += 1
+        elif 'тёл' in sx.lower() or 'тел' in sx.lower(): sb_sex_counts['Тёлочки'] += 1
+        elif 'двойн' in sx.lower(): sb_sex_counts['Двойня'] += 1
+        else: sb_sex_counts['Не определён'] += 1
+
+        mg = r.get('mother_group') or 'Полновозрастные'
+        sb_mother_groups[mg] = sb_mother_groups.get(mg, 0) + 1
+
+        cs = r.get('cause') or 'Патология плода'
+        sb_causes[cs] = sb_causes.get(cs, 0) + 1
+
+        fw = float(r.get('fetus_weight') or 0.0)
+        if fw > 0:
+            total_fetus_weight += fw
+            sb_weight_cnt += 1
+
+        gd = int(r.get('gestation_days') or 0)
+        if gd > 0:
+            total_gest_days += gd
+            sb_days_cnt += 1
+
+    avg_fetus_weight = round(total_fetus_weight / max(sb_weight_cnt, 1), 1) if sb_weight_cnt > 0 else 25.0
+    avg_gest_days = round(total_gest_days / max(sb_days_cnt, 1)) if sb_days_cnt > 0 else 275
+
+    sb_causes_sorted = sorted(sb_causes.items(), key=lambda x: x[1], reverse=True)
+    sb_causes_labels = [x[0] for x in sb_causes_sorted[:6]]
+    sb_causes_data = [x[1] for x in sb_causes_sorted[:6]]
+
+    sb_mg_sorted = sorted(sb_mother_groups.items(), key=lambda x: x[1], reverse=True)
+    sb_mg_labels = [x[0] for x in sb_mg_sorted]
+    sb_mg_data = [x[1] for x in sb_mg_sorted]
+
+    stillborn_count = len(period_stillborn_rows)
+    term_stillborn_cnt = sum(1 for r in period_stillborn_rows if 'Мертворожд' in (r.get('event_type') or ''))
+    abortion_cnt = sum(1 for r in period_stillborn_rows if 'Аборт' in (r.get('event_type') or ''))
+
+    stillborn_reasons = {}
+    for r in period_stillborn_rows:
+        cause = r.get('cause') or 'Патология плода'
+        stillborn_reasons[cause] = stillborn_reasons.get(cause, 0) + 1
+    stillborn_reasons_list = [{'reason': k, 'count': v} for k, v in sorted(stillborn_reasons.items(), key=lambda x: x[1], reverse=True)]
+
     pregnant_count = len(pregnant_cows)
     adult_cows_total = sum(1 for c in period_cows if normalize_age_group(c.get('age_group'), c.get('lactation')) not in ['Телята (до 6 мес.)', 'Ремонтный молодняк (6–18 мес.)', 'Бычки на откорме'])
     pregnant_pct = round((pregnant_count / max(adult_cows_total, 1)) * 100, 1)
@@ -760,26 +958,19 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     gestation_vals = [c.get('gestation_days') for c in pregnant_cows if c.get('gestation_days') and c['gestation_days'] > 0]
     avg_gestation_months = round(sum(gestation_vals) / len(gestation_vals) / 30.0, 1) if gestation_vals else 6.5
     
-    stillborn_count = len(stillborn_cows)
-    stillborn_pct = round((stillborn_count / max(total_disposals, 1)) * 100, 1)
-    
-    stillborn_reasons = {}
-    for c in stillborn_cows:
-        r = c.get('reason') or 'Патология плода'
-        stillborn_reasons[r] = stillborn_reasons.get(r, 0) + 1
-    stillborn_reasons_list = [{'reason': k, 'count': v} for k, v in sorted(stillborn_reasons.items(), key=lambda x: x[1], reverse=True)]
+    stillborn_pct = round((stillborn_count / max(total_disposals + stillborn_count, 1)) * 100, 1)
     
     reproduction_by_farm = []
     for f in sorted_farms:
-        farm_name = f[0]
-        f_cows = [c for c in period_cows if (c.get('farm_name') or 'Не указана') == farm_name]
+        f_name = f[0]
+        f_cows = [c for c in period_cows if (c.get('farm_name') or 'Не указана') == f_name]
         f_preg_cows = [c for c in f_cows if c in pregnant_cows]
         f_preg_death = sum(1 for c in f_preg_cows if (c.get('category') or '').lower() == 'падёж')
         f_preg_cull = sum(1 for c in f_preg_cows if (c.get('category') or '').lower() != 'падёж')
         f_preg_loss = round(sum(estimate_cow_val(c) for c in f_preg_cows))
-        f_stillborn = sum(1 for c in f_cows if c in stillborn_cows)
+        f_stillborn = sum(1 for r in period_stillborn_rows if (r.get('farm_name') or 'Не указана') == f_name)
         reproduction_by_farm.append({
-            'farm_name': farm_name,
+            'farm_name': f_name,
             'total': len(f_cows),
             'pregnant_count': len(f_preg_cows),
             'pregnant_pct': round((len(f_preg_cows) / max(len(f_cows), 1)) * 100, 1),
@@ -787,7 +978,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'pregnant_culling': f_preg_cull,
             'pregnant_loss_byn': f_preg_loss,
             'stillborn_count': f_stillborn,
-            'stillborn_pct': round((f_stillborn / max(len(f_cows), 1)) * 100, 1)
+            'stillborn_pct': round((f_stillborn / max(len(f_cows) + f_stillborn, 1)) * 100, 1)
         })
         
     # Сроки стельности выбывших коров (без примешивания мертворождений)
@@ -843,7 +1034,19 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         'avg_gestation_months': avg_gestation_months,
         'stillborn_count': stillborn_count,
         'stillborn_pct': stillborn_pct,
+        'term_stillborn_cnt': term_stillborn_cnt,
+        'abortion_cnt': abortion_cnt,
+        'avg_fetus_weight': avg_fetus_weight,
+        'avg_gest_days': avg_gest_days,
         'stillborn_reasons': stillborn_reasons_list,
+        'stillbirth_profile': {
+            'causes_labels': sb_causes_labels,
+            'causes_data': sb_causes_data,
+            'mother_groups_labels': sb_mg_labels,
+            'mother_groups_data': sb_mg_data,
+            'sex_labels': list(sb_sex_counts.keys()),
+            'sex_data': list(sb_sex_counts.values())
+        },
         'by_farm': reproduction_by_farm,
         'stages': {
             'trimester_1': t1_count,
@@ -909,6 +1112,20 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'fresh_share_pct': round((fresh_disposals / max(total_disposals, 1)) * 100, 1),
             'avg_dim': avg_dim,
             'avg_lactation': avg_lact,
+            'avg_milk_yield': avg_milk_yield,
+            'high_yield_lost_count': high_yield_lost_count,
+            'high_yield_death_count': high_yield_death_count,
+            'unrecovered_cows_count': unrecovered_cows_count,
+            'unrecovered_cows_pct': unrecovered_pct,
+            'culled_live_weight_total': round(culled_live_weight_total),
+            'estimated_meat_revenue_byn': estimated_meat_revenue_byn,
+            'net_economic_loss_byn': net_economic_loss_byn,
+            'meat_price_per_kg': meat_price_per_kg,
+            'milk_price_per_kg': milk_price_per_kg,
+            'replacement_cost': replacement_cost,
+            'unrealized_milk_loss_byn': unrealized_milk_loss_byn,
+            'unrealized_milk_kg_total': round(unrealized_milk_kg_total),
+            'unrecovered_heifer_loss_byn': unrecovered_heifer_loss_byn,
             'total_loss_byn': round(total_loss_byn),
             'death_loss_byn': round(death_loss_byn),
             'culling_loss_byn': round(culling_loss_byn),
@@ -918,6 +1135,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         'scorecard': scorecard,
         'farm_matrix': farm_matrix,
         'category_analytics': category_analytics,
+        'pathology_by_dim': pathology_dim_list,
         'charts': {
             'categories': {
                 'labels': ['Падёж', 'Выбраковка', 'Санитарный брак'],
@@ -937,10 +1155,32 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
                 'culling_data': dim_curve_culling,
                 'total_data': [d + c for d, c in zip(dim_curve_death, dim_curve_culling)]
             },
+            'dim_comprehensive': {
+                'labels': lact_phase_labels,
+                'death_data': lact_phase_death,
+                'culling_data': lact_phase_culling,
+                'total_data': [d + c for d, c in zip(lact_phase_death, lact_phase_culling)]
+            },
+            'milk_productivity': {
+                'labels': milk_cohort_labels,
+                'death_data': milk_cohort_death,
+                'culling_data': milk_cohort_culling
+            },
             'lactation_numbers': {
                 'labels': lact_nums_labels,
                 'death_data': lact_num_death,
                 'culling_data': lact_num_culling
+            },
+            'longevity': {
+                'labels': lact_nums_labels,
+                'death_data': lact_num_death,
+                'culling_data': lact_num_culling
+            },
+            'seasonality': {
+                'labels': seasons_labels,
+                'death_data': seasons_death,
+                'culling_data': seasons_culling,
+                'total_data': [d + c for d, c in zip(seasons_death, seasons_culling)]
             },
             'lactation_phases': {
                 'labels': lact_phase_labels,

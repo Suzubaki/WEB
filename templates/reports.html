@@ -12,6 +12,7 @@
             </div>
             <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('generate_report') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="start_date" class="form-label fw-semibold">Начальная дата периода *</label>
@@ -93,6 +94,7 @@
                     <small class="text-muted">Формирует агрегированную таблицу с распределением по подразделениям и категориям.</small>
                 </div>
                 <form method="POST" action="{{ url_for('generate_original_excel_route') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-download"></i> Скачать сводку (.xlsx)
                     </button>

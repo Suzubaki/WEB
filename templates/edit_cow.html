@@ -12,6 +12,7 @@
             </div>
             <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('edit_cow', cow_id=cow.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="category" class="form-label fw-semibold">Категория выбытия *</label>
@@ -19,7 +20,6 @@
                                 <option value="падёж" {% if cow.category == 'падёж' %}selected{% endif %}>Падёж</option>
                                 <option value="выбраковка" {% if cow.category == 'выбраковка' %}selected{% endif %}>Выбраковка</option>
                                 <option value="санитарный" {% if cow.category == 'санитарный' %}selected{% endif %}>Санитарный брак</option>
-                                <option value="мертворождение" {% if cow.category == 'мертворождение' or cow.is_stillborn == 1 %}selected{% endif %}>Мертворождение / Аборт</option>
                             </select>
                         </div>
                         
@@ -51,7 +51,6 @@
                                 <option value="Полновозрастные коровы (2+ лакт.)" {% if cow.age_group == 'Полновозрастные коровы (2+ лакт.)' %}selected{% endif %}>Полновозрастные коровы (2+ лакт.)</option>
                                 <option value="Сухостойные коровы" {% if cow.age_group == 'Сухостойные коровы' or cow.age_group == 'Коровы сухостойные' %}selected{% endif %}>Сухостойные коровы</option>
                                 <option value="Бычки на откорме" {% if 'быч' in (cow.age_group or '').lower() %}selected{% endif %}>Бычки на откорме</option>
-                                <option value="Мертворождённые / Аборты" {% if cow.is_stillborn == 1 or 'мертворож' in (cow.age_group or '').lower() or 'аборт' in (cow.age_group or '').lower() %}selected{% endif %}>Мертворождённые / Аборты (внутриутробные потери)</option>
                             </select>
                         </div>
                         
@@ -94,31 +93,26 @@
                             <input type="number" step="0.01" class="form-control" id="book_value" name="book_value" min="0" value="{{ cow.book_value or '' }}" placeholder="руб.">
                         </div>
 
-                        <!-- Воспроизводство и статус выбытия стельных -->
-                        <div class="col-12 p-3 rounded bg-light border border-danger-subtle mt-2">
-                            <h6 class="fw-bold text-danger mb-1 d-flex align-items-center gap-2">
-                                <i class="bi bi-heartbreak-fill"></i> Статус на момент выбытия: стельность и потери плода
+                        <!-- Выбытие стельной коровы -->
+                        <div class="col-12 p-3 rounded bg-light border border-secondary-subtle mt-2">
+                            <h6 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                                <i class="bi bi-suit-heart-fill text-danger"></i> Стельность взрослой коровы
                             </h6>
-                            <small class="text-muted d-block mb-2">Отметьте, если выбывшая (павшая, сданная или выбракованная) корова была стельной на дату выбытия.</small>
-                            <div class="row g-3">
-                                <div class="col-md-5">
-                                    <div class="form-check mt-2">
+                            <small class="text-muted d-block mb-2">Отметьте, если взрослая корова или нетель на дату выбытия была стельной. Для регистрации гибели плода используйте отдельный <a href="{{ url_for('stillborn.stillborn_list') }}" class="text-danger fw-semibold">Журнал мертворождений и абортов</a>.</small>
+                            <div class="row g-3 align-items-center">
+                                <div class="col-md-6">
+                                    <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="is_pregnant" name="is_pregnant" value="1" {% if cow.is_pregnant == 1 %}checked{% endif %}>
                                         <label class="form-check-label fw-bold text-dark" for="is_pregnant">
-                                            <i class="bi bi-suit-heart-fill text-danger me-1"></i> Корова на момент выбытия была стельной
+                                            Корова на дату выбытия была стельной
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <label for="gestation_days" class="form-label fw-semibold mb-1 small">Срок стельности (дней)</label>
-                                    <input type="number" class="form-control form-control-sm" id="gestation_days" name="gestation_days" min="0" max="300" value="{{ cow.gestation_days or '' }}" placeholder="Напр. 180 дн.">
-                                </div>
                                 <div class="col-md-4">
-                                    <div class="form-check mt-2">
-                                        <input class="form-check-input" type="checkbox" id="is_stillborn" name="is_stillborn" value="1" {% if cow.is_stillborn == 1 %}checked{% endif %}>
-                                        <label class="form-check-label fw-semibold text-danger" for="is_stillborn">
-                                            <i class="bi bi-x-circle-fill me-1"></i> Мертворождённый телёнок / Аборт
-                                        </label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Срок стельности:</span>
+                                        <input type="number" class="form-control" id="gestation_days" name="gestation_days" min="0" max="300" value="{{ cow.gestation_days or '' }}" placeholder="дней">
+                                        <span class="input-group-text">дн.</span>
                                     </div>
                                 </div>
                             </div>
@@ -154,7 +148,7 @@ $(document).ready(function() {
         var $badge = $('#lactationPhaseBadge');
         
         if (grp.indexOf('телят') !== -1 || grp.indexOf('молодняк') !== -1 || grp.indexOf('бычки') !== -1) {
-            $badge.html('<span class="badge bg-success-subtle text-success border border-success-subtle">Молодняк (нелакирующее)</span>');
+            $badge.html('<span class="badge bg-success-subtle text-success border border-success-subtle">Молодняк (нелактирующее)</span>');
             return;
         } else if (grp.indexOf('нетел') !== -1) {
             $badge.html('<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Нетели</span>');
@@ -182,50 +176,9 @@ $(document).ready(function() {
         }
     }
 
-    function syncStillbornState() {
-        var isStill = $('#is_stillborn').is(':checked') ||
-                      ($('#age_group').val() || '').indexOf('Мертворожд') !== -1 ||
-                      $('#category').val() === 'мертворождение';
-
-        if (isStill) {
-            if ($('#category').val() !== 'мертворождение') {
-                $('#category').val('мертворождение');
-                loadReasons('мертворождение', null);
-            }
-            if (($('#age_group').val() || '').indexOf('Мертворожд') === -1) {
-                $('#age_group').val('Мертворождённые / Аборты');
-            }
-            if (!$('#is_stillborn').is(':checked')) {
-                $('#is_stillborn').prop('checked', true);
-            }
-            $('#lactation_days').val('').prop('disabled', true);
-            $('#lactation').val('').prop('disabled', true);
-            $('#milk_yield').val('').prop('disabled', true);
-            $('#is_pregnant').prop('checked', false).prop('disabled', true);
-            $('#gestation_days').val('').prop('disabled', true);
-            $('#lactationPhaseBadge').html('<span class="badge text-white" style="background-color: #6f42c1;"><i class="bi bi-x-circle-fill"></i> Плод (без лактации)</span>');
-        } else {
-            $('#lactation_days').prop('disabled', false);
-            $('#lactation').prop('disabled', false);
-            $('#milk_yield').prop('disabled', false);
-            $('#is_pregnant').prop('disabled', false);
-            $('#gestation_days').prop('disabled', false);
-            updateLactationPhase();
-        }
-    }
-
-    $('#age_group').change(syncStillbornState);
+    $('#age_group').change(updateLactationPhase);
     $('#lactation_days').on('input', updateLactationPhase);
-    $('#is_stillborn').change(function() {
-        if ($(this).is(':checked') && $('#category').val() !== 'мертворождение') {
-            $('#category').val('мертворождение');
-            loadReasons('мертворождение', null);
-        } else if (!$(this).is(':checked') && $('#category').val() === 'мертворождение') {
-            $('#category').val('выбраковка');
-            loadReasons('выбраковка', null);
-        }
-        syncStillbornState();
-    });
+    updateLactationPhase();
 
     function loadReasons(category, selectedReason) {
         if (!category) return;
@@ -252,17 +205,9 @@ $(document).ready(function() {
     loadReasons(currentCat, currentReason);
 
     $('#category').change(function() {
-        if ($(this).val() === 'мертворождение') {
-            $('#is_stillborn').prop('checked', true);
-            $('#age_group').val('Мертворождённые / Аборты');
-        } else if ($(this).val() !== 'мертворождение' && $('#is_stillborn').is(':checked')) {
-            $('#is_stillborn').prop('checked', false);
-        }
         loadReasons($(this).val(), null);
-        syncStillbornState();
     });
-
-    syncStillbornState();
 });
 </script>
 {% endblock %}
+

@@ -11,6 +11,7 @@
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('manage_reasons') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="category" class="form-label fw-semibold">Категория *</label>
                         <select class="form-select" id="category" name="category" required>
@@ -72,11 +73,13 @@
                                 </td>
                                 <td class="text-end">
                                     <form method="POST" action="{{ url_for('toggle_reason', reason_id=r.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-secondary" title="Скрыть / Включить">
                                             <i class="bi {% if r.is_active == 1 %}bi-eye-slash{% else %}bi-eye{% endif %}"></i>
                                         </button>
                                     </form>
                                     <form method="POST" action="{{ url_for('delete_reason', reason_id=r.id) }}" class="d-inline" onsubmit="return confirm('Удалить эту причину из справочника?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">
                                             <i class="bi bi-trash"></i>
                                         </button>

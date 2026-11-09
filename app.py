@@ -14,11 +14,18 @@ from routes import (
     cows_bp,
     reports_bp,
     admin_bp,
-    api_bp
+    api_bp,
+    stillborn_bp
 )
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Настройки и инициализация CSRF-защиты (Flask-WTF)
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect(app)
 
 # Инициализация Flask-SQLAlchemy и Flask-Migrate
 try:
@@ -115,6 +122,8 @@ app.register_blueprint(cows_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(api_bp)
+app.register_blueprint(stillborn_bp)
+
 
 # -------------------- ЗАЩИТА ОТ DDOS И ПЕРЕГРУЗКИ СЕРВЕРА --------------------
 _ip_requests = {}
@@ -158,7 +167,21 @@ def check_rate_limit(tracker, ip, max_reqs, window_sec, burst_limit=None, burst_
 
 @app.before_request
 def anti_ddos_guard():
-    # Отключена блокировка 429 по требованию пользователя для бесперебойной работы сайта
+    # Пропускаем статические файлы и безопасные GET-запросы
+    if request.method not in ['POST', 'PUT', 'DELETE']:
+        return None
+        
+    client_ip = get_client_ip()
+    
+    # Исключение для локального тестирования и мониторинга
+    if client_ip in ('127.0.0.1', '::1') and not os.environ.get('ENABLE_LOCAL_RATELIMIT'):
+        return None
+
+    # Ограничение для изменяющих POST-запросов: до 60 запросов в минуту на IP
+    allowed, wait_sec = check_rate_limit(_ip_requests, client_ip, max_reqs=60, window_sec=60, burst_limit=20, burst_window=5, block_sec=30)
+    if not allowed:
+        return Response(f"429 Too Many Requests: Превышен лимит запросов. Подождите {wait_sec} сек.", status=429, mimetype="text/plain; charset=utf-8")
+        
     return None
 
 @app.after_request
@@ -240,7 +263,13 @@ def override_url_for():
             'seed_test_data': 'admin.seed_test_data',
             'pricing': 'admin.pricing',
             'get_farms': 'api.get_farms',
-            'get_reasons': 'api.get_reasons'
+            'get_reasons': 'api.get_reasons',
+            'stillborn': 'stillborn.stillborn_list',
+            'stillborn_list': 'stillborn.stillborn_list',
+            'add_stillborn': 'stillborn.add_stillborn',
+            'edit_stillborn': 'stillborn.edit_stillborn',
+            'delete_stillborn': 'stillborn.delete_stillborn',
+            'export_stillborn_excel': 'stillborn.export_stillborn_excel'
         }
         resolved = aliases.get(endpoint_name, endpoint_name)
         try:
@@ -261,5 +290,7 @@ if __name__ == '__main__':
     init_db()
     from create_users import create_default_users
     create_default_users()
+    port = int(os.environ.get('APP_PORT', 3000))
     is_debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
     app.run(host='0.0.0.0', port=3000, debug=is_debug)
+

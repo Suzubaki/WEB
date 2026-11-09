@@ -220,8 +220,8 @@ def delete_user(user_id):
     if user:
         conn = get_db_connection()
         cursor = conn.cursor()
-        if user.user_type == 'farm' and user.farm_name:
-            cursor.execute('DELETE FROM cows WHERE farm_name = ?', (user.farm_name,))
+        # Безопасное удаление: не удаляем записи о коровах каскадно,
+        # чтобы сохранить исторические акты и аналитику хозяйства
         cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
         conn.commit()
         conn.close()
@@ -232,11 +232,11 @@ def delete_user(user_id):
             action='DELETE_USER',
             entity_type='USER',
             entity_id=user_id,
-            details=f"Удален пользователь {user.username} ({user.user_type})",
+            details=f"Удален пользователь {user.username} ({user.user_type}). Записи выбытия скота сохранены.",
             user_id=session.get('user_id'),
             ip_address=request.remote_addr
         )
-        flash(f'Пользователь {user.username} успешно удален', 'success')
+        flash(f'Пользователь {user.username} успешно удален (исторические записи фермы сохранены)', 'success')
     else:
         flash('Пользователь не найден', 'danger')
         

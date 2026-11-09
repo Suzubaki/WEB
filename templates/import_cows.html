@@ -25,6 +25,7 @@
                 </div>
 
                 <form method="POST" action="{{ url_for('import_cows') }}" enctype="multipart/form-data" class="mt-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-4">
                         <label for="file" class="form-label fw-bold">Выберите файл для импорта (.xlsx, .csv):</label>
                         <input class="form-control form-control-lg" type="file" id="file" name="file" accept=".xlsx,.xls,.csv" required>

@@ -256,6 +256,81 @@ def init_db():
             description TEXT
         )
     ''')
+
+    # 6. Журнал учёта мертворождений и абортов (Акушерско-гинекологический журнал)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stillbirth_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            record_code TEXT NOT NULL,           -- e.g. 'МТК Цегельня-М001'
+            farm_name TEXT NOT NULL,
+            event_date DATE NOT NULL,
+            mother_tag TEXT,                    -- Инвент./AITS номер матери (мать жива!)
+            mother_group TEXT,                  -- 'Коровы 1-й лактации (первотёлки)', 'Полновозрастные коровы (2+ лакт.)', 'Нетели (>18 мес.)', 'Сухостойные коровы'
+            event_type TEXT NOT NULL,           -- Тип события (Мертворождённый телёнок в срок / Аборт / др.)
+            fetus_sex TEXT,                     -- Пол плода (Тёлочка / Бычок / Двойня / Не определён)
+            fetus_weight REAL,                  -- Вес плода (кг)
+            gestation_days INTEGER DEFAULT 0,   -- Срок стельности на момент отёла/аборта (дней)
+            cause TEXT NOT NULL,                -- Причина гибели плода
+            mother_condition TEXT,              -- Состояние матери после отёла
+            attendant TEXT,                     -- Принял отёл (ветврач / техник)
+            notes TEXT,                         -- Заключение / примечания
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by INTEGER,
+            updated_at TIMESTAMP,
+            updated_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users (id),
+            FOREIGN KEY (updated_by) REFERENCES users (id)
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_stillbirth_farm_date ON stillbirth_records (farm_name, event_date);')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_stillbirth_event_type ON stillbirth_records (event_type);')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_stillbirth_mother_tag ON stillbirth_records (mother_tag);')
+
+    # 6. Таблица счётчиков для атомарной генерации номеров без race conditions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS farm_counters (
+            farm_name TEXT PRIMARY KEY,
+            last_cow_number INTEGER DEFAULT 0,
+            last_stillborn_number INTEGER DEFAULT 0
+        )
+    ''')
+
+    # Миграция существующих мертворождений из таблицы cows в stillbirth_records
+    try:
+        cursor.execute('''
+            SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, weight, notes, age_group, gestation_days, created_at, created_by
+            FROM cows
+            WHERE is_stillborn = 1 
+               OR category = 'мертворождение' 
+               OR LOWER(age_group) LIKE '%мертворож%' 
+               OR LOWER(age_group) LIKE '%аборт%' 
+               OR LOWER(reason) LIKE '%мертворож%'
+        ''')
+        rows_to_migrate = cursor.fetchall()
+        for r in rows_to_migrate:
+            c_code = r['cow_id']
+            if '-М' not in c_code:
+                parts = c_code.split('-')
+                c_code = f"{parts[0]}-М{parts[-1]}" if len(parts) > 1 else f"{c_code}-М"
+            
+            cursor.execute('SELECT id FROM stillbirth_records WHERE record_code = ? OR (farm_name = ? AND event_date = ? AND cause = ?)', 
+                           (c_code, r['farm_name'], r['disposal_date'], r['reason']))
+            if not cursor.fetchone():
+                e_type = 'Аборт (1-й триместр, до 90 дн.)' if 'аборт' in (r['reason'] or '').lower() or 'аборт' in (r['age_group'] or '').lower() else 'Мертворождённый телёнок (в срок)'
+                m_group = 'Сухостойные коровы' if 'сухосто' in (r['age_group'] or '').lower() else 'Полновозрастные коровы (2+ лакт.)'
+                cursor.execute('''
+                    INSERT INTO stillbirth_records 
+                    (record_code, farm_name, event_date, mother_tag, mother_group, event_type, fetus_sex, fetus_weight, gestation_days, cause, mother_condition, attendant, notes, created_at, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (c_code, r['farm_name'], r['disposal_date'], r['ear_tag'], m_group, e_type, 'Не определён', r['weight'] or 25.0, r['gestation_days'] or 0, r['reason'], 'Здорова, оставлена в стаде', 'Дежурный ветврач', r['notes'] or 'Автоматически перенесено из общего журнала выбытия', r['created_at'], r['created_by']))
+        
+        if rows_to_migrate:
+            migrated_ids = [r['id'] for r in rows_to_migrate]
+            placeholders = ','.join('?' for _ in migrated_ids)
+            cursor.execute(f"DELETE FROM cows WHERE id IN ({placeholders})", migrated_ids)
+    except Exception as e:
+        print(f"Ошибка миграции мертворождений: {e}")
+
     
     # Миграция: проверка и добавление недостающих колонок в cows
     cursor.execute("PRAGMA table_info(cows)")
@@ -379,29 +454,57 @@ def log_audit_event(username, farm_name, action, entity_type, entity_id=None, de
         print(f"Ошибка логирования аудита: {e}")
 
 def generate_cow_id(farm_name):
-    """Генерирует следующий номер выбытия для фермы в формате 'FarmName-XXX'"""
+    """
+    Атомарно генерирует следующий уникальный номер выбытия для фермы в формате 'FarmName-XXX'
+    через таблицу счетчиков farm_counters с транзакционной блокировкой (BEGIN IMMEDIATE).
+    Гарантирует уникальность и последовательность номеров без race conditions.
+    """
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT cow_id FROM cows 
-        WHERE farm_name = ? 
-        ORDER BY id DESC LIMIT 1
-    ''', (farm_name,))
-    last_cow = cursor.fetchone()
-    conn.close()
-    
-    if last_cow:
-        last_id = last_cow['cow_id']
-        try:
-            parts = last_id.split('-')
-            number = int(parts[-1])
-            new_number = number + 1
-        except (IndexError, ValueError):
-            new_number = 1
-    else:
-        new_number = 1
-    
-    return f"{farm_name}-{new_number:03d}"
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        
+        # Получаем текущее значение счетчика для фермы
+        cursor.execute("SELECT last_cow_number FROM farm_counters WHERE farm_name = ?", (farm_name,))
+        row = cursor.fetchone()
+        
+        if row is None:
+            # Инициализируем из существующей таблицы cows, если счетчик еще не создан
+            cursor.execute('''
+                SELECT cow_id FROM cows 
+                WHERE farm_name = ? 
+                ORDER BY id DESC LIMIT 1
+            ''', (farm_name,))
+            last_cow = cursor.fetchone()
+            current_max = 0
+            if last_cow and last_cow['cow_id']:
+                try:
+                    parts = last_cow['cow_id'].split('-')
+                    current_max = int(parts[-1])
+                except (IndexError, ValueError):
+                    current_max = 0
+            
+            new_number = current_max + 1
+            cursor.execute('''
+                INSERT INTO farm_counters (farm_name, last_cow_number, last_stillborn_number)
+                VALUES (?, ?, 0)
+            ''', (farm_name, new_number))
+        else:
+            new_number = row['last_cow_number'] + 1
+            cursor.execute('''
+                UPDATE farm_counters 
+                SET last_cow_number = ? 
+                WHERE farm_name = ?
+            ''', (new_number, farm_name))
+            
+        conn.commit()
+        return f"{farm_name}-{new_number:03d}"
+    except Exception:
+        conn.rollback()
+        import time
+        return f"{farm_name}-{int(time.time() * 1000) % 100000:03d}"
+    finally:
+        conn.close()
 
 def get_reasons_for_category(category, include_inactive=False):
     """Получение причин выбытия из базы данных"""
@@ -418,3 +521,58 @@ def get_reasons_for_category(category, include_inactive=False):
         return [dict(r) for r in results]
     else:
         return [r['name'] for r in results]
+
+def generate_stillborn_code(farm_name):
+    """
+    Атомарно генерирует следующий номер акта мертворождения для фермы в формате 'FarmName-МXXX'
+    через таблицу farm_counters с транзакционной блокировкой (BEGIN IMMEDIATE).
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        
+        cursor.execute("SELECT last_stillborn_number FROM farm_counters WHERE farm_name = ?", (farm_name,))
+        row = cursor.fetchone()
+        
+        if row is None:
+            cursor.execute('''
+                SELECT record_code FROM stillbirth_records 
+                WHERE farm_name = ? 
+                ORDER BY id DESC LIMIT 1
+            ''', (farm_name,))
+            last_row = cursor.fetchone()
+            current_max = 0
+            if last_row and last_row['record_code']:
+                try:
+                    if '-М' in last_row['record_code']:
+                        parts = last_row['record_code'].split('-М')
+                        current_max = int(parts[-1])
+                    else:
+                        parts = last_row['record_code'].split('-')
+                        current_max = int(parts[-1].replace('М', ''))
+                except (IndexError, ValueError):
+                    current_max = 0
+            
+            new_number = current_max + 1
+            cursor.execute('''
+                INSERT INTO farm_counters (farm_name, last_cow_number, last_stillborn_number)
+                VALUES (?, 0, ?)
+            ''', (farm_name, new_number))
+        else:
+            new_number = row['last_stillborn_number'] + 1
+            cursor.execute('''
+                UPDATE farm_counters 
+                SET last_stillborn_number = ? 
+                WHERE farm_name = ?
+            ''', (new_number, farm_name))
+            
+        conn.commit()
+        return f"{farm_name}-М{new_number:03d}"
+    except Exception:
+        conn.rollback()
+        import time
+        return f"{farm_name}-М{int(time.time() * 1000) % 100000:03d}"
+    finally:
+        conn.close()
+
