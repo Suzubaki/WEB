@@ -36,6 +36,15 @@ except ImportError:
     db = None
     migrate = None
 
+# Автоматическая инициализация структуры и миграций БД (необходимо для WSGI / PythonAnywhere)
+try:
+    with app.app_context():
+        init_db()
+        from create_users import create_default_users
+        create_default_users()
+except Exception as _init_err:
+    print(f"Предупреждение при инициализации базы данных: {_init_err}")
+
 # Векторный логотип ОАО «Новая Припять» (Официальный золотой колос)
 LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
   <defs>

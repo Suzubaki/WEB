@@ -124,16 +124,32 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         
     where_clause = "WHERE " + " AND ".join(where_parts)
     
-    # 2. Выборка строк за выбранный период
-    cursor.execute(f'''
-        SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
-               lactation, lactation_days, lactation_phase, weight, age_group, milk_yield, book_value,
-               is_pregnant, gestation_days, is_stillborn
-        FROM cows
-        {where_clause}
-        ORDER BY disposal_date DESC, id DESC
-    ''', params)
-    period_cows = [dict(r) for r in cursor.fetchall()]
+    # 2. Выборка строк за выбранный период (с авто-миграцией при устаревшей схеме БД)
+    try:
+        cursor.execute(f'''
+            SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
+                   lactation, lactation_days, lactation_phase, weight, age_group, milk_yield, book_value,
+                   is_pregnant, gestation_days, is_stillborn
+            FROM cows
+            {where_clause}
+            ORDER BY disposal_date DESC, id DESC
+        ''', params)
+        period_cows = [dict(r) for r in cursor.fetchall()]
+    except sqlite3.OperationalError as op_err:
+        if 'no such column' in str(op_err):
+            from database import init_db
+            init_db()
+            cursor.execute(f'''
+                SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
+                       lactation, lactation_days, lactation_phase, weight, age_group, milk_yield, book_value,
+                       is_pregnant, gestation_days, is_stillborn
+                FROM cows
+                {where_clause}
+                ORDER BY disposal_date DESC, id DESC
+            ''', params)
+            period_cows = [dict(r) for r in cursor.fetchall()]
+        else:
+            raise
     
     # 3. Агрегация по категориям за период и экономический баланс
     category_counts = {'падёж': 0, 'выбраковка': 0, 'санитарный': 0}
