@@ -255,7 +255,7 @@ def sync_current_user_session():
     if 'user_id' in session:
         now = time.time()
         last_sync = session.get('_user_sync_ts', 0)
-        if now - last_sync < 15:
+        if now - last_sync < 60:
             return None
         user = get_user_by_id(session['user_id'])
         if user:
