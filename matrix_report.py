@@ -6,7 +6,7 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime
 from database import get_db_connection, get_reasons_for_category
 
-def generate_matrix_excel_report(category, start_date=None, end_date=None):
+def generate_matrix_excel_report(category, start_date=None, end_date=None, farm_filter=None):
     """
     Генерирует Excel отчет в виде матрицы:
     Строки - причины выбытия для указанной категории (из справочника БД)
@@ -40,15 +40,18 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL ORDER BY farm_name')
-    farms = [row['farm_name'] for row in cursor.fetchall()]
-    
-    if not farms:
-        cursor.execute('SELECT DISTINCT farm_name FROM users WHERE farm_name IS NOT NULL AND farm_name != "" ORDER BY farm_name')
+    if farm_filter and farm_filter != 'all':
+        farms = [farm_filter]
+    else:
+        cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL ORDER BY farm_name')
         farms = [row['farm_name'] for row in cursor.fetchall()]
-    
-    if not farms:
-        farms = ['Ферма 1']
+
+        if not farms:
+            cursor.execute('SELECT DISTINCT farm_name FROM users WHERE farm_name IS NOT NULL AND farm_name != "" ORDER BY farm_name')
+            farms = [row['farm_name'] for row in cursor.fetchall()]
+
+        if not farms:
+            farms = ['Ферма 1']
     
     # Заголовок
     ws.merge_cells('A1:G1')
@@ -57,7 +60,8 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None):
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     
     ws.merge_cells('A2:G2')
-    ws['A2'] = f"Категория: {category.upper()}" + (f" | Период: {start_date} — {end_date}" if start_date and end_date else "")
+    farm_subtitle = f" | Ферма: {farm_filter}" if farm_filter and farm_filter != 'all' else ""
+    ws['A2'] = f"Категория: {category.upper()}{farm_subtitle}" + (f" | Период: {start_date} — {end_date}" if start_date and end_date else "")
     ws['A2'].font = Font(name='Arial', size=10, italic=True)
     ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
     
@@ -93,16 +97,19 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None):
     cell.border = thin_border
     
     # 3. Единый оптимизированный запрос для агрегации данных матрицы (вместо N*M запросов)
-    date_filter = ""
+    extra_filter = ""
     sql_params = [category]
     if start_date and end_date:
-        date_filter = "AND disposal_date BETWEEN ? AND ?"
+        extra_filter += " AND disposal_date BETWEEN ? AND ?"
         sql_params.extend([start_date, end_date])
+    if farm_filter and farm_filter != 'all':
+        extra_filter += " AND farm_name = ?"
+        sql_params.append(farm_filter)
 
     cursor.execute(f'''
         SELECT reason, farm_name, COUNT(*) as cnt
         FROM cows
-        WHERE category = ? {date_filter}
+        WHERE category = ? {extra_filter}
         GROUP BY reason, farm_name
     ''', sql_params)
     

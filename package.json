@@ -1,8 +1,31 @@
 {
   "name": "livestock-disposal-management",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "python3 app.py",
-    "start": "python3 app.py"
+    "dev": "bash run_app.sh",
+    "build": "python3 -m py_compile app.py",
+    "start": "bash run_app.sh",
+    "lint": "python3 -m py_compile app.py"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.5.1",
+    "cookie-parser": "^1.4.7",
+    "ejs": "^6.0.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "setimmediate": "^1.0.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.19.0",
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

@@ -5,7 +5,19 @@ import shutil
 from datetime import datetime
 from config import Config
 
+import threading
+
 _indexes_checked = False
+_wal_checked_for_db = None
+_settings_cache = {}
+_settings_cache_db = None
+_settings_lock = threading.Lock()
+
+def invalidate_settings_cache():
+    global _settings_cache, _settings_cache_db
+    with _settings_lock:
+        _settings_cache = {}
+        _settings_cache_db = None
 
 def _ensure_indexes(conn):
     try:
@@ -22,22 +34,36 @@ def _ensure_indexes(conn):
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_category_date_id ON cows (category, disposal_date DESC, id DESC);')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_farm_name ON cows (farm_name);')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_cows_reason ON cows (reason);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs (action, created_at DESC);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_disposal_reasons_cat_active ON disposal_reasons (category, is_active, name);')
         cursor.close()
     except Exception:
         pass
 
+def _sqlite_lower(val):
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val.lower()
+    return str(val).lower()
+
 def get_db_connection():
     """Создает оптимизированное соединение с базой данных SQLite с поддержкой WAL-режима"""
-    global _indexes_checked
+    global _indexes_checked, _wal_checked_for_db
     conn = sqlite3.connect(Config.DATABASE, timeout=10.0)
     conn.row_factory = sqlite3.Row  # Позволяет обращаться к колонкам по имени
+    conn.create_function("LOWER", 1, _sqlite_lower)
 
-    # Включение WAL-режима и тонкая настройка производительности SQLite
     cursor = conn.cursor()
-    cursor.execute('PRAGMA journal_mode=WAL;')       # Параллельное чтение без блокировки при записи
-    cursor.execute('PRAGMA synchronous=NORMAL;')     # Снижение нагрузки на диск при сохранении надежности в WAL
-    cursor.execute('PRAGMA cache_size=-10000;')      # Выделение ~10 МБ RAM под кэш страниц
-    cursor.execute('PRAGMA busy_timeout=5000;')      # Ожидание освобождения блокировки до 5 секунд
+    if _wal_checked_for_db != Config.DATABASE:
+        cursor.execute('PRAGMA journal_mode=WAL;')
+        _wal_checked_for_db = Config.DATABASE
+        _indexes_checked = False
+    cursor.execute('PRAGMA synchronous=NORMAL;')
+    cursor.execute('PRAGMA temp_store=MEMORY;')
+    cursor.execute('PRAGMA cache_size=-10000;')
+    cursor.execute('PRAGMA busy_timeout=5000;')
     cursor.close()
 
     if not _indexes_checked:
@@ -404,14 +430,29 @@ def init_db():
     # Создание и оптимизация индексов
     optimize_database_indexes()
 
-def get_setting(key, default=None):
-    """Получение значения настройки из БД"""
+def get_all_settings():
+    """Получение всех настроек в виде словаря (с кэшированием в памяти процесса)"""
+    global _settings_cache, _settings_cache_db
+    with _settings_lock:
+        if _settings_cache and _settings_cache_db == Config.DATABASE:
+            return dict(_settings_cache)
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT value FROM system_settings WHERE key = ?', (key,))
-    row = cursor.fetchone()
+    cursor.execute('SELECT key, value FROM system_settings')
+    rows = cursor.fetchall()
     conn.close()
-    return row['value'] if row else default
+    result = {r['key']: r['value'] for r in rows}
+
+    with _settings_lock:
+        _settings_cache = result
+        _settings_cache_db = Config.DATABASE
+        return dict(_settings_cache)
+
+def get_setting(key, default=None):
+    """Получение значения настройки из БД (через быстрый кэш настроек)"""
+    settings = get_all_settings()
+    return settings.get(key, default)
 
 def set_setting(key, value, description=None):
     """Сохранение или обновление настройки в БД"""
@@ -429,15 +470,7 @@ def set_setting(key, value, description=None):
         ''', (key, str(value)))
     conn.commit()
     conn.close()
-
-def get_all_settings():
-    """Получение всех настроек в виде словаря"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM system_settings')
-    rows = cursor.fetchall()
-    conn.close()
-    return {r['key']: r['value'] for r in rows}
+    invalidate_settings_cache()
 
 def log_audit_event(username, farm_name, action, entity_type, entity_id=None, details=None, user_id=None, ip_address=None):
     """Запись события в журнал аудита"""

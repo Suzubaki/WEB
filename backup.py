@@ -1,11 +1,11 @@
 # backup.py - Модуль резервного копирования и восстановления базы данных
 import os
-import io
+import tempfile
 import shutil
 import sqlite3
 from datetime import datetime
 from config import Config
-from database import log_audit_event, init_db
+from database import log_audit_event, init_db, invalidate_settings_cache
 
 def create_db_backup_bytes():
     """
@@ -15,26 +15,24 @@ def create_db_backup_bytes():
     source_db_path = Config.DATABASE
     if not os.path.exists(source_db_path):
         init_db()
-        
+
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"agro_backup_RB_{timestamp}.sqlite"
-    
-    # Используем sqlite3 backup API для гарантии отсутствия блокировок
-    src = sqlite3.connect(source_db_path)
-    mem_db = sqlite3.connect(':memory:')
-    src.backup(mem_db)
-    src.close()
-    
-    # Сохраняем в байты
-    backup_stream = io.BytesIO()
-    for line in mem_db.iterdump():
-        backup_stream.write(f'{line}\n'.encode('utf-8'))
-    mem_db.close()
-    
-    # Также можно передать сам сырой файл БД
-    with open(source_db_path, 'rb') as f:
-        file_bytes = f.read()
-        
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix='.sqlite')
+    os.close(tmp_fd)
+    try:
+        src = sqlite3.connect(source_db_path)
+        dst = sqlite3.connect(tmp_path)
+        src.backup(dst)
+        dst.close()
+        src.close()
+        with open(tmp_path, 'rb') as f:
+            file_bytes = f.read()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
     return file_bytes, filename
 
 def restore_db_from_upload(upload_file, username=None, ip_address=None):
@@ -93,6 +91,7 @@ def restore_db_from_upload(upload_file, username=None, ip_address=None):
         
         # Применяем миграции если файл был из старой версии
         init_db()
+        invalidate_settings_cache()
         
         log_audit_event(
             username=username or 'Admin',

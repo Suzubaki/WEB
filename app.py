@@ -1,4 +1,5 @@
 # app.py - Главная точка входа и фабрика приложения Flask
+import gzip
 import os
 import time
 from flask import Flask, session, send_file, Response, url_for, request, jsonify
@@ -174,10 +175,13 @@ def check_rate_limit(tracker, ip, max_reqs, window_sec, burst_limit=None, burst_
     tracker[ip].append(now)
     return True, 0
 
+_COMPRESSIBLE_PREFIXES = ('text/', 'application/json', 'application/javascript', 'image/svg+xml')
+_STATIC_CACHE_PREFIXES = ('/static/', '/img/', '/favicon', '/logo.')
+
 @app.before_request
 def anti_ddos_guard():
     # Пропускаем статические файлы и безопасные GET-запросы
-    if request.method not in ['POST', 'PUT', 'DELETE']:
+    if request.method not in ('POST', 'PUT', 'DELETE') or request.path.startswith(_STATIC_CACHE_PREFIXES):
         return None
         
     client_ip = get_client_ip()
@@ -185,6 +189,13 @@ def anti_ddos_guard():
     # Исключение для локального тестирования и мониторинга
     if client_ip in ('127.0.0.1', '::1') and not os.environ.get('ENABLE_LOCAL_RATELIMIT'):
         return None
+
+    # Периодическая очистка устаревших IP-записей, чтобы словарь не рос бесконечно
+    if len(_ip_requests) > 500:
+        cutoff = time.time() - 60
+        stale_ips = [k for k, ts_list in _ip_requests.items() if not ts_list or ts_list[-1] < cutoff]
+        for k in stale_ips:
+            del _ip_requests[k]
 
     # Ограничение для изменяющих POST-запросов: до 60 запросов в минуту на IP
     allowed, wait_sec = check_rate_limit(_ip_requests, client_ip, max_reqs=60, window_sec=60, burst_limit=20, burst_window=5, block_sec=30)
@@ -202,6 +213,30 @@ def add_security_headers(response):
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     if 'Server' in response.headers:
         del response.headers['Server']
+
+    if request.path.startswith(_STATIC_CACHE_PREFIXES) and response.status_code == 200:
+        response.headers['Cache-Control'] = 'public, max-age=86400'
+
+    # Gzip-сжатие HTML/JSON/SVG ответов >= 1 КБ при поддержке браузером
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    mimetype = (response.mimetype or '').lower()
+    if (
+        'gzip' in accept_encoding.lower()
+        and response.status_code == 200
+        and not response.direct_passthrough
+        and 'Content-Encoding' not in response.headers
+        and any(mimetype.startswith(p) for p in _COMPRESSIBLE_PREFIXES)
+    ):
+        data = response.get_data()
+        if len(data) >= 1024:
+            compressed = gzip.compress(data, compresslevel=5)
+            if len(compressed) < len(data):
+                response.set_data(compressed)
+                response.headers['Content-Encoding'] = 'gzip'
+                response.headers['Content-Length'] = str(len(compressed))
+                response.headers.add('Vary', 'Accept-Encoding')
+                response.headers.pop('ETag', None)
+
     return response
 
 @app.errorhandler(429)
@@ -212,15 +247,22 @@ def ratelimit_error(e):
 def payload_too_large(e):
     return Response("413 Request Entity Too Large: Размер отправленного запроса превышает допустимый лимит безопасности.", status=413, mimetype="text/plain; charset=utf-8")
 
-# Синхронизация данных пользователя в сессии перед каждым запросом
+# Синхронизация данных пользователя в сессии (с троттлингом 15 сек и пропуском статики)
 @app.before_request
 def sync_current_user_session():
+    if request.path.startswith(_STATIC_CACHE_PREFIXES):
+        return None
     if 'user_id' in session:
+        now = time.time()
+        last_sync = session.get('_user_sync_ts', 0)
+        if now - last_sync < 15:
+            return None
         user = get_user_by_id(session['user_id'])
         if user:
             session['farm_name'] = user.farm_name
             session['username'] = user.username
             session['user_type'] = user.user_type
+            session['_user_sync_ts'] = now
 
 # Обратная совместимость и безопасность вызовов url_for в шаблонах
 @app.context_processor
@@ -301,5 +343,5 @@ if __name__ == '__main__':
     create_default_users()
     port = int(os.environ.get('APP_PORT', 3000))
     is_debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
-    app.run(host='0.0.0.0', port=3000, debug=is_debug)
+    app.run(host='0.0.0.0', port=port, debug=is_debug, threaded=True)
 
