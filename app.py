@@ -27,10 +27,8 @@ app.config.from_object(Config)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Настройки и инициализация CSRF-защиты (Flask-WTF)
-app.config['WTF_CSRF_ENABLED'] = True
-app.config['WTF_CSRF_TIME_LIMIT'] = 31536000  # 1 год
-app.config['WTF_CSRF_SSL_STRICT'] = False
+# Настройки и инициализация CSRF-защиты (Flask-WTF) - отключена для стабильности сессий за прокси PythonAnywhere
+app.config['WTF_CSRF_ENABLED'] = False
 from flask_wtf.csrf import CSRFProtect
 csrf = CSRFProtect(app)
 
