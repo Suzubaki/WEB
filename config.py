@@ -21,11 +21,15 @@ class Config:
         or 'novaya-pripyat-cattle-management-system-secret-key-2025'
     )
     
-    # Безопасные настройки cookies и сессий
-    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
+    # Безопасные настройки cookies и сессий для PythonAnywhere / Production
+    SESSION_COOKIE_SECURE = False  # Разрешаем сессии как по HTTP, так и по HTTPS без сброса cookie
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    
+    # Настройки CSRF для предотвращения истечения и потери токена
+    WTF_CSRF_TIME_LIMIT = 31536000  # 1 год (исключает ошибку "The CSRF token has expired")
+    WTF_CSRF_SSL_STRICT = False     # Не требовать строгого HTTPS для CSRF токена за прокси
     
     # База данных SQLite
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
