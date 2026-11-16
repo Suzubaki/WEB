@@ -145,16 +145,35 @@ def update_user(user_id, username, password=None, user_type=None, farm_name=None
         query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
         cursor.execute(query, params)
         
-        # Каскадное обновление названия фермы в таблице cows и audit_logs
+        # Каскадное обновление названия фермы в таблицах cows, stillbirth_records, audit_logs и farm_counters
         if farm_name and old_farm_name and farm_name != old_farm_name:
             cursor.execute('UPDATE cows SET farm_name = ? WHERE farm_name = ?', (farm_name, old_farm_name))
             cursor.execute('UPDATE cows SET farm_name = ? WHERE created_by = ?', (farm_name, user_id))
+            cursor.execute('UPDATE stillbirth_records SET farm_name = ? WHERE farm_name = ?', (farm_name, old_farm_name))
+            cursor.execute('UPDATE stillbirth_records SET farm_name = ? WHERE created_by = ?', (farm_name, user_id))
             cursor.execute('UPDATE audit_logs SET farm_name = ? WHERE farm_name = ?', (farm_name, old_farm_name))
+
+            cursor.execute('SELECT last_cow_number, last_stillborn_number FROM farm_counters WHERE farm_name = ?', (old_farm_name,))
+            old_cnt = cursor.fetchone()
+            if old_cnt:
+                cursor.execute('SELECT last_cow_number, last_stillborn_number FROM farm_counters WHERE farm_name = ?', (farm_name,))
+                new_cnt = cursor.fetchone()
+                if new_cnt:
+                    merged_cow = max(old_cnt['last_cow_number'] or 0, new_cnt['last_cow_number'] or 0)
+                    merged_sb = max(old_cnt['last_stillborn_number'] or 0, new_cnt['last_stillborn_number'] or 0)
+                    cursor.execute(
+                        'UPDATE farm_counters SET last_cow_number = ?, last_stillborn_number = ? WHERE farm_name = ?',
+                        (merged_cow, merged_sb, farm_name)
+                    )
+                    cursor.execute('DELETE FROM farm_counters WHERE farm_name = ?', (old_farm_name,))
+                else:
+                    cursor.execute('UPDATE farm_counters SET farm_name = ? WHERE farm_name = ?', (farm_name, old_farm_name))
         elif farm_name and not old_farm_name:
             cursor.execute('UPDATE cows SET farm_name = ? WHERE created_by = ?', (farm_name, user_id))
+            cursor.execute('UPDATE stillbirth_records SET farm_name = ? WHERE created_by = ?', (farm_name, user_id))
             
         conn.commit()
-        return True, 'Данные пользователя и связанные записи коров успешно обновлены'
+        return True, 'Данные пользователя и связанные записи успешно обновлены'
         
     except sqlite3.Error as e:
         return False, f'Ошибка базы данных: {str(e)}'

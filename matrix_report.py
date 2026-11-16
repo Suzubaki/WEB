@@ -43,29 +43,30 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None, farm_
     if farm_filter and farm_filter != 'all':
         farms = [farm_filter]
     else:
-        cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL ORDER BY farm_name')
+        cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL AND farm_name != "" AND COALESCE(is_stillborn, 0) = 0 ORDER BY farm_name')
         farms = [row['farm_name'] for row in cursor.fetchall()]
 
         if not farms:
             cursor.execute('SELECT DISTINCT farm_name FROM users WHERE farm_name IS NOT NULL AND farm_name != "" ORDER BY farm_name')
             farms = [row['farm_name'] for row in cursor.fetchall()]
 
-        if not farms:
-            farms = ['Ферма 1']
-    
+    # Динамический расчёт ширины объединённой шапки (1-я кол. + фермы + ИТОГО)
+    end_col_idx = max(2 + len(farms), 3)
+    end_col_letter = get_column_letter(end_col_idx)
+
     # Заголовок
-    ws.merge_cells('A1:G1')
+    ws.merge_cells(f'A1:{end_col_letter}1')
     ws['A1'] = "СВОДНАЯ МАТРИЦА ВЫБЫТИЯ СКОТА"
     ws['A1'].font = title_font
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     
-    ws.merge_cells('A2:G2')
+    ws.merge_cells(f'A2:{end_col_letter}2')
     farm_subtitle = f" | Ферма: {farm_filter}" if farm_filter and farm_filter != 'all' else ""
     ws['A2'] = f"Категория: {category.upper()}{farm_subtitle}" + (f" | Период: {start_date} — {end_date}" if start_date and end_date else "")
     ws['A2'].font = Font(name='Arial', size=10, italic=True)
     ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
     
-    ws.merge_cells('A3:G3')
+    ws.merge_cells(f'A3:{end_col_letter}3')
     ws['A3'] = f"Сформировано: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
     ws['A3'].font = Font(name='Arial', size=9, color="6B7280")
     ws['A3'].alignment = Alignment(horizontal='center', vertical='center')
@@ -109,7 +110,7 @@ def generate_matrix_excel_report(category, start_date=None, end_date=None, farm_
     cursor.execute(f'''
         SELECT reason, farm_name, COUNT(*) as cnt
         FROM cows
-        WHERE category = ? {extra_filter}
+        WHERE category = ? AND COALESCE(is_stillborn, 0) = 0 {extra_filter}
         GROUP BY reason, farm_name
     ''', sql_params)
     

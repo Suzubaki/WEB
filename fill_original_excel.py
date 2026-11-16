@@ -3,14 +3,15 @@ import sqlite3
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from datetime import datetime
-from database import get_db_connection
+from config import Config
+from database import get_db_connection, get_setting
 
 def generate_official_template_excel():
     """Генерация сводного официального отчета"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL ORDER BY farm_name')
+    cursor.execute('SELECT DISTINCT farm_name FROM cows WHERE farm_name IS NOT NULL AND farm_name != "" AND COALESCE(is_stillborn, 0) = 0 ORDER BY farm_name')
     farms = [r['farm_name'] for r in cursor.fetchall()]
     if not farms:
         cursor.execute('SELECT DISTINCT farm_name FROM users WHERE farm_name IS NOT NULL AND farm_name != ""')
@@ -20,7 +21,7 @@ def generate_official_template_excel():
     ws = wb.active
     ws.title = "Выбытие скота Сводка"
     
-    ws.merge_cells('A1:G1')
+    ws.merge_cells('A1:E1')
     ws['A1'] = "ОФИЦИАЛЬНАЯ СВОДКА ВЫБЫТИЯ СКОТА"
     ws['A1'].font = Font(size=14, bold=True)
     ws['A1'].alignment = Alignment(horizontal='center')
@@ -41,7 +42,7 @@ def generate_official_template_excel():
                SUM(CASE WHEN category = 'санитарный' THEN 1 ELSE 0 END) as s,
                COUNT(*) as total
         FROM cows
-        WHERE farm_name IS NOT NULL AND farm_name != ''
+        WHERE COALESCE(is_stillborn, 0) = 0 AND farm_name IS NOT NULL AND farm_name != ''
         GROUP BY farm_name
         ORDER BY farm_name
     ''')

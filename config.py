@@ -43,21 +43,31 @@ class Config:
     # Максимальный размер загружаемого файла (16 MB)
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     
-    # Половозрастные группы скота (ПВГ)
+    # Организационные и справочные значения по умолчанию
+    DEFAULT_ORG_NAME = 'ОАО «Новая Припять»'
+    DEFAULT_UNP = '190000000'
+    DEFAULT_ATTENDANT = 'Дежурный ветврач'
+    DEFAULT_BREED = 'Черно-пёстрая белорусской селекции'
+    DEFAULT_STILLBORN_MOTHER_GROUP = 'Полновозрастные коровы (2+ лакт.)'
+    DEFAULT_STILLBORN_WEIGHT = 25.0
+    DEFAULT_STILLBORN_GESTATION = 280
+
+    # Канонические половозрастные группы скота (ПВГ) — единый источник для форм, фильтров и аналитики
     AGE_GROUPS = [
-        'Коровы дойного стада',
-        'Коровы сухостойные',
-        'Нетели',
-        'Тёлки старше 1 года',
-        'Телята (0–6 мес.)',
-        'Молодняк (6–12 мес.)',
-        'Бычки на откорме',
-        'Быки-производители'
+        'Телята (до 6 мес.)',
+        'Ремонтный молодняк (6–18 мес.)',
+        'Нетели (>18 мес.)',
+        'Новотельные коровы (0–30 дн DIM)',
+        'Коровы 1-й лактации (первотёлки)',
+        'Полновозрастные коровы (2+ лакт.)',
+        'Сухостойные коровы',
+        'Бычки на откорме'
     ]
     
     # Породы скота
     BREEDS = [
         'Черно-пёстрая белорусской селекции',
+        'Черно-пёстрая',
         'Голштинская',
         'Красная белорусская',
         'Симментальская',
@@ -72,9 +82,67 @@ class Config:
         'meat_price_per_kg': 6.20,       # BYN за 1 кг живой массы КРС
         'milk_price_per_kg': 1.18,       # BYN за 1 кг молока базисной жирности
         'replacement_cost': 2950.00,     # BYN средняя стоимость нетели / коровы
-        'calf_cost': 350.00              # BYN нормативная стоимость теленка при рождении
+        'price_calves': 900.0,           # BYN нормативная стоимость телят (0–6 мес.)
+        'price_youngstock': 1650.0,      # BYN нормативная стоимость ремонтного молодняка (6–18 мес.)
+        'price_heifers': 2700.0,         # BYN нормативная стоимость нетелей
+        'price_cows': 3200.0,            # BYN нормативная стоимость коров дойного стада
+        'price_dry_cows': 3000.0         # BYN нормативная стоимость сухостойных коров
     }
-    
+
+    # Зоотехнические, аналитические и матричные параметры по умолчанию
+    DEFAULT_ANALYTICS_PARAMS = {
+        'sanitary_meat_factor': 0.70,        # Коэффициент сдачи мяса при санприрезке (70% от живого экв.)
+        'standard_lactation_days': 305,      # Стандартная продолжительность лактации (дней)
+        'default_daily_milk_kg': 22.0,       # Средний суточный удой при отсутствии данных о надое (кг)
+        'default_weight_cow': 520.0,         # Средняя живая масса взрослой коровы по умолчанию (кг)
+        'default_weight_youngstock': 320.0,  # Средняя живая масса молодняка по умолчанию (кг)
+        'default_weight_calf': 45.0,         # Средняя живая масса телёнка по умолчанию (кг)
+        'milk_yield_bin_1': 4500.0,          # Граница группы продуктивности: низкая/средняя (кг)
+        'high_yield_threshold_kg': 6500.0,   # Граница высокопродуктивного скота (кг/лакт.)
+        'milk_yield_bin_3': 8500.0,          # Граница рекордного скота (кг/лакт.)
+        'matrix_warn_pct': 15.0,             # Порог внимания ячейки матрицы ферм (%)
+        'matrix_crit_pct': 25.0,             # Критический порог ячейки матрицы ферм (%)
+        'farm_matrix_min_head': 10,          # Мин. голов в МТФ для оценки критического падежа в матрице
+        'alert_window_short_days': 7,        # Окно сравнения вспышки падежа (дней)
+        'alert_window_mid_days': 14,         # Базовое среднее окно сравнения (дней)
+        'alert_window_long_days': 30,        # Окно кластеризации диагнозов и молодняка (дней)
+        'alert_death_min_count': 2,          # Мин. павших голов за 7 дней для тревоги
+        'alert_death_growth_ratio': 1.4,     # Коэффициент роста падежа к норме (x1.4 = +40%)
+        'alert_cluster_min_count': 3,        # Мин. однотипных диагнозов на одной ферме за 30 дней
+        'alert_calf_min_count': 3            # Мин. выбывших телят за 30 дней для предупреждения
+    }
+
+    # Светофорные пороги вет-скоркарда (Норма -> Внимание -> Критично)
+    DEFAULT_SCORECARD_THRESHOLDS = {
+        'norm_fresh_cow_disposal': 10.0,
+        'warn_fresh_cow_disposal': 14.0,
+        'crit_fresh_cow_disposal': 18.0,
+        'norm_first_lactation_culling': 20.0,
+        'warn_first_lactation_culling': 25.0,
+        'crit_first_lactation_culling': 30.0,
+        'norm_mortality_rate': 25.0,
+        'warn_mortality_rate': 35.0,
+        'crit_mortality_rate': 45.0,
+        'norm_locomotor_disorders': 15.0,
+        'warn_locomotor_disorders': 20.0,
+        'crit_locomotor_disorders': 25.0,
+        'norm_mastitis_disorders': 15.0,
+        'warn_mastitis_disorders': 20.0,
+        'crit_mastitis_disorders': 25.0
+    }
+
+    # Автоподстановка срока стельности и веса плода по типу акушерского события
+    STILLBORN_PREFILL_MAP = [
+        {'match': '1-й триместр', 'gestation': 65, 'weight': 0.5},
+        {'match': '2-й триместр', 'gestation': 140, 'weight': 4.5},
+        {'match': '3-й триместр', 'gestation': 220, 'weight': 14.0},
+        {'match': 'в срок', 'gestation': 280, 'weight': 32.0},
+        {'match': 'патология родов', 'gestation': 280, 'weight': 34.0},
+        {'match': 'мумификация', 'gestation': 190, 'weight': 4.0},
+        {'match': 'мацерация', 'gestation': 170, 'weight': 3.5},
+        {'match': 'уродство', 'gestation': 260, 'weight': 22.0}
+    ]
+
     # Базовые категории выбытия скота и их причины по умолчанию
     DISPOSAL_CATEGORIES = {
         'падёж': [
@@ -182,4 +250,14 @@ class Config:
         'Нетели (>18 мес., случной возраст)',
         'Сухостойные коровы'
     ]
+
+    @classmethod
+    def infer_stillborn_defaults(cls, event_type):
+        """Подбор дефолтных дней стельности и массы плода по названию события."""
+        et_low = (event_type or '').lower()
+        for item in cls.STILLBORN_PREFILL_MAP:
+            if item['match'] in et_low:
+                return item['gestation'], item['weight']
+        return cls.DEFAULT_STILLBORN_GESTATION, cls.DEFAULT_STILLBORN_WEIGHT
+
 

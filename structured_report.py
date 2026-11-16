@@ -4,7 +4,8 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
-from database import get_db_connection
+from config import Config
+from database import get_db_connection, get_setting
 
 def generate_structured_excel_report(start_date, end_date, farm_name=None):
     """
@@ -13,7 +14,7 @@ def generate_structured_excel_report(start_date, end_date, farm_name=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     
     if farm_name and farm_name != 'all':
@@ -54,8 +55,9 @@ def generate_structured_excel_report(start_date, end_date, farm_name=None):
     ws['A1'].font = title_font
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     
+    org_name = get_setting('farm_org_name', Config.DEFAULT_ORG_NAME)
     ws.merge_cells('A2:E2')
-    ws['A2'] = f"Период: с {start_date} по {end_date} | Сформирован: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    ws['A2'] = f"{org_name} | Период: с {start_date} по {end_date} | Сформирован: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
     ws['A2'].font = sub_font
     ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
     

@@ -160,7 +160,7 @@ def optimize_database_indexes():
 
 def sync_farm_data():
     """
-    Синхронизация названий ферм в таблице cows с актуальными названиями ферм пользователей (по created_by)
+    Синхронизация названий ферм в таблицах cows и stillbirth_records с актуальными названиями ферм пользователей (по created_by)
     """
     try:
         conn = get_db_connection()
@@ -177,6 +177,21 @@ def sync_farm_data():
             WHERE created_by IN (
                 SELECT id FROM users 
                 WHERE farm_name IS NOT NULL 
+                  AND farm_name != ''
+            )
+        ''')
+        cursor.execute('''
+            UPDATE stillbirth_records
+            SET farm_name = (
+                SELECT u.farm_name
+                FROM users u
+                WHERE u.id = stillbirth_records.created_by
+                  AND u.farm_name IS NOT NULL
+                  AND u.farm_name != ''
+            )
+            WHERE created_by IN (
+                SELECT id FROM users
+                WHERE farm_name IS NOT NULL
                   AND farm_name != ''
             )
         ''')
@@ -343,12 +358,12 @@ def init_db():
                            (c_code, r['farm_name'], r['disposal_date'], r['reason']))
             if not cursor.fetchone():
                 e_type = 'Аборт (1-й триместр, до 90 дн.)' if 'аборт' in (r['reason'] or '').lower() or 'аборт' in (r['age_group'] or '').lower() else 'Мертворождённый телёнок (в срок)'
-                m_group = 'Сухостойные коровы' if 'сухосто' in (r['age_group'] or '').lower() else 'Полновозрастные коровы (2+ лакт.)'
+                m_group = 'Сухостойные коровы' if 'сухосто' in (r['age_group'] or '').lower() else Config.DEFAULT_STILLBORN_MOTHER_GROUP
                 cursor.execute('''
                     INSERT INTO stillbirth_records 
                     (record_code, farm_name, event_date, mother_tag, mother_group, event_type, fetus_sex, fetus_weight, gestation_days, cause, mother_condition, attendant, notes, created_at, created_by)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (c_code, r['farm_name'], r['disposal_date'], r['ear_tag'], m_group, e_type, 'Не определён', r['weight'] or 25.0, r['gestation_days'] or 0, r['reason'], 'Здорова, оставлена в стаде', 'Дежурный ветврач', r['notes'] or 'Автоматически перенесено из общего журнала выбытия', r['created_at'], r['created_by']))
+                ''', (c_code, r['farm_name'], r['disposal_date'], r['ear_tag'], m_group, e_type, 'Не определён', r['weight'] or Config.DEFAULT_STILLBORN_WEIGHT, r['gestation_days'] or 0, r['reason'], 'Здорова, оставлена в стаде', Config.DEFAULT_ATTENDANT, r['notes'] or 'Автоматически перенесено из общего журнала выбытия', r['created_at'], r['created_by']))
         
         if rows_to_migrate:
             migrated_ids = [r['id'] for r in rows_to_migrate]
@@ -379,13 +394,8 @@ def init_db():
         if col_name not in existing_cols:
             cursor.execute(f"ALTER TABLE cows ADD COLUMN {col_name} {col_type}")
     
-    # 6. Индексы для сверхбыстрой работы с 9 000+ записями
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_disposal_date ON cows(disposal_date DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_farm_date ON cows(farm_name, disposal_date DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_category ON cows(category)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_cow_id ON cows(cow_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cows_ear_tag ON cows(ear_tag)")
-    
+    # Удалены дублирующие CREATE INDEX (индексы централизованы в _ensure_indexes / optimize_database_indexes)
+
     # Заполнение справочника причин по умолчанию, если он пуст
     cursor.execute("SELECT COUNT(*) as cnt FROM disposal_reasons")
     if cursor.fetchone()['cnt'] == 0:
@@ -396,24 +406,47 @@ def init_db():
                     VALUES (?, ?, 1)
                 ''', (cat, reason))
                 
-    # Заполнение настроек по умолчанию, если пусты
+    # Заполнение настроек по умолчанию, если отсутствуют
+    p = Config.DEFAULT_PRICES
+    sc = Config.DEFAULT_SCORECARD_THRESHOLDS
+    an = Config.DEFAULT_ANALYTICS_PARAMS
     default_settings = [
-        ('meat_price_per_kg', str(Config.DEFAULT_PRICES['meat_price_per_kg']), 'Закупочная цена 1 кг живой массы КРС (BYN)'),
-        ('milk_price_per_kg', str(Config.DEFAULT_PRICES['milk_price_per_kg']), 'Закупочная цена 1 кг базисного молока (BYN)'),
-        ('replacement_cost', str(Config.DEFAULT_PRICES['replacement_cost']), 'Стоимость восстановления головы / нетели (BYN)'),
-        ('price_calves', '900.0', 'Нормативная стоимость телят (0–6 мес.) (BYN/гол.)'),
-        ('price_youngstock', '1650.0', 'Нормативная стоимость ремонтного молодняка (6–18 мес.) (BYN/гол.)'),
-        ('price_heifers', '2700.0', 'Нормативная стоимость нетелей (BYN/гол.)'),
-        ('price_cows', '3200.0', 'Нормативная стоимость коров дойного стада (BYN/гол.)'),
-        ('price_dry_cows', '3000.0', 'Нормативная стоимость сухостойных коров (BYN/гол.)'),
-        ('norm_youngstock_preservation', '92.0', 'Целевой порог сохранности молодняка (%)'),
-        ('norm_fresh_cow_disposal', '10.0', 'Максимальный порог выбытия новотельных коров 0–30 DIM (%)'),
-        ('norm_first_lactation_culling', '20.0', 'Максимальный порог выбраковки первотёлок (%)'),
-        ('norm_mortality_rate', '25.0', 'Максимальный порог доли падежа в выбытии (%)'),
-        ('norm_locomotor_disorders', '15.0', 'Максимальный порог заболеваний копыт (%)'),
-        ('norm_mastitis_disorders', '15.0', 'Максимальный порог заболеваний вымени (%)'),
-        ('farm_unp', '190000000', 'УНП сельскохозяйственной организации (для ГИС AITS)'),
-        ('farm_org_name', 'ОАО «Новая Припять»', 'Полное наименование сельхозпредприятия (РБ)')
+        ('meat_price_per_kg', str(p['meat_price_per_kg']), 'Закупочная цена 1 кг живой массы КРС (BYN)'),
+        ('milk_price_per_kg', str(p['milk_price_per_kg']), 'Закупочная цена 1 кг базисного молока (BYN)'),
+        ('replacement_cost', str(p['replacement_cost']), 'Стоимость восстановления головы / нетели (BYN)'),
+        ('price_calves', str(p['price_calves']), 'Нормативная стоимость телят (0–6 мес.) (BYN/гол.)'),
+        ('price_youngstock', str(p['price_youngstock']), 'Нормативная стоимость ремонтного молодняка (6–18 мес.) (BYN/гол.)'),
+        ('price_heifers', str(p['price_heifers']), 'Нормативная стоимость нетелей (BYN/гол.)'),
+        ('price_cows', str(p['price_cows']), 'Нормативная стоимость коров дойного стада (BYN/гол.)'),
+        ('price_dry_cows', str(p['price_dry_cows']), 'Нормативная стоимость сухостойных коров (BYN/гол.)'),
+        ('norm_fresh_cow_disposal', str(sc['norm_fresh_cow_disposal']), 'Порог нормы: выбытие новотельных коров 0–30 DIM (%)'),
+        ('warn_fresh_cow_disposal', str(sc['warn_fresh_cow_disposal']), 'Порог внимания: выбытие новотельных коров 0–30 DIM (%)'),
+        ('crit_fresh_cow_disposal', str(sc['crit_fresh_cow_disposal']), 'Критический порог: выбытие новотельных коров 0–30 DIM (%)'),
+        ('norm_first_lactation_culling', str(sc['norm_first_lactation_culling']), 'Порог нормы: выбраковка первотёлок (%)'),
+        ('warn_first_lactation_culling', str(sc['warn_first_lactation_culling']), 'Порог внимания: выбраковка первотёлок (%)'),
+        ('crit_first_lactation_culling', str(sc['crit_first_lactation_culling']), 'Критический порог: выбраковка первотёлок (%)'),
+        ('norm_mortality_rate', str(sc['norm_mortality_rate']), 'Порог нормы: доля падежа в выбытии (%)'),
+        ('warn_mortality_rate', str(sc['warn_mortality_rate']), 'Порог внимания: доля падежа в выбытии (%)'),
+        ('crit_mortality_rate', str(sc['crit_mortality_rate']), 'Критический порог: доля падежа в выбытии (%)'),
+        ('norm_locomotor_disorders', str(sc['norm_locomotor_disorders']), 'Порог нормы: заболевания копыт (%)'),
+        ('warn_locomotor_disorders', str(sc['warn_locomotor_disorders']), 'Порог внимания: заболевания копыт (%)'),
+        ('crit_locomotor_disorders', str(sc['crit_locomotor_disorders']), 'Критический порог: заболевания копыт (%)'),
+        ('norm_mastitis_disorders', str(sc['norm_mastitis_disorders']), 'Порог нормы: заболевания вымени (%)'),
+        ('warn_mastitis_disorders', str(sc['warn_mastitis_disorders']), 'Порог внимания: заболевания вымени (%)'),
+        ('crit_mastitis_disorders', str(sc['crit_mastitis_disorders']), 'Критический порог: заболевания вымени (%)'),
+        ('sanitary_meat_factor', str(an['sanitary_meat_factor']), 'Коэффициент зачётного веса/цены при санитарном забое (0.0–1.0)'),
+        ('standard_lactation_days', str(an['standard_lactation_days']), 'Стандартная продолжительность лактации для расчёта упущенного молока (дн.)'),
+        ('default_daily_milk_kg', str(an['default_daily_milk_kg']), 'Базовый суточный удой коровы при отсутствии данных о надое (кг)'),
+        ('default_weight_cow', str(an['default_weight_cow']), 'Живая масса взрослой коровы по умолчанию (кг)'),
+        ('default_weight_youngstock', str(an['default_weight_youngstock']), 'Живая масса молодняка по умолчанию (кг)'),
+        ('default_weight_calf', str(an['default_weight_calf']), 'Живая масса телёнка по умолчанию (кг)'),
+        ('high_yield_threshold_kg', str(an['high_yield_threshold_kg']), 'Граница отнесения коровы к высокопродуктивным (кг/лакт.)'),
+        ('matrix_warn_pct', str(an['matrix_warn_pct']), 'Порог внимания ячейки матрицы ферм (%)'),
+        ('matrix_crit_pct', str(an['matrix_crit_pct']), 'Критический порог ячейки матрицы ферм (%)'),
+        ('alert_death_growth_ratio', str(an['alert_death_growth_ratio']), 'Коэффициент вспышки падежа за 7 дн. к норме'),
+        ('alert_cluster_min_count', str(an['alert_cluster_min_count']), 'Мин. число однотипных диагнозов за 30 дн. для тревоги'),
+        ('farm_unp', Config.DEFAULT_UNP, 'УНП сельскохозяйственной организации (для ГИС AITS)'),
+        ('farm_org_name', Config.DEFAULT_ORG_NAME, 'Полное наименование сельхозпредприятия (РБ)')
     ]
     for k, v, d in default_settings:
         cursor.execute('''

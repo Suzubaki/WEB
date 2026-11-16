@@ -5,6 +5,7 @@ import io
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from datetime import datetime
+from config import Config
 from database import get_db_connection, get_setting
 
 # Коды событий выбытия по классификатору ГИС AITS (РБ)
@@ -21,7 +22,7 @@ def generate_aits_csv_registry(start_date, end_date, farm_name=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where = "WHERE disposal_date BETWEEN ? AND ?"
+    where = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     if farm_name and farm_name != 'all':
         where += " AND farm_name = ?"
@@ -36,8 +37,8 @@ def generate_aits_csv_registry(start_date, end_date, farm_name=None):
     rows = cursor.fetchall()
     conn.close()
     
-    unp = get_setting('farm_unp', '190000000')
-    org_name = get_setting('farm_org_name', 'Сельхозорганизация РБ')
+    unp = get_setting('farm_unp', Config.DEFAULT_UNP)
+    org_name = get_setting('farm_org_name', Config.DEFAULT_ORG_NAME)
     
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -93,7 +94,7 @@ def generate_aits_xml_registry(start_date, end_date, farm_name=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where = "WHERE disposal_date BETWEEN ? AND ?"
+    where = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     if farm_name and farm_name != 'all':
         where += " AND farm_name = ?"
@@ -108,8 +109,8 @@ def generate_aits_xml_registry(start_date, end_date, farm_name=None):
     rows = cursor.fetchall()
     conn.close()
     
-    unp = get_setting('farm_unp', '190000000')
-    org_name = get_setting('farm_org_name', 'Сельхозорганизация РБ')
+    unp = get_setting('farm_unp', Config.DEFAULT_UNP)
+    org_name = get_setting('farm_org_name', Config.DEFAULT_ORG_NAME)
     
     root = ET.Element('AitsDisposalRegistry', {
         'version': '1.0',

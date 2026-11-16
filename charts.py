@@ -43,18 +43,18 @@ def normalize_age_group(raw_group, lactation=None):
         return 'Мертворождённые / Аборты'
     if any(k in g for k in ('телят', 'до 6', '0-6', '0–6', 'новорожд', 'молочн')):
         return 'Телята (до 6 мес.)'
-    if any(k in g for k in ('молодняк', '6-18', '6–18', 'от 6 до 18', '6-12', '6–12', 'тёлки', 'телки', 'ремонтн')):
-        return 'Ремонтный молодняк (6–18 мес.)'
-    if any(k in g for k in ('нетел', 'старше 18', '> 18', '>18')):
-        return 'Нетели (>18 мес.)'
     if any(k in g for k in ('быч', 'бык', 'откорм')):
         return 'Бычки на откорме'
+    if any(k in g for k in ('нетел', 'старше 18', '> 18', '>18')):
+        return 'Нетели (>18 мес.)'
     if 'сухосто' in g:
         return 'Сухостойные коровы'
     if any(k in g for k in ('новотел', '0-30', '0–30')):
         return 'Новотельные коровы (0–30 дн DIM)'
     if lactation == 1 or any(k in g for k in ('первотел', 'первотёл', '1-я лакт', '1-й лакт', '1 лакт')):
         return 'Коровы 1-й лактации (первотёлки)'
+    if any(k in g for k in ('молодняк', '6-18', '6–18', 'от 6 до 18', '6-12', '6–12', 'ремонтн')) or (('тёлки' in g or 'телки' in g) and 'перво' not in g):
+        return 'Ремонтный молодняк (6–18 мес.)'
     if (lactation and lactation > 1) or any(k in g for k in ('полновозраст', '2+ лакт')):
         return 'Полновозрастные коровы (2+ лакт.)'
     return 'Коровы дойного стада'
@@ -71,7 +71,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     if not period or period == 'auto':
         cur_m_start = now.replace(day=1).strftime('%Y-%m-%d')
         cur_m_end = now.strftime('%Y-%m-%d')
-        p_check_where = ["disposal_date BETWEEN ? AND ?"]
+        p_check_where = ["disposal_date BETWEEN ? AND ?", "COALESCE(is_stillborn, 0) = 0"]
         p_check_params = [cur_m_start, cur_m_end]
         if user_type == 'farm' and farm_name:
             p_check_where.append("farm_name = ?")
@@ -87,7 +87,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             last_m_end_dt = now.replace(day=1) - timedelta(days=1)
             last_m_end = last_m_end_dt.strftime('%Y-%m-%d')
             last_m_start = last_m_end_dt.replace(day=1).strftime('%Y-%m-%d')
-            p_last_where = ["disposal_date BETWEEN ? AND ?"]
+            p_last_where = ["disposal_date BETWEEN ? AND ?", "COALESCE(is_stillborn, 0) = 0"]
             p_last_params = [last_m_start, last_m_end]
             if user_type == 'farm' and farm_name:
                 p_last_where.append("farm_name = ?")
@@ -130,8 +130,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         end_date = '2099-12-31'
         period_title = "За всё время учёта"
     elif period == 'custom' and custom_start and custom_end:
-        start_date = custom_start
-        end_date = custom_end
+        start_date, end_date = (custom_start, custom_end) if custom_start <= custom_end else (custom_end, custom_start)
         period_title = f"С {start_date} по {end_date}"
     else:
         start_date = now.replace(day=1).strftime('%Y-%m-%d')
@@ -187,16 +186,34 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         except (ValueError, TypeError):
             return float(default)
 
+    dp = Config.DEFAULT_PRICES
+    an = Config.DEFAULT_ANALYTICS_PARAMS
+    sc = Config.DEFAULT_SCORECARD_THRESHOLDS
+
     dynamic_prices = {
-        'телята': _setting_float('price_calves', 900.0),
-        'молодняк': _setting_float('price_youngstock', 1650.0),
-        'нетели': _setting_float('price_heifers', 2700.0),
-        'дойное': _setting_float('price_cows', 3200.0),
-        'сухостой': _setting_float('price_dry_cows', 3000.0)
+        'телята': _setting_float('price_calves', dp['price_calves']),
+        'молодняк': _setting_float('price_youngstock', dp['price_youngstock']),
+        'нетели': _setting_float('price_heifers', dp['price_heifers']),
+        'дойное': _setting_float('price_cows', dp['price_cows']),
+        'сухостой': _setting_float('price_dry_cows', dp['price_dry_cows'])
     }
-    meat_price_per_kg = _setting_float('meat_price_per_kg', 6.20)
-    milk_price_per_kg = _setting_float('milk_price_per_kg', 1.18)
-    replacement_cost = _setting_float('replacement_cost', 2950.0)
+    meat_price_per_kg = _setting_float('meat_price_per_kg', dp['meat_price_per_kg'])
+    milk_price_per_kg = _setting_float('milk_price_per_kg', dp['milk_price_per_kg'])
+    replacement_cost = _setting_float('replacement_cost', dp['replacement_cost'])
+
+    sanitary_meat_factor = min(1.0, max(0.0, _setting_float('sanitary_meat_factor', an['sanitary_meat_factor'])))
+    standard_lact_days = max(1, int(_setting_float('standard_lactation_days', an['standard_lactation_days'])))
+    default_daily_milk = max(0.1, _setting_float('default_daily_milk_kg', an['default_daily_milk_kg']))
+    w_cow = max(1.0, _setting_float('default_weight_cow', an['default_weight_cow']))
+    w_young = max(1.0, _setting_float('default_weight_youngstock', an['default_weight_youngstock']))
+    w_calf = max(1.0, _setting_float('default_weight_calf', an['default_weight_calf']))
+
+    high_yield_thresh = max(1000.0, _setting_float('high_yield_threshold_kg', an['high_yield_threshold_kg']))
+    milk_bin_1 = min(an['milk_yield_bin_1'], high_yield_thresh * 0.75)
+    milk_bin_3 = max(an['milk_yield_bin_3'], high_yield_thresh + 1500.0)
+    matrix_warn_pct = _setting_float('matrix_warn_pct', an['matrix_warn_pct'])
+    matrix_crit_pct = max(matrix_warn_pct, _setting_float('matrix_crit_pct', an['matrix_crit_pct']))
+    farm_matrix_min_head = int(an['farm_matrix_min_head'])
 
     def estimate_val(book_val, norm_grp):
         if book_val is not None and book_val > 0:
@@ -256,7 +273,16 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     lact_phase_death = [0] * 6
     lact_phase_culling = [0] * 6
 
-    milk_cohort_labels = ['До 4 500 кг', '4 500–6 500 кг', '6 500–8 500 кг', 'Свыше 8 500 кг', 'Удой не указан']
+    def _fmt_kg(val):
+        return f"{int(round(val)):,}".replace(',', ' ')
+
+    milk_cohort_labels = [
+        f"До {_fmt_kg(milk_bin_1)} кг",
+        f"{_fmt_kg(milk_bin_1)}–{_fmt_kg(high_yield_thresh)} кг",
+        f"{_fmt_kg(high_yield_thresh)}–{_fmt_kg(milk_bin_3)} кг",
+        f"Свыше {_fmt_kg(milk_bin_3)} кг",
+        'Удой не указан'
+    ]
     milk_cohort_death = [0, 0, 0, 0, 0]
     milk_cohort_culling = [0, 0, 0, 0, 0]
 
@@ -390,20 +416,20 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
 
         raw_w = c['weight']
         w = float(raw_w) if raw_w else 0.0
-        w_eff = w if w > 0 else (520.0 if ('Коровы' in norm_grp or 'Нетели' in norm_grp or 'Сухостой' in norm_grp) else (320.0 if ('молодняк' in norm_grp.lower() or 'быч' in norm_grp.lower()) else 45.0))
+        w_eff = w if w > 0 else (w_cow if ('Коровы' in norm_grp or 'Нетели' in norm_grp or 'Сухостой' in norm_grp) else (w_young if ('молодняк' in norm_grp.lower() or 'быч' in norm_grp.lower()) else w_calf))
 
         raw_milk = c['milk_yield']
-        if is_adult_lactating and lact > 0 and dim_known and 0 <= dim < 305:
-            rem_days = 305 - dim
-            daily_milk = (float(raw_milk) / 305.0) if raw_milk else 22.0
+        if is_adult_lactating and lact > 0 and dim_known and 0 <= dim < standard_lact_days:
+            rem_days = standard_lact_days - dim
+            daily_milk = (float(raw_milk) / float(standard_lact_days)) if raw_milk else default_daily_milk
             if daily_milk <= 0:
-                daily_milk = 22.0
+                daily_milk = default_daily_milk
             lost_milk_kg = rem_days * daily_milk
             unrealized_milk_kg_total += lost_milk_kg
             unrealized_milk_loss_byn += lost_milk_kg * milk_price_per_kg
 
-        if is_adult_lactating and lact == 1 and dim_known and 0 <= dim < 305:
-            unrecovered_heifer_loss_byn += max(0.0, replacement_cost * (1.0 - (dim / 305.0)))
+        if is_adult_lactating and lact == 1 and dim_known and 0 <= dim < standard_lact_days:
+            unrecovered_heifer_loss_byn += max(0.0, replacement_cost * (1.0 - (dim / float(standard_lact_days))))
 
         if is_death:
             death_loss_byn += val
@@ -414,7 +440,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         elif cat == 'санитарный':
             culling_loss_byn += val
             culled_live_weight_total += w_eff
-            estimated_meat_revenue_byn += w_eff * (meat_price_per_kg * 0.70)
+            estimated_meat_revenue_byn += w_eff * (meat_price_per_kg * sanitary_meat_factor)
 
         # ПВГ статистика
         ag_bucket = age_group_data.get(norm_grp)
@@ -446,7 +472,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             ag_bucket['weight_cnt'] += 1
         ag_bucket['reasons'][reason] = ag_bucket['reasons'].get(reason, 0) + 1
 
-        # Физиологические счётчики
+        # Физиологические счётчики (учитывают новотельных первотёлок по lact == 1)
         if norm_grp == 'Телята (до 6 мес.)':
             calf_cnt += 1
             if is_death: calf_deaths += 1
@@ -459,15 +485,15 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         elif norm_grp == 'Бычки на откорме':
             bull_cnt += 1
             if is_death: bull_deaths += 1
-        elif norm_grp == 'Коровы 1-й лактации (первотёлки)':
-            first_lact_cnt += 1
-            if is_death: first_lact_deaths += 1
-        elif norm_grp == 'Полновозрастные коровы (2+ лакт.)':
-            multi_cnt += 1
-            if is_death: multi_deaths += 1
-        elif norm_grp == 'Сухостойные коровы':
+        elif is_dry_cow:
             dry_cnt += 1
             if is_death: dry_deaths += 1
+        elif is_cow_group and (lact == 1 or norm_grp == 'Коровы 1-й лактации (первотёлки)'):
+            first_lact_cnt += 1
+            if is_death: first_lact_deaths += 1
+        elif is_cow_group and (lact > 1 or norm_grp == 'Полновозрастные коровы (2+ лакт.)'):
+            multi_cnt += 1
+            if is_death: multi_deaths += 1
 
         # Патологии и топ причин
         sys_name = classify_pathology_system(reason)
@@ -522,6 +548,42 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
                     pathology_dim_matrix[sys_name] = pm
                 pm['total'] += 1
                 pm[p_phase_name] += 1
+            else:
+                # Резервное определение фазы по текстовому полю lactation_phase или ПВГ, если DIM не указан
+                lp_l = (c['lactation_phase'] or '').lower()
+                p_idx_fb = None
+                b_idx_fb = None
+                p_phase_fb = None
+                if 'ранн' in lp_l or '0-15' in lp_l or '0–15' in lp_l:
+                    p_idx_fb, b_idx_fb, p_phase_fb = 0, 0, 'Новотел (0-30 дн)'
+                elif 'поздн' in lp_l or '16-30' in lp_l or '16–30' in lp_l:
+                    p_idx_fb, b_idx_fb, p_phase_fb = 1, 1, 'Новотел (0-30 дн)'
+                elif 'новотел' in lp_l or norm_grp == 'Новотельные коровы (0–30 дн DIM)':
+                    p_idx_fb, b_idx_fb, p_phase_fb = 0, 0, 'Новотел (0-30 дн)'
+                elif 'раздой' in lp_l or '31-100' in lp_l or '31–100' in lp_l:
+                    p_idx_fb, b_idx_fb, p_phase_fb = 2, 2, 'Раздой (31-100 дн)'
+                elif 'середин' in lp_l or '101-200' in lp_l or '101–200' in lp_l:
+                    p_idx_fb, b_idx_fb, p_phase_fb = 3, 4, 'Середина (101-200 дн)'
+                elif 'спад' in lp_l or '201' in lp_l:
+                    p_idx_fb, b_idx_fb, p_phase_fb = 4, 6, 'Спад и сухостой (>200)'
+
+                if p_idx_fb is not None:
+                    if p_idx_fb in (0, 1):
+                        fresh_disposals += 1
+                        if is_death:
+                            fresh_deaths += 1
+                    if is_death:
+                        dim_curve_death[b_idx_fb] += 1
+                        lact_phase_death[p_idx_fb] += 1
+                    else:
+                        dim_curve_culling[b_idx_fb] += 1
+                        lact_phase_culling[p_idx_fb] += 1
+                    pm = pathology_dim_matrix.get(sys_name)
+                    if pm is None:
+                        pm = {'total': 0, 'Новотел (0-30 дн)': 0, 'Раздой (31-100 дн)': 0, 'Середина (101-200 дн)': 0, 'Спад и сухостой (>200)': 0}
+                        pathology_dim_matrix[sys_name] = pm
+                    pm['total'] += 1
+                    pm[p_phase_fb] += 1
 
             if lact > 0:
                 total_lact += lact
@@ -534,11 +596,11 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             if m > 0:
                 cows_with_milk += 1
                 total_milk_sum += m
-                if m < 4500: m_idx = 0
-                elif m <= 6500: m_idx = 1
-                elif m <= 8500: m_idx = 2
+                if m < milk_bin_1: m_idx = 0
+                elif m < high_yield_thresh: m_idx = 1
+                elif m <= milk_bin_3: m_idx = 2
                 else: m_idx = 3
-                if m >= 6500:
+                if m >= high_yield_thresh:
                     high_yield_lost_count += 1
                     if is_death:
                         high_yield_death_count += 1
@@ -669,25 +731,25 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     ]
 
     # Динамические зоотехнические нормативы и пороги тревог (из кэша настроек)
-    norm_fresh = _setting_float('norm_fresh_cow_disposal', 10.0)
-    warn_fresh = _setting_float('warn_fresh_cow_disposal', 14.0)
-    crit_fresh = _setting_float('crit_fresh_cow_disposal', 18.0)
+    norm_fresh = _setting_float('norm_fresh_cow_disposal', sc['norm_fresh_cow_disposal'])
+    warn_fresh = max(norm_fresh, _setting_float('warn_fresh_cow_disposal', sc['warn_fresh_cow_disposal']))
+    crit_fresh = max(warn_fresh, _setting_float('crit_fresh_cow_disposal', sc['crit_fresh_cow_disposal']))
 
-    norm_first_lact = _setting_float('norm_first_lactation_culling', 20.0)
-    warn_first_lact = _setting_float('warn_first_lactation_culling', 25.0)
-    crit_first_lact = _setting_float('crit_first_lactation_culling', 30.0)
+    norm_first_lact = _setting_float('norm_first_lactation_culling', sc['norm_first_lactation_culling'])
+    warn_first_lact = max(norm_first_lact, _setting_float('warn_first_lactation_culling', sc['warn_first_lactation_culling']))
+    crit_first_lact = max(warn_first_lact, _setting_float('crit_first_lactation_culling', sc['crit_first_lactation_culling']))
 
-    norm_mortality = _setting_float('norm_mortality_rate', 25.0)
-    warn_mortality = _setting_float('warn_mortality_rate', 35.0)
-    crit_mortality = _setting_float('crit_mortality_rate', 45.0)
+    norm_mortality = _setting_float('norm_mortality_rate', sc['norm_mortality_rate'])
+    warn_mortality = max(norm_mortality, _setting_float('warn_mortality_rate', sc['warn_mortality_rate']))
+    crit_mortality = max(warn_mortality, _setting_float('crit_mortality_rate', sc['crit_mortality_rate']))
 
-    norm_locomotor = _setting_float('norm_locomotor_disorders', 15.0)
-    warn_locomotor = _setting_float('warn_locomotor_disorders', 20.0)
-    crit_locomotor = _setting_float('crit_locomotor_disorders', 25.0)
+    norm_locomotor = _setting_float('norm_locomotor_disorders', sc['norm_locomotor_disorders'])
+    warn_locomotor = max(norm_locomotor, _setting_float('warn_locomotor_disorders', sc['warn_locomotor_disorders']))
+    crit_locomotor = max(warn_locomotor, _setting_float('crit_locomotor_disorders', sc['crit_locomotor_disorders']))
 
-    norm_mastitis = _setting_float('norm_mastitis_disorders', 15.0)
-    warn_mastitis = _setting_float('warn_mastitis_disorders', 20.0)
-    crit_mastitis = _setting_float('crit_mastitis_disorders', 25.0)
+    norm_mastitis = _setting_float('norm_mastitis_disorders', sc['norm_mastitis_disorders'])
+    warn_mastitis = max(norm_mastitis, _setting_float('warn_mastitis_disorders', sc['warn_mastitis_disorders']))
+    crit_mastitis = max(warn_mastitis, _setting_float('crit_mastitis_disorders', sc['crit_mastitis_disorders']))
 
     sorted_farms_rows = sorted(farm_data.items(), key=lambda x: x[1]['total'], reverse=True)
     sorted_farms = [(f, d['total']) for f, d in sorted_farms_rows]
@@ -708,10 +770,10 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         fresh_pct_f = round((d['fresh'] / tot_f) * 100, 1)
         stat = 'optimal'
         stat_lbl = 'Норма'
-        if d_pct >= crit_mortality or (d['total'] > 10 and fresh_pct_f >= crit_fresh):
+        if d_pct >= crit_mortality or (d['total'] > farm_matrix_min_head and fresh_pct_f >= crit_fresh):
             stat = 'critical'
             stat_lbl = 'Критический риск'
-        elif d_pct >= warn_mortality or (d['total'] > 10 and fresh_pct_f >= warn_fresh):
+        elif d_pct >= warn_mortality or (d['total'] > farm_matrix_min_head and fresh_pct_f >= warn_fresh):
             stat = 'warning'
             stat_lbl = 'Внимание'
 
@@ -769,6 +831,13 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     prog_locomotor = max(5, min(100, round((locomotor_rate / max(norm_locomotor, 0.1)) * 100)))
     prog_mastitis = max(5, min(100, round((mastitis_rate / max(norm_mastitis, 0.1)) * 100)))
 
+    def _traffic_status(rate, norm_v, warn_v):
+        if rate <= norm_v:
+            return 'success'
+        if rate <= warn_v:
+            return 'warning'
+        return 'danger'
+
     scorecard = [
         {
             'key': 'norm_fresh_cow_disposal', 'operator': '<=',
@@ -776,8 +845,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'current_num': float(fresh_rate),
             'title': 'Выбытие новотельных (0-30 DIM)', 'target': f"≤ {norm_fresh:.1f}%", 'current': f"{fresh_rate}%",
             'progress_pct': prog_fresh,
-            'status': 'success' if fresh_rate <= norm_fresh else ('warning' if fresh_rate <= crit_fresh else 'danger'),
-            'statusText': 'Норма' if fresh_rate <= norm_fresh else ('Внимание' if fresh_rate <= crit_fresh else 'Риск'),
+            'status': _traffic_status(fresh_rate, norm_fresh, warn_fresh),
+            'statusText': 'Норма' if fresh_rate <= norm_fresh else ('Внимание' if fresh_rate <= warn_fresh else 'Риск'),
             'note': f"Новотел: {fresh_disposals} гол. ({fresh_deaths} пало)",
             'icon': 'bi-exclamation-octagon-fill'
         },
@@ -787,8 +856,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'current_num': float(first_lact_rate),
             'title': 'Выбраковка первотёлок', 'target': f"≤ {norm_first_lact:.1f}%", 'current': f"{first_lact_rate}%",
             'progress_pct': prog_first_lact,
-            'status': 'success' if first_lact_rate <= norm_first_lact else ('warning' if first_lact_rate <= crit_first_lact else 'danger'),
-            'statusText': 'Норма' if first_lact_rate <= norm_first_lact else 'Высокая',
+            'status': _traffic_status(first_lact_rate, norm_first_lact, warn_first_lact),
+            'statusText': 'Норма' if first_lact_rate <= norm_first_lact else ('Внимание' if first_lact_rate <= warn_first_lact else 'Высокая'),
             'note': 'Доля 1-й лактации в выбраковке',
             'icon': 'bi-gem'
         },
@@ -798,8 +867,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'current_num': float(death_overall_rate),
             'title': 'Общая летальность (Падёж)', 'target': f"≤ {norm_mortality:.1f}%", 'current': f"{death_overall_rate}%",
             'progress_pct': prog_mortality,
-            'status': 'success' if death_overall_rate <= norm_mortality else ('warning' if death_overall_rate <= crit_mortality else 'danger'),
-            'statusText': 'Норма' if death_overall_rate <= norm_mortality else ('Повышен' if death_overall_rate <= crit_mortality else 'Критич.'),
+            'status': _traffic_status(death_overall_rate, norm_mortality, warn_mortality),
+            'statusText': 'Норма' if death_overall_rate <= norm_mortality else ('Повышен' if death_overall_rate <= warn_mortality else 'Критич.'),
             'note': f"Пало {category_counts.get('падёж', 0)} из {total_disposals} гол.",
             'icon': 'bi-heart-pulse-fill'
         },
@@ -809,8 +878,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'current_num': float(locomotor_rate),
             'title': 'Болезни конечностей', 'target': f"≤ {norm_locomotor:.1f}%", 'current': f"{locomotor_rate}%",
             'progress_pct': prog_locomotor,
-            'status': 'success' if locomotor_rate <= norm_locomotor else ('warning' if locomotor_rate <= crit_locomotor else 'danger'),
-            'statusText': 'В норме' if locomotor_rate <= norm_locomotor else ('Контроль' if locomotor_rate <= crit_locomotor else 'Риск'),
+            'status': _traffic_status(locomotor_rate, norm_locomotor, warn_locomotor),
+            'statusText': 'В норме' if locomotor_rate <= norm_locomotor else ('Контроль' if locomotor_rate <= warn_locomotor else 'Риск'),
             'note': 'Ортопедическая патология',
             'icon': 'bi-bandaid-fill'
         },
@@ -820,8 +889,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'current_num': float(mastitis_rate),
             'title': 'Маститы и патологии вымени', 'target': f"≤ {norm_mastitis:.1f}%", 'current': f"{mastitis_rate}%",
             'progress_pct': prog_mastitis,
-            'status': 'success' if mastitis_rate <= norm_mastitis else ('warning' if mastitis_rate <= crit_mastitis else 'danger'),
-            'statusText': 'В норме' if mastitis_rate <= norm_mastitis else ('Контроль' if mastitis_rate <= crit_mastitis else 'Риск'),
+            'status': _traffic_status(mastitis_rate, norm_mastitis, warn_mastitis),
+            'statusText': 'В норме' if mastitis_rate <= norm_mastitis else ('Контроль' if mastitis_rate <= warn_mastitis else 'Риск'),
             'note': 'Инфекции молочной железы',
             'icon': 'bi-droplet-fill'
         }
@@ -829,7 +898,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
 
     # 9. Динамика по месяцам за последние 12 месяцев
     twelve_months_ago = (now - timedelta(days=365)).strftime('%Y-%m-%d')
-    m_where_parts = ["disposal_date >= ?"]
+    m_where_parts = ["disposal_date >= ?", "COALESCE(is_stillborn, 0) = 0"]
     m_params = [twelve_months_ago]
     if user_type == 'farm' and farm_name:
         m_where_parts.append("farm_name = ?")
@@ -856,31 +925,48 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         monthly_data[m][c] = cnt
 
     months_keys = sorted(monthly_data.keys())
+    _ru_months = {
+        '01': 'Янв', '02': 'Фев', '03': 'Мар', '04': 'Апр',
+        '05': 'Май', '06': 'Июн', '07': 'Июл', '08': 'Авг',
+        '09': 'Сен', '10': 'Окт', '11': 'Ноя', '12': 'Дек'
+    }
+    months_pretty = []
+    for mk in months_keys:
+        if '-' in mk:
+            yr, mo = mk.split('-', 1)
+            months_pretty.append(f"{_ru_months.get(mo, mo)} {yr}")
+        else:
+            months_pretty.append(mk)
+
     trend_datasets = []
-    category_colors = {'падёж': '#DC2626', 'выбраковка': '#2563EB', 'санитарный': '#D97706'}
+    category_colors = {'падёж': '#E11D48', 'выбраковка': '#2563EB', 'санитарный': '#F59E0B'}
     for cat_name in ('падёж', 'выбраковка', 'санитарный'):
         data_pts = [monthly_data.get(m, {}).get(cat_name, 0) for m in months_keys]
         col = category_colors[cat_name]
         trend_datasets.append({
-            'label': cat_name.capitalize(),
+            'label': 'Санитарный брак' if cat_name == 'санитарный' else cat_name.capitalize(),
             'data': data_pts,
             'borderColor': col,
-            'backgroundColor': col + '20',
+            'backgroundColor': col + '18',
+            'borderWidth': 2.5,
+            'pointRadius': 3,
+            'pointHoverRadius': 5,
             'fill': True,
-            'tension': 0.25
+            'tension': 0.3
         })
 
     calf_disposals_count = calf_cnt
     calf_death_count = calf_deaths
 
-    all_time_where = ""
+    all_time_clauses = ["COALESCE(is_stillborn, 0) = 0"]
     all_time_params = []
     if user_type == 'farm' and farm_name:
-        all_time_where = "WHERE farm_name = ?"
+        all_time_clauses.append("farm_name = ?")
         all_time_params = [farm_name]
     elif user_type == 'admin' and farm_name and farm_name != 'all':
-        all_time_where = "WHERE farm_name = ?"
+        all_time_clauses.append("farm_name = ?")
         all_time_params = [farm_name]
+    all_time_where = "WHERE " + " AND ".join(all_time_clauses)
 
     cursor.execute(f'SELECT COUNT(*) as total FROM cows {all_time_where}', all_time_params)
     all_time_total = cursor.fetchone()['total']
@@ -892,7 +978,7 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
         prev_end_date = (d_start - timedelta(days=1)).strftime('%Y-%m-%d')
         prev_start_date = (d_start - timedelta(days=delta_days)).strftime('%Y-%m-%d')
 
-        p_where_parts = ["disposal_date BETWEEN ? AND ?"]
+        p_where_parts = ["disposal_date BETWEEN ? AND ?", "COALESCE(is_stillborn, 0) = 0"]
         p_params = [prev_start_date, prev_end_date]
         if user_type == 'farm' and farm_name:
             p_where_parts.append("farm_name = ?")
@@ -920,8 +1006,9 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
     ''')
     all_farms_list = [r['farm_name'] for r in cursor.fetchall()]
 
-    if len(period_cows) > 0:
-        recent_cows = [dict(r) for r in period_cows[:10]]
+    non_sb_cows = [c for c in period_cows if not (c['is_stillborn'] or c['category'] == 'мертворождение')]
+    if len(non_sb_cows) > 0:
+        recent_cows = [dict(r) for r in non_sb_cows[:10]]
     else:
         cursor.execute(f'''
             SELECT id, cow_id, ear_tag, farm_name, category, reason, disposal_date, 
@@ -1154,7 +1241,14 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
             'death_loss_byn': round(death_loss_byn),
             'culling_loss_byn': round(culling_loss_byn),
             'avg_head_loss': avg_head_loss,
-            'all_time_total': all_time_total
+            'all_time_total': all_time_total,
+            'sanitary_meat_pct': round(sanitary_meat_factor * 100),
+            'standard_lact_days': standard_lact_days,
+            'default_daily_milk_kg': round(default_daily_milk, 1),
+            'high_yield_threshold_kg': int(round(high_yield_thresh)),
+            'pathology_group_count': len(PATHOLOGY_SYSTEM_NAMES),
+            'matrix_warn_pct': matrix_warn_pct,
+            'matrix_crit_pct': matrix_crit_pct
         },
         'scorecard': scorecard,
         'farm_matrix': farm_matrix,
@@ -1219,10 +1313,27 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
                 'death_data': [round(age_group_data[g]['death_loss']) for g in age_labels],
                 'culling_data': [round(age_group_data[g]['culling_loss']) for g in age_labels]
             },
+            'economics_breakdown': {
+                'labels': [
+                    'Прямой ущерб от падежа',
+                    'Чистые потери от выбраковки',
+                    'Недополученное молоко',
+                    'Неокупленные первотёлки',
+                    'Компенсация (сдача мяса)'
+                ],
+                'data': [
+                    round(death_loss_byn),
+                    round(max(0.0, culling_loss_byn - estimated_meat_revenue_byn)),
+                    unrealized_milk_loss_byn,
+                    unrecovered_heifer_loss_byn,
+                    estimated_meat_revenue_byn
+                ],
+                'colors': ['#E11D48', '#2563EB', '#F59E0B', '#8B5CF6', '#10B981']
+            },
             'pathology': {
                 'labels': [x[0] for x in sorted_pathology],
                 'data': [x[1] for x in sorted_pathology],
-                'colors': '#6366F1'
+                'colors': '#4F46E5'
             },
             'farms': {
                 'labels': [x[0] for x in sorted_farms],
@@ -1233,7 +1344,8 @@ def get_dashboard_full_data(user_type='admin', farm_name=None, period=None, cust
                 'colors': '#0284C7'
             },
             'trend': {
-                'labels': months_keys,
+                'labels': months_pretty,
+                'raw_labels': months_keys,
                 'datasets': trend_datasets
             }
         },
@@ -1250,38 +1362,55 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
     cursor = conn.cursor()
     alerts = []
     now = datetime.now()
-    d7_ago = (now - timedelta(days=7)).strftime('%Y-%m-%d')
-    d14_ago = (now - timedelta(days=14)).strftime('%Y-%m-%d')
-    d30_ago = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+    all_settings = get_all_settings()
+    an = Config.DEFAULT_ANALYTICS_PARAMS
+
+    def _af(k, default):
+        try:
+            return float(all_settings.get(k, default))
+        except (ValueError, TypeError):
+            return float(default)
+
+    w_short = int(an['alert_window_short_days'])
+    w_mid = int(an['alert_window_mid_days'])
+    w_long = int(an['alert_window_long_days'])
+    death_min = int(an['alert_death_min_count'])
+    death_ratio = max(1.05, _af('alert_death_growth_ratio', an['alert_death_growth_ratio']))
+    cluster_min = max(2, int(_af('alert_cluster_min_count', an['alert_cluster_min_count'])))
+    calf_min = int(an['alert_calf_min_count'])
+
+    d_short_ago = (now - timedelta(days=w_short)).strftime('%Y-%m-%d')
+    d_mid_ago = (now - timedelta(days=w_mid)).strftime('%Y-%m-%d')
+    d_long_ago = (now - timedelta(days=w_long)).strftime('%Y-%m-%d')
     
     where_farm = ""
-    params = []
+    farm_params = []
     if user_type == 'farm' and farm_name:
         where_farm = "AND farm_name = ?"
-        params.append(farm_name)
+        farm_params.append(farm_name)
     elif user_type == 'admin' and farm_name and farm_name != 'all':
         where_farm = "AND farm_name = ?"
-        params.append(farm_name)
+        farm_params.append(farm_name)
     
-    # 1. Сравнение падежа за последние 7 дней
+    # 1. Сравнение падежа за последние N дней
     cursor.execute(f'''
         SELECT COUNT(*) as cnt FROM cows 
-        WHERE category = 'падёж' AND disposal_date >= '{d7_ago}' {where_farm}
-    ''', params)
+        WHERE category = 'падёж' AND COALESCE(is_stillborn, 0) = 0 AND disposal_date >= ? {where_farm}
+    ''', [d_short_ago] + farm_params)
     last_7_days = cursor.fetchone()['cnt']
     
     cursor.execute(f'''
         SELECT COUNT(*) as cnt FROM cows 
-        WHERE category = 'падёж' AND disposal_date >= '{d14_ago}' AND disposal_date < '{d7_ago}' {where_farm}
-    ''', params)
+        WHERE category = 'падёж' AND COALESCE(is_stillborn, 0) = 0 AND disposal_date >= ? AND disposal_date < ? {where_farm}
+    ''', [d_mid_ago, d_short_ago] + farm_params)
     prev_7_days = cursor.fetchone()['cnt']
     
-    if last_7_days > 2 and last_7_days > prev_7_days * 1.4:
+    if last_7_days > death_min and last_7_days > prev_7_days * death_ratio:
         growth = round(((last_7_days - prev_7_days) / max(prev_7_days, 1)) * 100)
         alerts.append({
             'type': 'danger',
             'icon': 'bi-exclamation-octagon-fill',
-            'title': 'Резкий рост падежа скота за 7 дней',
+            'title': f'Резкий рост падежа скота за {w_short} дней',
             'message': f'Зафиксировано {last_7_days} случаев падежа (+{growth}% по сравнению с предшествующей неделей ({prev_7_days} случаев)). Требуется срочный контроль ветврача.'
         })
     
@@ -1289,12 +1418,12 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
     cursor.execute(f'''
         SELECT reason, category, farm_name, COUNT(*) as cnt 
         FROM cows 
-        WHERE disposal_date >= '{d30_ago}' {where_farm}
+        WHERE COALESCE(is_stillborn, 0) = 0 AND disposal_date >= ? {where_farm}
         GROUP BY reason, category, farm_name
-        HAVING cnt >= 3
+        HAVING cnt >= ?
         ORDER BY cnt DESC
         LIMIT 5
-    ''', params)
+    ''', [d_long_ago] + farm_params + [cluster_min])
     pathology_rows = cursor.fetchall()
     if pathology_rows:
         farm_pathologies = {}
@@ -1310,7 +1439,7 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
                     'type': 'warning',
                     'icon': 'bi-exclamation-triangle-fill',
                     'title': f'Повторяющаяся патология ({f_name})',
-                    'message': f'За 30 дней зафиксированы случаи: {p_list[0]}. Рекомендуется проверить рацион, условия содержания и микроклимат.'
+                    'message': f'За {w_long} дней зафиксированы случаи: {p_list[0]}. Рекомендуется проверить рацион, условия содержания и микроклимат.'
                 })
             else:
                 p_str = "; ".join(p_list)
@@ -1318,22 +1447,22 @@ def get_anomaly_alerts(user_type='admin', farm_name=None):
                     'type': 'warning',
                     'icon': 'bi-exclamation-triangle-fill',
                     'title': f'Часто повторяющиеся патологии ({f_name})',
-                    'message': f'За последние 30 дней зарегистрировано несколько повторяющихся диагнозов: {p_str}. Рекомендуется комплексный ветконтроль и проверка микроклимата.'
+                    'message': f'За последние {w_long} дней зарегистрировано несколько повторяющихся диагнозов: {p_str}. Рекомендуется комплексный ветконтроль и проверка микроклимата.'
                 })
         
     # 3. Предупреждение по падежу телят (0-6 мес.)
     cursor.execute(f'''
         SELECT COUNT(*) as cnt FROM cows
-        WHERE category = 'падёж' AND disposal_date >= '{d30_ago}' 
+        WHERE category = 'падёж' AND COALESCE(is_stillborn, 0) = 0 AND disposal_date >= ? 
           AND (LOWER(age_group) LIKE '%телят%' OR LOWER(age_group) LIKE '%молодняк%')
           {where_farm}
-    ''', params)
+    ''', [d_long_ago] + farm_params)
     calf_deaths = cursor.fetchone()['cnt']
-    if calf_deaths >= 3:
+    if calf_deaths >= calf_min:
         alerts.append({
             'type': 'info',
             'icon': 'bi-info-circle-fill',
-            'title': f'Падёж телят и молодняка: {calf_deaths} гол. за 30 дней',
+            'title': f'Падёж телят и молодняка: {calf_deaths} гол. за {w_long} дней',
             'message': 'Обратите внимание на выпойку молозива, параметры влажности и схему вакцинации телят в профилактории.'
         })
         

@@ -6,14 +6,15 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
-from database import get_db_connection
+from config import Config
+from database import get_db_connection, get_setting
 
 def generate_csv_report(start_date, end_date, farm_name=None):
     """Генерация расширенного отчета в формате CSV"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     
     if farm_name and farm_name != 'all':
@@ -58,7 +59,7 @@ def generate_simple_excel_report(start_date, end_date, farm_name=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     
     if farm_name and farm_name != 'all':
@@ -118,7 +119,7 @@ def generate_form_209_apk_excel(start_date, end_date, farm_name=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    where_clause = "WHERE disposal_date BETWEEN ? AND ?"
+    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     if farm_name and farm_name != 'all':
         where_clause += " AND farm_name = ?"
@@ -163,7 +164,8 @@ def generate_form_209_apk_excel(start_date, end_date, farm_name=None):
     ws['E2'].font = small_font
     ws['E2'].alignment = Alignment(horizontal='right')
     
-    ws['A4'] = f"Сельскохозяйственная организация: {farm_name if (farm_name and farm_name != 'all') else 'Сводный акт по хозяйству (фермам)'}"
+    org_name = get_setting('farm_org_name', Config.DEFAULT_ORG_NAME)
+    ws['A4'] = f"Сельскохозяйственная организация: {farm_name if (farm_name and farm_name != 'all') else org_name}"
     ws['A4'].font = Font(name='Arial', size=10, bold=True)
     
     ws.merge_cells('A6:I6')

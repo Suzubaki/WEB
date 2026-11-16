@@ -15,7 +15,6 @@ setup_pythonanywhere.sh
 structured_report.py
 static/charts.js
 templates/add_cow.html
-templates/add_cows_dynamic.html
 templates/add_multiple_cows.html
 templates/base.html
 templates/dashboard.html

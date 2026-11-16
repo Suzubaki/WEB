@@ -4,6 +4,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
+from config import Config
 from database import get_db_connection, get_setting
 
 def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
@@ -15,7 +16,7 @@ def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
     cursor = conn.cursor()
     
     # Для формы 210-АПК отбираем только категорию 'выбраковка' (и санитарную прирезку основного стада)
-    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND category IN ('выбраковка', 'санитарный')"
+    where_clause = "WHERE disposal_date BETWEEN ? AND ? AND category IN ('выбраковка', 'санитарный') AND COALESCE(is_stillborn, 0) = 0"
     params = [start_date, end_date]
     
     if farm_name and farm_name != 'all':
@@ -33,7 +34,7 @@ def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
     rows = cursor.fetchall()
     conn.close()
     
-    org_name = get_setting('farm_org_name', 'Сельскохозяйственная организация (РБ)')
+    org_name = get_setting('farm_org_name', Config.DEFAULT_ORG_NAME)
     
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -139,7 +140,7 @@ def generate_form_210_apk_excel(start_date, end_date, farm_name=None):
             idx,
             r['ear_tag'] or r['cow_id'],
             r['farm_name'],
-            r['breed'] or 'Черно-пёстрая',
+            r['breed'] or Config.DEFAULT_BREED,
             r['lactation'] or '-',
             f"{w_val:.1f}" if w_val > 0 else "-",
             f"{r['milk_yield']:.0f}" if r['milk_yield'] else "-",

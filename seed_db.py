@@ -18,7 +18,7 @@ def seed_sample_cows():
     register_user('farm3', 'farm123', 'farm', 'МТФ-3 Полесье')
     
     # Проверяем, есть ли уже записи в таблице cows
-    cursor.execute("SELECT COUNT(*) as cnt FROM cows")
+    cursor.execute("SELECT COUNT(*) as cnt FROM cows WHERE COALESCE(is_stillborn, 0) = 0")
     count = cursor.fetchone()['cnt']
     if count >= 1000:
         conn.close()
@@ -78,22 +78,22 @@ def seed_sample_cows():
         days_ago = int((random.random() ** 1.05) * 360)
         disposal_d = (now - timedelta(days=days_ago)).strftime('%Y-%m-%d')
         tag = f"BY 04 {7100000 + i}"
-        breed = random.choice(["Белорусская черно-пёстрая", "Голштинская", "Лимузин"])
+        breed = random.choice([Config.DEFAULT_BREED, "Голштинская", "Лимузин"])
         
-        ag = "Коровы дойного стада"
         lact = random.randint(1, 6)
+        ag = "Коровы 1-й лактации (первотёлки)" if lact == 1 else "Полновозрастные коровы (2+ лакт.)"
         w = float(random.randint(480, 660))
         milk = float(random.randint(5500, 9200))
         bv = float(random.randint(1800, 3100))
         
         if "телят" in reason.lower() or "эшерихиоз" in reason.lower():
-            ag = "Телята (0–6 мес.)"
+            ag = "Телята (до 6 мес.)"
             lact = 0
             w = float(random.randint(32, 85))
             milk = 0.0
             bv = float(random.randint(260, 520))
         elif "роды" in reason.lower() or "матки" in reason.lower():
-            ag = "Нетели"
+            ag = "Нетели (>18 мес.)"
             lact = 0
             w = float(random.randint(430, 530))
             milk = 0.0

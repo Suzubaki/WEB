@@ -19,13 +19,13 @@ class User(db.Model):
     farm_name = db.Column(db.String(120), nullable=True)                  # МТФ / ферма
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Отношения (Relationships) с записями коров
+    # Отношения (Relationships) с записями коров (без каскадного удаления исторических данных)
     cows_created = db.relationship(
         'Cow',
         foreign_keys='Cow.created_by',
         backref=db.backref('creator', lazy='joined'),
         lazy='dynamic',
-        cascade='all, delete-orphan'
+        passive_deletes=True
     )
     cows_updated = db.relationship(
         'Cow',
@@ -102,7 +102,8 @@ class Cow(db.Model):
     milk_yield = db.Column(db.Float, nullable=True)                       # Надой за лактацию (кг)
     book_value = db.Column(db.Float, nullable=True)                       # Балансовая стоимость (BYN)
     is_pregnant = db.Column(db.Integer, default=0, nullable=True)         # Стельность (1: да, 0: нет)
-    gestation_days = db.Column(db.Integer, default=0, nullable=True)      # Срок стельности (дней/месяцев)
+    gestation_days = db.Column(db.Integer, default=0, nullable=True)      # Срок стельности (дней)
+    is_stillborn = db.Column(db.Integer, default=0, nullable=True)        # Признак мертворождения (legacy совместимость)
     
     # Системный аудит
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -113,8 +114,8 @@ class Cow(db.Model):
     def __init__(self, id=None, cow_id=None, farm_name=None, category=None, reason=None, disposal_date=None,
                  ear_tag=None, lactation=None, weight=None, notes=None, age_group=None,
                  lactation_days=None, lactation_phase=None, breed=None,
-                 milk_yield=None, book_value=None, is_pregnant=0, gestation_days=0, created_at=None, created_by=None,
-                 updated_at=None, updated_by=None, **kwargs):
+                 milk_yield=None, book_value=None, is_pregnant=0, gestation_days=0, is_stillborn=0,
+                 created_at=None, created_by=None, updated_at=None, updated_by=None, **kwargs):
         if id is not None:
             self.id = id
         self.cow_id = cow_id
@@ -132,6 +133,9 @@ class Cow(db.Model):
         self.breed = breed
         self.milk_yield = milk_yield
         self.book_value = book_value
+        self.is_pregnant = int(is_pregnant or 0)
+        self.gestation_days = int(gestation_days or 0)
+        self.is_stillborn = int(is_stillborn or 0)
         self.created_at = created_at or datetime.utcnow()
         self.created_by = created_by
         self.updated_at = updated_at
@@ -159,6 +163,9 @@ class Cow(db.Model):
             'breed': self.breed,
             'milk_yield': self.milk_yield,
             'book_value': self.book_value,
+            'is_pregnant': self.is_pregnant,
+            'gestation_days': self.gestation_days,
+            'is_stillborn': self.is_stillborn,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.created_at, datetime) else str(self.created_at),
             'created_by': self.created_by,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.updated_at, datetime) else str(self.updated_at) if self.updated_at else None,
